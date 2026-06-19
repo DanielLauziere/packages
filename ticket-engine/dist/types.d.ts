@@ -1,0 +1,187 @@
+export type TicketStatus = string;
+export type CompleteTicket = {
+    uuid: string;
+    id: number;
+    timeStamp: string;
+    status: TicketStatus;
+    locationGroupUuid: string;
+    locationUuid: string;
+    appUniqueUuid: string;
+    fulfillmentUuid: string;
+    fulfillmentType: string;
+    guestUuid: string;
+    guestAddressUuid: string;
+    tableUuid: string;
+    userName: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    address: string;
+    anonymousAddress: string;
+    points: number;
+    paymentUuid: string;
+};
+export type MenuItemModifierGroupModifierDB = {
+    uuid: string;
+    menuItemUuid: string;
+    name: string;
+    active: boolean;
+    priceWhole: number;
+    priceHundredths: number;
+    amountRequired: number;
+};
+export type MenuItemDB = {
+    uuid: string;
+    cache: string;
+    name: string;
+    description: string;
+    active: boolean;
+    priceWhole: number;
+    priceHundredths: number;
+};
+export type PromotionDB = {
+    uuid: string;
+    name: string;
+    active: boolean;
+    type: string;
+    itemless: boolean;
+    bogoBuy: string;
+    bogoGet: string;
+    pointsRequired: number;
+    pointsMultiplier: number;
+    promotionIsPercentage: boolean;
+    discountPercent: number;
+    discountWhole: number;
+    discountHundredths: number;
+    locationGroupUuid: string;
+};
+export type TicketPromotionDB = {
+    uuid: string;
+    ticketUuid: string;
+    promotionUuid: string;
+    ticketMenuItemUuid: string | null;
+    timeStamp: string;
+};
+export type TicketMenuItemDB = {
+    uuid: string;
+    ticketUuid: string;
+    menuItemUuid: string;
+    note: string | null;
+};
+export type TicketMenuItemModifierDB = {
+    uuid: string;
+    ticketMenuItemUuid: string;
+    modifierUuid: string;
+    ticketUuid: string;
+};
+export type BogoMenuItemDB = {
+    uuid: string;
+    menuItemUuid: string;
+    bogoUuid: string;
+};
+export type ComboDB = {
+    uuid: string;
+    name: string;
+    description: string | null;
+    active: boolean;
+    priceWhole: number;
+    priceHundredths: number;
+    comboMenuItems: ComboMenuItem[];
+};
+export type ComboMenuItem = {
+    uuid: string;
+    ticketUuid: string;
+    menuItemUuid: string;
+    menuItemCache: string;
+    name: string;
+};
+export type TableDB = {
+    uuid: string;
+    name: string;
+};
+export type ComboComboMenuItemDB = {
+    uuid: string;
+    name: string;
+    description: string;
+    active: boolean;
+    priceWhole: number;
+    priceHundredths: number;
+    comboUuid: string;
+    menuItemUuid: string;
+};
+export type ReturnPromotion = {
+    uuid: string;
+    name: string;
+    active: boolean;
+    type: string;
+    itemless: boolean;
+    bogoBuy: string;
+    bogoGet: string;
+    pointsRequired: number;
+    pointsMultiplier: number;
+    promotionIsPercentage: boolean;
+    discountPercent: number;
+    discountWhole: number;
+    discountHundredths: number;
+    locationGroupUuid: string;
+};
+export type ReturnMenuItem = {
+    uuid: string;
+    cache: string;
+    active: boolean;
+    name: string;
+    description: string;
+    priceWhole: number;
+    priceHundredths: number;
+    originalPriceWhole: number;
+    originalPriceHundredths: number;
+    ticketMenuItemUuid: string;
+    ticketMenuItemNote: string | null;
+    availableModifiers: MenuItemModifierGroupModifierDB[];
+    appliedModifiers: (MenuItemModifierGroupModifierDB & {
+        ticketMenuItemModifierUuid: string;
+    })[];
+    appliedPromotions: ReturnPromotion[];
+    modifierGroupAmountRequired?: number;
+};
+export type ReturnCompleteTicket = {
+    uuid: string;
+    id: number;
+    timeStamp: string;
+    status: TicketStatus;
+    locationGroupUuid: string;
+    locationUuid: string;
+    appUniqueUuid: string;
+    fulfillmentUuid: string;
+    guestUuid: string;
+    guestAddressUuid: string;
+    tableUuid: string;
+    tableName?: string;
+    userName: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    fulfillmentType: string;
+    address: string;
+    anonymousAddress: string;
+    guestsPoints: number;
+    paymentUuid: string;
+    menuItems: ReturnMenuItem[];
+    combos: ComboDB[];
+    appliedPromotions: ReturnPromotion[];
+    eligablePromotions: ReturnPromotion[];
+    ineligablePromotions: ReturnPromotion[];
+    redeemedPoints: number;
+    totalPoints: number;
+    endPoints: number;
+    totalCents: number;
+    total: string;
+    tipTotal: string;
+    taxTotal: string;
+    taxTotalCents: number;
+    grandTotal: string;
+    grandTotalCents: number;
+};
+//# sourceMappingURL=types.d.ts.map
