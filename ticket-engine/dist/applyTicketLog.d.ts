@@ -9,6 +9,7 @@ export interface TicketLogEntry {
     timeStamp: number;
     adminUuid?: string;
 }
+export declare const ACTION_PRIORITY: Record<string, number>;
 export declare function applyTicketLog(adapter: DbAdapter, entry: TicketLogEntry): void;
 export declare function hasLogBeenApplied(adapter: DbAdapter, uuid: string): boolean;
 export declare function applyLogsBatch(adapter: DbAdapter, logs: TicketLogEntry[]): {

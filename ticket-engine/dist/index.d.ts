@@ -3,7 +3,7 @@ export { calculateLocationTickets } from './calculateLocationTickets.js';
 export { sanitizePayload } from './sanitizePayload.js';
 export { ALL_DDL, SCHEMA_VERSION } from './schema.js';
 export type { DbAdapter } from './dbAdapter.js';
-export { applyTicketLog, applyLogsBatch, hasLogBeenApplied, handleAddPaymentLog } from './applyTicketLog.js';
+export { applyTicketLog, applyLogsBatch, hasLogBeenApplied, handleAddPaymentLog, ACTION_PRIORITY } from './applyTicketLog.js';
 export type { TicketLogEntry } from './applyTicketLog.js';
 export type * from './types.js';
 //# sourceMappingURL=index.d.ts.map

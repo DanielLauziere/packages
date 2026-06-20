@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { DbAdapter } from './dbAdapter.js'
 
 import {
@@ -20,6 +21,24 @@ export interface TicketLogEntry {
   payload: any
   timeStamp: number
   adminUuid?: string
+}
+
+export const ACTION_PRIORITY: Record<string, number> = {
+  SET_TABLE: 0,
+  SET_GUEST: 0,
+  SET_FULFILLMENT: 0,
+  SET_ANONYMOUS_ADDRESS: 0,
+  ADD_ITEM: 1,
+  SET_ITEM_NOTE: 2,
+  ADD_MODIFIER: 3,
+  APPLY_PROMOTION: 4,
+  REMOVE_PROMOTION: 5,
+  REMOVE_MODIFIER: 6,
+  REMOVE_ITEM: 7,
+  ADD_PAYMENT: 8,
+  SET_STATUS_COMPLETE: 9,
+  SET_STATUS_ACCEPTED: 10,
+  SET_STATUS_PAID: 11,
 }
 
 function crc32(str: string): number {
@@ -64,14 +83,16 @@ function upsertGuest(
   adapter: DbAdapter,
   uuid: string | null,
   username: string,
+  email?: string,
+  phone?: string,
 ): string {
-  const finalUuid = uuid || crypto.randomUUID()
+  const finalUuid = uuid || uuidv4()
 
   adapter.run(
     `INSERT INTO guest (uuid, username, email, phone)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(username) DO UPDATE SET username = excluded.username`,
-    [finalUuid, username, null, null],
+    [finalUuid, username, email ?? null, phone ?? null],
   )
 
   const rows = adapter.query(`SELECT uuid FROM guest WHERE username = ? LIMIT 1`, [username])
@@ -98,10 +119,10 @@ export function applyTicketLog(
       }
 
       case 'SET_GUEST': {
-        const p = payload as { guestUserName: string; guestUuid: string | null }
+        const p = payload as { guestUserName: string; guestUuid: string | null; email?: string; phone?: string }
         if (!p.guestUserName && !p.guestUuid) break
 
-        const guest = upsertGuest(adapter, p.guestUuid, p.guestUserName)
+        const guest = upsertGuest(adapter, p.guestUuid, p.guestUserName, p.email, p.phone)
 
         adapter.run(`UPDATE ticket SET "guestUuid" = ? WHERE uuid = ?`, [guest, ticketUuid])
         break
@@ -214,6 +235,9 @@ export function applyTicketLog(
 
       case 'REMOVE_PROMOTION': {
         const p = payload as RemovePromotionPayload
+        if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotionUuid])) {
+          throw new Error('MISSING_DEPENDENCY')
+        }
         adapter.run(`DELETE FROM "ticketPromotion" WHERE "promotionUuid" = ?`, [p.promotionUuid])
         break
       }
@@ -276,7 +300,9 @@ export function applyLogsBatch(
   if (!logs.length) return { applied, skipped, errors }
 
   const sorted = [...logs].sort((a, b) => {
-    if (a.timeStamp !== b.timeStamp) return a.timeStamp < b.timeStamp ? -1 : 1
+    const pa = ACTION_PRIORITY[a.action] ?? 999
+    const pb = ACTION_PRIORITY[b.action] ?? 999
+    if (pa !== pb) return pa - pb
     if (a.uuid < b.uuid) return -1
     if (a.uuid > b.uuid) return 1
     return 0
