@@ -1,3 +1,37 @@
+export type SetAnonymousAddressPayload = {
+    address: string | null;
+};
+export type AddItemPayload = {
+    menuItemUuid: string;
+};
+export type RemoveItemPayload = {
+    ticketMenuItemUuid: string;
+};
+export type SetItemNotePayload = {
+    ticketMenuItemUuid: string;
+    note: string | null;
+};
+export type AddModifierPayload = {
+    ticketMenuItemUuid: string;
+    modifierUuid: string;
+};
+export type RemoveModifierPayload = {
+    ticketMenuItemModifierUuid: string;
+};
+export type ApplyPromotionPayload = {
+    promotionUuid: string;
+    ticketMenuItemUuid?: string;
+};
+export type RemovePromotionPayload = {
+    promotionUuid: string;
+};
+export type AddPaymentPayload = {
+    paymentUuid: string;
+    priceWhole: number;
+    priceHundredths: number;
+    code?: string;
+    complete: boolean;
+};
 export type TicketStatus = string;
 export type CompleteTicket = {
     uuid: string;
