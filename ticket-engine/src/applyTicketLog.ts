@@ -224,14 +224,24 @@ export function applyTicketLog(
           throw new Error('MISSING_DEPENDENCY')
         }
 
-        const dedupSql = `SELECT uuid FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ? AND ("ticketMenuItemUuid" = ? OR ("ticketMenuItemUuid" IS NULL AND ? IS NULL))`
-        const dedupParams = [ticketUuid, p.promotionUuid, p.ticketMenuItemUuid ?? null, p.ticketMenuItemUuid ?? null]
-        if (!exists(adapter, dedupSql, dedupParams)) {
+        if (p.ticketMenuItemUuid) {
+          // Item-level promotion: replace any existing promotion on this menu item
           adapter.run(
-            `INSERT OR IGNORE INTO "ticketPromotion" ("uuid", "timeStamp", "ticketUuid", "promotionUuid", "ticketMenuItemUuid") VALUES (?, ?, ?, ?, ?)`,
-            [entry.uuid, new Date().toISOString(), ticketUuid, p.promotionUuid, p.ticketMenuItemUuid ?? null],
+            `DELETE FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "ticketMenuItemUuid" = ? AND "ticketMenuItemUuid" IS NOT NULL`,
+            [ticketUuid, p.ticketMenuItemUuid],
           )
+        } else {
+          // Itemless promotion: dedup to prevent duplicate itemless reward
+          const dedupSql = `SELECT uuid FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ? AND "ticketMenuItemUuid" IS NULL`
+          if (exists(adapter, dedupSql, [ticketUuid, p.promotionUuid])) {
+            break
+          }
         }
+
+        adapter.run(
+          `INSERT OR IGNORE INTO "ticketPromotion" ("uuid", "timeStamp", "ticketUuid", "promotionUuid", "ticketMenuItemUuid") VALUES (?, ?, ?, ?, ?)`,
+          [entry.uuid, new Date().toISOString(), ticketUuid, p.promotionUuid, p.ticketMenuItemUuid ?? null],
+        )
         break
       }
 
