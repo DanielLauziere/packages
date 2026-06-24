@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { v5 as uuidv5 } from 'uuid';
 export const ACTION_PRIORITY = {
     SET_TABLE: 0,
     SET_GUEST: 0,
@@ -41,7 +41,7 @@ function ensureTicketExists(adapter, entry) {
      VALUES (?, ?, ?, ?, 'INCOMPLETE', 1, 1)`, [entry.ticketUuid, ticketIdFromUUID(entry.ticketUuid), entry.timeStamp, entry.locationGroupUuid]);
 }
 function upsertGuest(adapter, uuid, username, email, phone) {
-    const finalUuid = uuid || uuidv4();
+    const finalUuid = uuid || uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8');
     adapter.run(`INSERT INTO guest (uuid, username, email, phone)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(username) DO UPDATE SET username = excluded.username`, [finalUuid, username, email ?? null, phone ?? null]);
@@ -57,6 +57,7 @@ export function applyTicketLog(adapter, entry) {
         switch (action) {
             case 'SET_TABLE': {
                 const p = payload;
+                ensureTicketExists(adapter, entry);
                 if (p.tableUuid && !exists(adapter, `SELECT 1 FROM "table" WHERE uuid = ?`, [p.tableUuid])) {
                     throw new Error('MISSING_DEPENDENCY');
                 }
@@ -73,6 +74,7 @@ export function applyTicketLog(adapter, entry) {
             }
             case 'SET_FULFILLMENT': {
                 const p = payload;
+                ensureTicketExists(adapter, entry);
                 if (p.fulfillmentUuid && !exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillmentUuid])) {
                     throw new Error('MISSING_DEPENDENCY');
                 }

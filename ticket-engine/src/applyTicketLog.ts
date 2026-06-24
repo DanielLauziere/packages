@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid'
+import { v5 as uuidv5 } from 'uuid'
 import { DbAdapter } from './dbAdapter.js'
 
 import {
@@ -86,7 +86,7 @@ function upsertGuest(
   email?: string,
   phone?: string,
 ): string {
-  const finalUuid = uuid || uuidv4()
+  const finalUuid = uuid || uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 
   adapter.run(
     `INSERT INTO guest (uuid, username, email, phone)
@@ -111,6 +111,7 @@ export function applyTicketLog(
     switch (action) {
       case 'SET_TABLE': {
         const p = payload as { tableUuid: string }
+        ensureTicketExists(adapter, entry)
         if (p.tableUuid && !exists(adapter, `SELECT 1 FROM "table" WHERE uuid = ?`, [p.tableUuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
@@ -130,6 +131,7 @@ export function applyTicketLog(
 
       case 'SET_FULFILLMENT': {
         const p = payload as { fulfillmentUuid: string }
+        ensureTicketExists(adapter, entry)
         if (p.fulfillmentUuid && !exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillmentUuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
