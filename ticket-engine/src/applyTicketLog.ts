@@ -73,9 +73,9 @@ function ensureTicketExists(
   if (exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticketUuid])) return
 
   adapter.run(
-    `INSERT INTO "ticket" (uuid, id, "timeStamp", "locationGroupUuid", status, "isDirty", "isLocal")
-     VALUES (?, ?, ?, ?, 'INCOMPLETE', 1, 1)`,
-    [entry.ticketUuid, ticketIdFromUUID(entry.ticketUuid), entry.timeStamp, entry.locationGroupUuid],
+    `INSERT INTO "ticket" (uuid, id, "timeStamp", "locationGroupUuid", "adminUuid", status, "isDirty", "isLocal")
+     VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 1, 1)`,
+    [entry.ticketUuid, ticketIdFromUUID(entry.ticketUuid), entry.timeStamp, entry.locationGroupUuid, entry.adminUuid ?? null],
   )
 }
 
@@ -115,7 +115,7 @@ export function applyTicketLog(
         if (p.tableUuid && !exists(adapter, `SELECT 1 FROM "table" WHERE uuid = ?`, [p.tableUuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        adapter.run(`UPDATE "ticket" SET "tableUuid" = ?, "isDirty" = 1 WHERE uuid = ?`, [p.tableUuid, ticketUuid])
+        adapter.run(`UPDATE "ticket" SET "tableUuid" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.tableUuid, entry.adminUuid ?? null, ticketUuid])
         break
       }
 
@@ -125,7 +125,7 @@ export function applyTicketLog(
 
         const guest = upsertGuest(adapter, p.guestUuid, p.guestUserName, p.email, p.phone)
 
-        adapter.run(`UPDATE ticket SET "guestUuid" = ? WHERE uuid = ?`, [guest, ticketUuid])
+        adapter.run(`UPDATE ticket SET "guestUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [guest, entry.adminUuid ?? null, ticketUuid])
         break
       }
 
@@ -135,13 +135,13 @@ export function applyTicketLog(
         if (p.fulfillmentUuid && !exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillmentUuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        adapter.run(`UPDATE ticket SET fulfillmentUuid = ? WHERE uuid = ?`, [p.fulfillmentUuid, ticketUuid])
+        adapter.run(`UPDATE ticket SET "fulfillmentUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.fulfillmentUuid, entry.adminUuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_ANONYMOUS_ADDRESS': {
         const p = payload as SetAnonymousAddressPayload
-        adapter.run(`UPDATE "ticket" SET "anonymousAddress" = ?, "isDirty" = 1 WHERE uuid = ?`, [p.address, ticketUuid])
+        adapter.run(`UPDATE "ticket" SET "anonymousAddress" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.address, entry.adminUuid ?? null, ticketUuid])
         break
       }
 
@@ -261,17 +261,17 @@ export function applyTicketLog(
       }
 
       case 'SET_STATUS_COMPLETE': {
-        adapter.run(`UPDATE ticket SET status = 'COMPLETE' WHERE uuid = ?`, [ticketUuid])
+        adapter.run(`UPDATE ticket SET status = 'COMPLETE', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_ACCEPTED': {
-        adapter.run(`UPDATE ticket SET status = 'ACCEPTED' WHERE uuid = ?`, [ticketUuid])
+        adapter.run(`UPDATE ticket SET status = 'ACCEPTED', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_PAID': {
-        adapter.run(`UPDATE ticket SET status = 'PAID' WHERE uuid = ?`, [ticketUuid])
+        adapter.run(`UPDATE ticket SET status = 'PAID', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
         break
       }
 

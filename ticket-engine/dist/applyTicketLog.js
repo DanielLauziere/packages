@@ -37,8 +37,8 @@ function exists(adapter, sql, params) {
 function ensureTicketExists(adapter, entry) {
     if (exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticketUuid]))
         return;
-    adapter.run(`INSERT INTO "ticket" (uuid, id, "timeStamp", "locationGroupUuid", status, "isDirty", "isLocal")
-     VALUES (?, ?, ?, ?, 'INCOMPLETE', 1, 1)`, [entry.ticketUuid, ticketIdFromUUID(entry.ticketUuid), entry.timeStamp, entry.locationGroupUuid]);
+    adapter.run(`INSERT INTO "ticket" (uuid, id, "timeStamp", "locationGroupUuid", "adminUuid", status, "isDirty", "isLocal")
+     VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 1, 1)`, [entry.ticketUuid, ticketIdFromUUID(entry.ticketUuid), entry.timeStamp, entry.locationGroupUuid, entry.adminUuid ?? null]);
 }
 function upsertGuest(adapter, uuid, username, email, phone) {
     const finalUuid = uuid || uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8');
@@ -61,7 +61,7 @@ export function applyTicketLog(adapter, entry) {
                 if (p.tableUuid && !exists(adapter, `SELECT 1 FROM "table" WHERE uuid = ?`, [p.tableUuid])) {
                     throw new Error('MISSING_DEPENDENCY');
                 }
-                adapter.run(`UPDATE "ticket" SET "tableUuid" = ?, "isDirty" = 1 WHERE uuid = ?`, [p.tableUuid, ticketUuid]);
+                adapter.run(`UPDATE "ticket" SET "tableUuid" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.tableUuid, entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'SET_GUEST': {
@@ -69,7 +69,7 @@ export function applyTicketLog(adapter, entry) {
                 if (!p.guestUserName && !p.guestUuid)
                     break;
                 const guest = upsertGuest(adapter, p.guestUuid, p.guestUserName, p.email, p.phone);
-                adapter.run(`UPDATE ticket SET "guestUuid" = ? WHERE uuid = ?`, [guest, ticketUuid]);
+                adapter.run(`UPDATE ticket SET "guestUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [guest, entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'SET_FULFILLMENT': {
@@ -78,12 +78,12 @@ export function applyTicketLog(adapter, entry) {
                 if (p.fulfillmentUuid && !exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillmentUuid])) {
                     throw new Error('MISSING_DEPENDENCY');
                 }
-                adapter.run(`UPDATE ticket SET fulfillmentUuid = ? WHERE uuid = ?`, [p.fulfillmentUuid, ticketUuid]);
+                adapter.run(`UPDATE ticket SET "fulfillmentUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.fulfillmentUuid, entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'SET_ANONYMOUS_ADDRESS': {
                 const p = payload;
-                adapter.run(`UPDATE "ticket" SET "anonymousAddress" = ?, "isDirty" = 1 WHERE uuid = ?`, [p.address, ticketUuid]);
+                adapter.run(`UPDATE "ticket" SET "anonymousAddress" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.address, entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'ADD_ITEM': {
@@ -142,11 +142,18 @@ export function applyTicketLog(adapter, entry) {
                 if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotionUuid])) {
                     throw new Error('MISSING_DEPENDENCY');
                 }
-                const dedupSql = `SELECT uuid FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ? AND ("ticketMenuItemUuid" = ? OR ("ticketMenuItemUuid" IS NULL AND ? IS NULL))`;
-                const dedupParams = [ticketUuid, p.promotionUuid, p.ticketMenuItemUuid ?? null, p.ticketMenuItemUuid ?? null];
-                if (!exists(adapter, dedupSql, dedupParams)) {
-                    adapter.run(`INSERT OR IGNORE INTO "ticketPromotion" ("uuid", "timeStamp", "ticketUuid", "promotionUuid", "ticketMenuItemUuid") VALUES (?, ?, ?, ?, ?)`, [entry.uuid, new Date().toISOString(), ticketUuid, p.promotionUuid, p.ticketMenuItemUuid ?? null]);
+                if (p.ticketMenuItemUuid) {
+                    // Item-level promotion: replace any existing promotion on this menu item
+                    adapter.run(`DELETE FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "ticketMenuItemUuid" = ? AND "ticketMenuItemUuid" IS NOT NULL`, [ticketUuid, p.ticketMenuItemUuid]);
                 }
+                else {
+                    // Itemless promotion: dedup to prevent duplicate itemless reward
+                    const dedupSql = `SELECT uuid FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ? AND "ticketMenuItemUuid" IS NULL`;
+                    if (exists(adapter, dedupSql, [ticketUuid, p.promotionUuid])) {
+                        break;
+                    }
+                }
+                adapter.run(`INSERT OR IGNORE INTO "ticketPromotion" ("uuid", "timeStamp", "ticketUuid", "promotionUuid", "ticketMenuItemUuid") VALUES (?, ?, ?, ?, ?)`, [entry.uuid, new Date().toISOString(), ticketUuid, p.promotionUuid, p.ticketMenuItemUuid ?? null]);
                 break;
             }
             case 'REMOVE_PROMOTION': {
@@ -163,15 +170,15 @@ export function applyTicketLog(adapter, entry) {
                 break;
             }
             case 'SET_STATUS_COMPLETE': {
-                adapter.run(`UPDATE ticket SET status = 'COMPLETE' WHERE uuid = ?`, [ticketUuid]);
+                adapter.run(`UPDATE ticket SET status = 'COMPLETE', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'SET_STATUS_ACCEPTED': {
-                adapter.run(`UPDATE ticket SET status = 'ACCEPTED' WHERE uuid = ?`, [ticketUuid]);
+                adapter.run(`UPDATE ticket SET status = 'ACCEPTED', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'SET_STATUS_PAID': {
-                adapter.run(`UPDATE ticket SET status = 'PAID' WHERE uuid = ?`, [ticketUuid]);
+                adapter.run(`UPDATE ticket SET status = 'PAID', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             default:

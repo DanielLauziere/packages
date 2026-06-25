@@ -157,9 +157,57 @@ export const calculateLocationTickets = ({ tickets, ticketMenuItems, menuItems, 
         const taxCents = Math.floor((taxPercentage * totalCents) / 100);
         ticket.taxTotal = format(taxCents);
         ticket.taxTotalCents = taxCents;
-        const grandTotal = totalCents + tipCents + taxCents;
+        let grandTotal = totalCents + tipCents + taxCents;
         ticket.grandTotalCents = grandTotal;
         ticket.grandTotal = format(grandTotal);
+        // If discounts push grandTotal negative, remove itemless promotions one at a time until we recover
+        if (grandTotal < 0) {
+            const removeIndexes = [];
+            for (let i = 0; i < ticket.appliedPromotions.length; i++) {
+                const p = ticket.appliedPromotions[i];
+                if (!p.itemless)
+                    continue;
+                if (p.promotionIsPercentage) {
+                    totalCents += Math.floor((totalCents * p.discountPercent) / 100);
+                }
+                else {
+                    totalCents += p.discountWhole * 100 + p.discountHundredths;
+                }
+                const recalcTip = ticket.fulfillmentUuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
+                    ? Math.floor((tipPercentage * totalCents) / 100)
+                    : 0;
+                const recalcTax = Math.floor((taxPercentage * totalCents) / 100);
+                grandTotal = totalCents + recalcTip + recalcTax;
+                removeIndexes.push(i);
+                if (grandTotal >= 0)
+                    break;
+            }
+            for (const idx of removeIndexes.reverse()) {
+                ticket.appliedPromotions.splice(idx, 1);
+            }
+            // Recompute redeemedPoints from remaining promotions
+            ticket.redeemedPoints = 0;
+            for (const promo of ticket.appliedPromotions) {
+                if (promo.type === 'REWARD') {
+                    ticket.redeemedPoints += promo.pointsRequired;
+                }
+            }
+            // Recalculate
+            ticket.totalPoints = Math.floor((totalCents * multiplier) / 100);
+            ticket.endPoints = ticket.guestsPoints - ticket.redeemedPoints + ticket.totalPoints;
+            ticket.totalCents = totalCents;
+            ticket.total = format(totalCents);
+            const newTipCents = ticket.fulfillmentUuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
+                ? Math.floor((tipPercentage * totalCents) / 100)
+                : 0;
+            ticket.tipTotal = format(newTipCents);
+            const newTaxCents = Math.floor((taxPercentage * totalCents) / 100);
+            ticket.taxTotal = format(newTaxCents);
+            ticket.taxTotalCents = newTaxCents;
+            grandTotal = totalCents + newTipCents + newTaxCents;
+            ticket.grandTotalCents = grandTotal;
+            ticket.grandTotal = format(grandTotal);
+        }
         for (const promotion of promotions) {
             let eligable = false;
             const promot = { ...promotion };
