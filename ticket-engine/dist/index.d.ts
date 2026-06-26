@@ -6,4 +6,5 @@ export type { DbAdapter } from './dbAdapter.js';
 export { applyTicketLog, applyLogsBatch, hasLogBeenApplied, handleAddPaymentLog, ACTION_PRIORITY } from './applyTicketLog.js';
 export type { TicketLogEntry } from './applyTicketLog.js';
 export type * from './types.js';
+export * from './escpos.js';
 //# sourceMappingURL=index.d.ts.map
