@@ -1,5 +1,6 @@
 import { v5 as uuidv5 } from 'uuid'
 import { DbAdapter } from './dbAdapter.js'
+import { ticketIdFromUUID } from './ticketId.js'
 
 import {
   AddItemPayload,
@@ -41,22 +42,6 @@ export const ACTION_PRIORITY: Record<string, number> = {
   SET_STATUS_PAID: 11,
 }
 
-function crc32(str: string): number {
-  let crc = 0xffffffff
-  for (let i = 0; i < str.length; i++) {
-    const ch = str.charCodeAt(i)
-    crc ^= ch
-    for (let j = 0; j < 8; j++) {
-      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0
-}
-
-function ticketIdFromUUID(ticketUuid: string): number {
-  return (crc32(ticketUuid) % 90000) + 10000
-}
-
 function exists(
   adapter: DbAdapter,
   sql: string,
@@ -81,12 +66,11 @@ function ensureTicketExists(
 
 function upsertGuest(
   adapter: DbAdapter,
-  uuid: string | null,
   username: string,
   email?: string,
   phone?: string,
 ): string {
-  const finalUuid = uuid || uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+  const finalUuid = uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 
   adapter.run(
     `INSERT INTO guest (uuid, username, email, phone)
@@ -99,6 +83,13 @@ function upsertGuest(
   const found: string | undefined = (rows as any[])?.[0]?.uuid
   if (!found) throw new Error('GUEST_UPSERT_FAILED')
   return found
+}
+
+export function normalizePhone(input: string, countryCode: string): string {
+  const digits = input.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith(countryCode)) return digits
+  return countryCode + digits
 }
 
 export function applyTicketLog(
@@ -120,10 +111,38 @@ export function applyTicketLog(
       }
 
       case 'SET_GUEST': {
-        const p = payload as { guestUserName: string; guestUuid: string | null; email?: string; phone?: string }
-        if (!p.guestUserName && !p.guestUuid) break
+        const p = payload as { guestUserName: string; email?: string; phone?: string }
+        if (!p.guestUserName) break
 
-        const guest = upsertGuest(adapter, p.guestUuid, p.guestUserName, p.email, p.phone)
+        ensureTicketExists(adapter, entry)
+
+        const raw = p.guestUserName.trim()
+        let userName = raw
+        let email = p.email ?? ''
+        let phone = p.phone ?? ''
+        const at = raw.indexOf('@')
+
+        if (at !== -1) {
+          userName = raw.toLowerCase()
+          if (!email) email = userName
+        } else if (/\d/.test(raw)) {
+          const phoneCodeRows = adapter.query(
+            `SELECT c."phonecode" as phoneCode
+             FROM "locationGroup" lg
+             INNER JOIN "country" c ON lg."countryUuid" = c."uuid"
+             WHERE lg."uuid" = ?`,
+            [entry.locationGroupUuid],
+          )
+          const countryCode = String((phoneCodeRows as any[])?.[0]?.phoneCode ?? '503')
+          const normalized = normalizePhone(raw, countryCode)
+          if (normalized) {
+            userName = normalized
+            email = ''
+            phone = normalized
+          }
+        }
+
+        const guest = upsertGuest(adapter, userName, email, phone)
 
         adapter.run(`UPDATE ticket SET "guestUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [guest, entry.adminUuid ?? null, ticketUuid])
         break
@@ -141,6 +160,7 @@ export function applyTicketLog(
 
       case 'SET_ANONYMOUS_ADDRESS': {
         const p = payload as SetAnonymousAddressPayload
+        ensureTicketExists(adapter, entry)
         adapter.run(`UPDATE "ticket" SET "anonymousAddress" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.address, entry.adminUuid ?? null, ticketUuid])
         break
       }
@@ -196,8 +216,8 @@ export function applyTicketLog(
         }
 
         adapter.run(
-          `INSERT OR IGNORE INTO "ticketMenuItemModifier" (uuid, "ticketUuid", "modifierUuid", "ticketMenuItemUuid") VALUES (?, ?, ?, ?)`,
-          [entry.uuid, ticketUuid, p.modifierUuid, p.ticketMenuItemUuid],
+          `INSERT OR IGNORE INTO "ticketMenuItemModifier" (uuid, "ticketUuid", "modifierUuid", "ticketMenuItemUuid", "timeStamp") VALUES (?, ?, ?, ?, ?)`,
+          [entry.uuid, ticketUuid, p.modifierUuid, p.ticketMenuItemUuid, new Date(entry.timeStamp).toISOString()],
         )
         break
       }
@@ -250,7 +270,7 @@ export function applyTicketLog(
         if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotionUuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        adapter.run(`DELETE FROM "ticketPromotion" WHERE "promotionUuid" = ?`, [p.promotionUuid])
+        adapter.run(`DELETE FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ?`, [ticketUuid, p.promotionUuid])
         break
       }
 
@@ -261,16 +281,19 @@ export function applyTicketLog(
       }
 
       case 'SET_STATUS_COMPLETE': {
+        ensureTicketExists(adapter, entry)
         adapter.run(`UPDATE ticket SET status = 'COMPLETE', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_ACCEPTED': {
+        ensureTicketExists(adapter, entry)
         adapter.run(`UPDATE ticket SET status = 'ACCEPTED', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_PAID': {
+        ensureTicketExists(adapter, entry)
         adapter.run(`UPDATE ticket SET status = 'PAID', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
         break
       }
@@ -290,11 +313,22 @@ export function hasLogBeenApplied(
   adapter: DbAdapter,
   uuid: string,
 ): boolean {
-  return exists(adapter, `SELECT 1 FROM ticketLogApplied WHERE uuid = ? LIMIT 1`, [uuid])
+  return exists(adapter, `SELECT 1 FROM ticketLogApplied WHERE uuid = ? AND "timeStamp" IS NOT NULL LIMIT 1`, [uuid])
+}
+
+function claimLog(adapter: DbAdapter, entry: TicketLogEntry): void {
+  adapter.run(`INSERT OR IGNORE INTO "ticketLogApplied" ("uuid", "timeStamp", "retryCount") VALUES (?, NULL, 0)`, [entry.uuid])
 }
 
 function markLogApplied(adapter: DbAdapter, entry: TicketLogEntry): void {
-  adapter.run(`INSERT OR IGNORE INTO ticketLogApplied (uuid, timeStamp) VALUES (?, ?)`, [entry.uuid, entry.timeStamp])
+  adapter.run(`UPDATE "ticketLogApplied" SET "timeStamp" = ?, "retryCount" = NULL, "nextRetryAt" = NULL, "lastError" = NULL WHERE "uuid" = ?`, [entry.timeStamp, entry.uuid])
+}
+
+function failLog(adapter: DbAdapter, entry: TicketLogEntry, error: string): void {
+  adapter.run(
+    `UPDATE "ticketLogApplied" SET "retryCount" = COALESCE("retryCount", 0) + 1, "nextRetryAt" = ? + (COALESCE("retryCount", 0) + 1) * 10000, "lastError" = ? WHERE "uuid" = ?`,
+    [Date.now(), error.slice(0, 255), entry.uuid],
+  )
 }
 
 export function applyLogsBatch(
@@ -327,6 +361,8 @@ export function applyLogsBatch(
         continue
       }
 
+      claimLog(adapter, entry)
+
       adapter.run('BEGIN')
 
       try {
@@ -342,6 +378,7 @@ export function applyLogsBatch(
           continue
         }
 
+        failLog(adapter, entry, (error as any)?.message ?? 'Unknown error')
         errors.push({ entry, error })
       }
     } catch (fatal) {
@@ -357,6 +394,8 @@ export function handleAddPaymentLog(
   entry: TicketLogEntry,
   payload: AddPaymentPayload,
 ): void {
+  ensureTicketExists(adapter, entry)
+
   if (exists(adapter, `SELECT 1 FROM "ticketPayment" WHERE "ticketUuid" = ? AND "paymentUuid" = ?`, [entry.ticketUuid, payload.paymentUuid])) return
 
   if (!exists(adapter, `SELECT 1 FROM payment WHERE uuid = ? LIMIT 1`, [payload.paymentUuid])) {

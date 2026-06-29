@@ -105,6 +105,15 @@ export const CREATE_INDEXES = `
   CREATE INDEX IF NOT EXISTS idx_ticketMenuItemModifier_ticketMenuItemUuid ON ticketMenuItemModifier(ticketMenuItemUuid);
   CREATE INDEX IF NOT EXISTS idx_ticketPromotion_ticketUuid ON ticketPromotion(ticketUuid);
   CREATE INDEX IF NOT EXISTS idx_ticketPayment_ticketUuid ON ticketPayment(ticketUuid);
+  CREATE INDEX IF NOT EXISTS idx_printRecord_synced ON printRecord(synced);
+`;
+export const CREATE_PRINT_RECORD = `
+  CREATE TABLE IF NOT EXISTS "printRecord" (
+    "ticketUuid" TEXT NOT NULL PRIMARY KEY,
+    "decision" TEXT NOT NULL DEFAULT 'pending',
+    "printedAt" INTEGER,
+    "synced" INTEGER NOT NULL DEFAULT 0
+  );
 `;
 export const ALL_DDL = [
     CREATE_TICKET_LOG,
@@ -114,6 +123,7 @@ export const ALL_DDL = [
     CREATE_TICKET_MENU_ITEM_MODIFIER,
     CREATE_TICKET_PROMOTION,
     CREATE_TICKET_PAYMENT,
+    CREATE_PRINT_RECORD,
     CREATE_INDEXES,
 ];
 export const FULL_DDL = `
@@ -638,13 +648,7 @@ export const FULL_DDL = `
 
   ${ALL_DDL[7].trim()}
 
-  CREATE TABLE IF NOT EXISTS "printRecord" (
-    "ticketUuid" TEXT NOT NULL PRIMARY KEY,
-    "decision" TEXT NOT NULL DEFAULT 'pending',
-    "printedAt" INTEGER,
-    "synced" INTEGER NOT NULL DEFAULT 0
-  );
-  CREATE INDEX IF NOT EXISTS idx_printRecord_synced ON printRecord(synced);
+  ${ALL_DDL[8].trim()}
 
   INSERT OR IGNORE INTO "language" VALUES ('78933d1b-b49f-4eb5-b512-bafa7fec6055', 'English', 'inglés');
   INSERT OR IGNORE INTO "language" VALUES ('fa1d7e92-7eb1-4dcf-a54b-1a25e7cfe242', 'Spanish', 'español');

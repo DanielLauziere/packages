@@ -1,4 +1,5 @@
 import { v5 as uuidv5 } from 'uuid';
+import { ticketIdFromUUID } from './ticketId.js';
 export const ACTION_PRIORITY = {
     SET_TABLE: 0,
     SET_GUEST: 0,
@@ -16,20 +17,6 @@ export const ACTION_PRIORITY = {
     SET_STATUS_ACCEPTED: 10,
     SET_STATUS_PAID: 11,
 };
-function crc32(str) {
-    let crc = 0xffffffff;
-    for (let i = 0; i < str.length; i++) {
-        const ch = str.charCodeAt(i);
-        crc ^= ch;
-        for (let j = 0; j < 8; j++) {
-            crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
-        }
-    }
-    return (crc ^ 0xffffffff) >>> 0;
-}
-function ticketIdFromUUID(ticketUuid) {
-    return (crc32(ticketUuid) % 90000) + 10000;
-}
 function exists(adapter, sql, params) {
     const rows = adapter.query(sql, params);
     return (rows?.length ?? 0) > 0;
@@ -40,8 +27,8 @@ function ensureTicketExists(adapter, entry) {
     adapter.run(`INSERT INTO "ticket" (uuid, id, "timeStamp", "locationGroupUuid", "adminUuid", status, "isDirty", "isLocal")
      VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 1, 1)`, [entry.ticketUuid, ticketIdFromUUID(entry.ticketUuid), entry.timeStamp, entry.locationGroupUuid, entry.adminUuid ?? null]);
 }
-function upsertGuest(adapter, uuid, username, email, phone) {
-    const finalUuid = uuid || uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8');
+function upsertGuest(adapter, username, email, phone) {
+    const finalUuid = uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8');
     adapter.run(`INSERT INTO guest (uuid, username, email, phone)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(username) DO UPDATE SET username = excluded.username`, [finalUuid, username, email ?? null, phone ?? null]);
@@ -50,6 +37,14 @@ function upsertGuest(adapter, uuid, username, email, phone) {
     if (!found)
         throw new Error('GUEST_UPSERT_FAILED');
     return found;
+}
+export function normalizePhone(input, countryCode) {
+    const digits = input.replace(/\D/g, '');
+    if (!digits)
+        return '';
+    if (digits.startsWith(countryCode))
+        return digits;
+    return countryCode + digits;
 }
 export function applyTicketLog(adapter, entry) {
     const { action, payload, ticketUuid } = entry;
@@ -66,9 +61,33 @@ export function applyTicketLog(adapter, entry) {
             }
             case 'SET_GUEST': {
                 const p = payload;
-                if (!p.guestUserName && !p.guestUuid)
+                if (!p.guestUserName)
                     break;
-                const guest = upsertGuest(adapter, p.guestUuid, p.guestUserName, p.email, p.phone);
+                ensureTicketExists(adapter, entry);
+                const raw = p.guestUserName.trim();
+                let userName = raw;
+                let email = p.email ?? '';
+                let phone = p.phone ?? '';
+                const at = raw.indexOf('@');
+                if (at !== -1) {
+                    userName = raw.toLowerCase();
+                    if (!email)
+                        email = userName;
+                }
+                else if (/\d/.test(raw)) {
+                    const phoneCodeRows = adapter.query(`SELECT c."phonecode" as phoneCode
+             FROM "locationGroup" lg
+             INNER JOIN "country" c ON lg."countryUuid" = c."uuid"
+             WHERE lg."uuid" = ?`, [entry.locationGroupUuid]);
+                    const countryCode = String(phoneCodeRows?.[0]?.phoneCode ?? '503');
+                    const normalized = normalizePhone(raw, countryCode);
+                    if (normalized) {
+                        userName = normalized;
+                        email = '';
+                        phone = normalized;
+                    }
+                }
+                const guest = upsertGuest(adapter, userName, email, phone);
                 adapter.run(`UPDATE ticket SET "guestUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [guest, entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
@@ -83,6 +102,7 @@ export function applyTicketLog(adapter, entry) {
             }
             case 'SET_ANONYMOUS_ADDRESS': {
                 const p = payload;
+                ensureTicketExists(adapter, entry);
                 adapter.run(`UPDATE "ticket" SET "anonymousAddress" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.address, entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
@@ -122,7 +142,7 @@ export function applyTicketLog(adapter, entry) {
                 if (!exists(adapter, `SELECT 1 FROM modifier WHERE uuid = ? LIMIT 1`, [p.modifierUuid])) {
                     throw new Error('MISSING_DEPENDENCY');
                 }
-                adapter.run(`INSERT OR IGNORE INTO "ticketMenuItemModifier" (uuid, "ticketUuid", "modifierUuid", "ticketMenuItemUuid") VALUES (?, ?, ?, ?)`, [entry.uuid, ticketUuid, p.modifierUuid, p.ticketMenuItemUuid]);
+                adapter.run(`INSERT OR IGNORE INTO "ticketMenuItemModifier" (uuid, "ticketUuid", "modifierUuid", "ticketMenuItemUuid", "timeStamp") VALUES (?, ?, ?, ?, ?)`, [entry.uuid, ticketUuid, p.modifierUuid, p.ticketMenuItemUuid, new Date(entry.timeStamp).toISOString()]);
                 break;
             }
             case 'REMOVE_MODIFIER': {
@@ -161,7 +181,7 @@ export function applyTicketLog(adapter, entry) {
                 if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotionUuid])) {
                     throw new Error('MISSING_DEPENDENCY');
                 }
-                adapter.run(`DELETE FROM "ticketPromotion" WHERE "promotionUuid" = ?`, [p.promotionUuid]);
+                adapter.run(`DELETE FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ?`, [ticketUuid, p.promotionUuid]);
                 break;
             }
             case 'ADD_PAYMENT': {
@@ -170,14 +190,17 @@ export function applyTicketLog(adapter, entry) {
                 break;
             }
             case 'SET_STATUS_COMPLETE': {
+                ensureTicketExists(adapter, entry);
                 adapter.run(`UPDATE ticket SET status = 'COMPLETE', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'SET_STATUS_ACCEPTED': {
+                ensureTicketExists(adapter, entry);
                 adapter.run(`UPDATE ticket SET status = 'ACCEPTED', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
             case 'SET_STATUS_PAID': {
+                ensureTicketExists(adapter, entry);
                 adapter.run(`UPDATE ticket SET status = 'PAID', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid]);
                 break;
             }
@@ -195,10 +218,16 @@ export function applyTicketLog(adapter, entry) {
     }
 }
 export function hasLogBeenApplied(adapter, uuid) {
-    return exists(adapter, `SELECT 1 FROM ticketLogApplied WHERE uuid = ? LIMIT 1`, [uuid]);
+    return exists(adapter, `SELECT 1 FROM ticketLogApplied WHERE uuid = ? AND "timeStamp" IS NOT NULL LIMIT 1`, [uuid]);
+}
+function claimLog(adapter, entry) {
+    adapter.run(`INSERT OR IGNORE INTO "ticketLogApplied" ("uuid", "timeStamp", "retryCount") VALUES (?, NULL, 0)`, [entry.uuid]);
 }
 function markLogApplied(adapter, entry) {
-    adapter.run(`INSERT OR IGNORE INTO ticketLogApplied (uuid, timeStamp) VALUES (?, ?)`, [entry.uuid, entry.timeStamp]);
+    adapter.run(`UPDATE "ticketLogApplied" SET "timeStamp" = ?, "retryCount" = NULL, "nextRetryAt" = NULL, "lastError" = NULL WHERE "uuid" = ?`, [entry.timeStamp, entry.uuid]);
+}
+function failLog(adapter, entry, error) {
+    adapter.run(`UPDATE "ticketLogApplied" SET "retryCount" = COALESCE("retryCount", 0) + 1, "nextRetryAt" = ? + (COALESCE("retryCount", 0) + 1) * 10000, "lastError" = ? WHERE "uuid" = ?`, [Date.now(), error.slice(0, 255), entry.uuid]);
 }
 export function applyLogsBatch(adapter, logs) {
     let applied = 0;
@@ -223,6 +252,7 @@ export function applyLogsBatch(adapter, logs) {
                 skipped++;
                 continue;
             }
+            claimLog(adapter, entry);
             adapter.run('BEGIN');
             try {
                 applyTicketLog(adapter, entry);
@@ -236,6 +266,7 @@ export function applyLogsBatch(adapter, logs) {
                     skipped++;
                     continue;
                 }
+                failLog(adapter, entry, error?.message ?? 'Unknown error');
                 errors.push({ entry, error });
             }
         }
@@ -246,6 +277,7 @@ export function applyLogsBatch(adapter, logs) {
     return { applied, skipped, errors };
 }
 export function handleAddPaymentLog(adapter, entry, payload) {
+    ensureTicketExists(adapter, entry);
     if (exists(adapter, `SELECT 1 FROM "ticketPayment" WHERE "ticketUuid" = ? AND "paymentUuid" = ?`, [entry.ticketUuid, payload.paymentUuid]))
         return;
     if (!exists(adapter, `SELECT 1 FROM payment WHERE uuid = ? LIMIT 1`, [payload.paymentUuid])) {

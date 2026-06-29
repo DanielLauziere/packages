@@ -10,6 +10,7 @@ export interface TicketLogEntry {
     adminUuid?: string;
 }
 export declare const ACTION_PRIORITY: Record<string, number>;
+export declare function normalizePhone(input: string, countryCode: string): string;
 export declare function applyTicketLog(adapter: DbAdapter, entry: TicketLogEntry): void;
 export declare function hasLogBeenApplied(adapter: DbAdapter, uuid: string): boolean;
 export declare function applyLogsBatch(adapter: DbAdapter, logs: TicketLogEntry[]): {
