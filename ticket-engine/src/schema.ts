@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export const CREATE_TICKET_LOG = `
   CREATE TABLE IF NOT EXISTS "ticketLog" (
@@ -204,6 +204,8 @@ export const FULL_DDL = `
     "uuid" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
     "address" TEXT NOT NULL,
+    "host" TEXT,
+    "port" INTEGER,
     "widthMillimeters" INTEGER DEFAULT 0 NOT NULL,
     "locationGroupUuid" TEXT NOT NULL,
     "locationUuid" TEXT,
@@ -226,9 +228,11 @@ export const FULL_DDL = `
     "mute" BOOLEAN NOT NULL DEFAULT 1,
     "timeStamp" TEXT,
     "nativeRefreshToken" TEXT,
-    "locationGroupPrinterUuid" TEXT,
+    "kitchenLocationGroupPrinterUuid" TEXT,
+    "guestLocationGroupPrinterUuid" TEXT,
     "silentPrint" BOOLEAN NOT NULL DEFAULT 0,
-    FOREIGN KEY ("locationGroupPrinterUuid") REFERENCES "locationGroupPrinter"("uuid")
+    FOREIGN KEY ("kitchenLocationGroupPrinterUuid") REFERENCES "locationGroupPrinter"("uuid"),
+    FOREIGN KEY ("guestLocationGroupPrinterUuid") REFERENCES "locationGroupPrinter"("uuid")
   );
 
   CREATE TABLE IF NOT EXISTS guest (
