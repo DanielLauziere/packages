@@ -240,6 +240,10 @@ export function applyLogsBatch(adapter, logs) {
         const pb = ACTION_PRIORITY[b.action] ?? 999;
         if (pa !== pb)
             return pa - pb;
+        if ((a.timeStamp ?? 0) < (b.timeStamp ?? 0))
+            return -1;
+        if ((a.timeStamp ?? 0) > (b.timeStamp ?? 0))
+            return 1;
         if (a.uuid < b.uuid)
             return -1;
         if (a.uuid > b.uuid)

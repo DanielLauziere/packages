@@ -343,6 +343,7 @@ interface GroupedItem {
   name: string
   totalQty: number
   notes: string[]
+  modifiers: string[]
 }
 
 interface TicketPrintData {
@@ -400,7 +401,7 @@ function getTranslations(lang?: 'es' | 'en') {
     'Mesa',
     '',
     'Domicilio',
-    'Curbside',
+    'Acera',
     'Dirección',
     'Puntos de invitado',
     'Puntos ganados',
@@ -590,6 +591,7 @@ export async function ticketToEscPos(
           name: item.name,
           totalQty: 0,
           notes: [],
+          modifiers: [],
         })
       }
       const group = grouped.get(item.uuid)!
@@ -598,18 +600,21 @@ export async function ticketToEscPos(
         group.notes.push(item.ticketMenuItemNote)
       }
       for (const mod of item.appliedModifiers ?? []) {
-        group.notes.push(mod.name)
+        group.modifiers.push(mod.name)
       }
     }
 
     for (const group of grouped.values()) {
       print(`${group.totalQty} ${group.name}`)
-      const noteCount: Record<string, number> = {}
       for (const note of group.notes) {
-        noteCount[note] = (noteCount[note] ?? 0) + 1
+        print(`  (${note})`)
       }
-      for (const [note, count] of Object.entries(noteCount)) {
-        print(`  (${count} ${note})`)
+      const modCount: Record<string, number> = {}
+      for (const name of group.modifiers) {
+        modCount[name] = (modCount[name] ?? 0) + 1
+      }
+      for (const [name, count] of Object.entries(modCount)) {
+        print(`  (${count} ${name})`)
       }
     }
   } else {
@@ -707,14 +712,8 @@ export async function ticketToEscPos(
         }
 
         if (shouldPrintNotes) {
-          const noteCount: Record<string, number> = {}
-
           for (const note of group.notes) {
-            noteCount[note] = (noteCount[note] ?? 0) + 1
-          }
-
-          for (const [note, count] of Object.entries(noteCount)) {
-            print(`  (${count} ${note})`)
+            print(`  (${note})`)
           }
         }
 
@@ -780,22 +779,19 @@ export async function ticketToEscPos(
 
     // Totals
     builder.bold(true)
-    print(leftRightExact(t[10], `$${ticket.total}`))
-    if ((loc.taxPercentage ?? 0) > 0) {
-      print(leftRightExact(t[11], `$${ticket.taxTotal}`))
+    if (showTotal) {
+      print(leftRightExact(t[10], `$${ticket.total}`))
+      if ((loc.taxPercentage ?? 0) > 0) {
+        print(leftRightExact(t[11], `$${ticket.taxTotal}`))
+      }
+      if (
+        ticket.fulfillmentType === 'EATIN' &&
+        (loc.tipPercentage ?? 0) > 0
+      ) {
+        print(leftRightExact(t[12], `$${ticket.tipTotal}`))
+      }
     }
-    if (
-      ticket.fulfillmentType === 'EATIN' &&
-      (loc.tipPercentage ?? 0) > 0
-    ) {
-      print(leftRightExact(t[12], `$${ticket.tipTotal}`))
-    }
-    print(
-      leftRightExact(
-        showTotal ? t[13] : t[10],
-        grandTotalDollars,
-      ),
-    )
+    print(leftRightExact(t[13], grandTotalDollars))
     print('-'.repeat(width))
 
     // Change + Payments
