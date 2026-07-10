@@ -94,7 +94,7 @@ export function calculateCombos(
         }
 
         const comboCombo = comboComboMenuItems.find(
-          (c) => c.comboUuid === combo.uuid,
+          (c) => c.uuid === combo.uuid,
         )
         if (comboCombo) {
           combos.push({

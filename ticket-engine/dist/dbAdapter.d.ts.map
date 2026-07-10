@@ -1,1 +1,0 @@
-{"version":3,"file":"dbAdapter.d.ts","sourceRoot":"","sources":["../src/dbAdapter.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,SAAS;IACxB,GAAG,CAAC,GAAG,EAAE,MAAM,EAAE,MAAM,CAAC,EAAE,GAAG,EAAE,GAAG,IAAI,CAAA;IACtC,KAAK,CAAC,GAAG,EAAE,MAAM,EAAE,MAAM,CAAC,EAAE,GAAG,EAAE,GAAG,GAAG,EAAE,CAAA;CAC1C"}

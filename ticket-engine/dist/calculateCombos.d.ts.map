@@ -1,1 +1,0 @@
-{"version":3,"file":"calculateCombos.d.ts","sourceRoot":"","sources":["../src/calculateCombos.ts"],"names":[],"mappings":"AAAA,OAAO,EACL,oBAAoB,EACpB,OAAO,EAEP,UAAU,EACV,gBAAgB,EACjB,MAAM,YAAY,CAAA;AAQnB,wBAAgB,eAAe,CAC7B,eAAe,EAAE,gBAAgB,EAAE,EACnC,mBAAmB,EAAE,oBAAoB,EAAE,EAC3C,SAAS,EAAE,UAAU,EAAE,GACtB,CAAC,gBAAgB,EAAE,EAAE,OAAO,EAAE,EAAE,MAAM,CAAC,CAiGzC"}

@@ -190,6 +190,7 @@ export const calculateLocationTickets = ({
       ticket.menuItems.push(returnMenuItem)
     }
 
+    const itemlessDiscounts: number[] = []
     for (const tp of ticketPromotions) {
       if (tp.ticketMenuItemUuid) continue
 
@@ -201,11 +202,14 @@ export const calculateLocationTickets = ({
       const promot: ReturnPromotion = { ...promotion }
       ticket.appliedPromotions.push(promot)
 
+      let discount: number
       if (promot.promotionIsPercentage) {
-        totalCents -= Math.floor((totalCents * promot.discountPercent) / 100)
+        discount = Math.floor((totalCents * promot.discountPercent) / 100)
       } else {
-        totalCents -= promot.discountWhole * 100 + promot.discountHundredths
+        discount = promot.discountWhole * 100 + promot.discountHundredths
       }
+      totalCents -= discount
+      itemlessDiscounts.push(discount)
     }
 
     for (const promo of ticket.appliedPromotions) {
@@ -241,14 +245,12 @@ export const calculateLocationTickets = ({
     // If discounts push grandTotal negative, remove itemless promotions one at a time until we recover
     if (grandTotal < 0) {
       const removeIndexes: number[] = []
+      let discIdx = 0
       for (let i = 0; i < ticket.appliedPromotions.length; i++) {
         const p = ticket.appliedPromotions[i]!
         if (!p.itemless) continue
-        if (p.promotionIsPercentage) {
-          totalCents += Math.floor((totalCents * p.discountPercent) / 100)
-        } else {
-          totalCents += p.discountWhole * 100 + p.discountHundredths
-        }
+        totalCents += itemlessDiscounts[discIdx]
+        discIdx++
         const recalcTip = ticket.fulfillmentUuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
           ? Math.floor((tipPercentage * totalCents) / 100)
           : 0
