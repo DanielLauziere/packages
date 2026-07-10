@@ -1006,7 +1006,8 @@ describe('combos', () => {
         { uuid: uSeq(101), name: 'Meal', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(21) },
       ],
     })
-    expect(ts[0]!.menuItems).toHaveLength(0)
+    expect(ts[0]!.combos).toHaveLength(1)
+    expect(ts[0]!.totalCents).toBe(700)
   })
 
   it('combo consumes some items leaves standalone', () => {
@@ -1019,7 +1020,7 @@ describe('combos', () => {
         { uuid: uSeq(101), name: 'Meal', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(21) },
       ],
     })
-    expect(ts[0]!.totalCents).toBe(800)
+    expect(ts[0]!.totalCents).toBe(1500)
   })
 })
 
@@ -1073,5 +1074,254 @@ describe('item description', () => {
       menuItems: [makeMenuItem(20, 10, 0, { description: 'Tasty food' })],
     })
     expect(ts[0]!.menuItems[0]!.description).toBe('Tasty food')
+  })
+})
+
+// ---------- NEGATIVE GRAND TOTAL, NO ITEMLESS ----------
+
+describe('negative grand total no itemless recovery', () => {
+  it('stays negative when no itemless promos exist', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 5, 0)],
+      ticketPromotions: [makeTP(50, 1, 60, { ticketMenuItemUuid: uSeq(10) })],
+      promotions: [makePromo(60, { discountWhole: 100 })],
+    })
+    expect(ts[0]!.grandTotalCents).toBeLessThan(0)
+  })
+
+  it('all itemless removed still negative', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 5, 0)],
+      ticketPromotions: [
+        makeTP(50, 1, 60, { ticketMenuItemUuid: uSeq(10) }),
+        makeTP(51, 1, 61),
+      ],
+      promotions: [
+        makePromo(60, { type: 'REWARD', discountPercent: 200, promotionIsPercentage: true }),
+        makePromo(61, { type: 'REWARD', itemless: true, discountWhole: 1000 }),
+      ],
+    })
+    expect(ts[0]!.grandTotalCents).toBeLessThan(0)
+  })
+})
+
+// ---------- ITEMLESS ELIGIBILITY EDGES ----------
+
+describe('itemless eligibility edges', () => {
+  it('percentage itemless reward eligible (discountWhole=0 <= grandTotal)', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 10, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotionIsPercentage: true, discountPercent: 20, pointsRequired: 10 })],
+    })
+    expect(ts[0]!.eligablePromotions).toHaveLength(1)
+  })
+
+  it('itemless reward ineligible when insufficient points', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 5 })],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 20, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, discountWhole: 5, pointsRequired: 50 })],
+    })
+    expect(ts[0]!.eligablePromotions).toHaveLength(0)
+  })
+})
+
+// ---------- BOGO INACTIVE ----------
+
+describe('bogo inactive', () => {
+  it('inactive bogo promo ineligible', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 10, 0)],
+      bogoMenuItems: [makeBogo(80, 60, 20)],
+      promotions: [makePromo(60, { type: 'PROMOTION', active: false, bogoBuy: uSeq(60) })],
+    })
+    expect(ts[0]!.eligablePromotions).toHaveLength(0)
+    expect(ts[0]!.ineligablePromotions).toHaveLength(1)
+  })
+})
+
+// ---------- COMBO EDGES ----------
+
+describe('combo edges', () => {
+  it('multiple combo groups', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20), makeTMI(11, 1, 21), makeTMI(12, 1, 22), makeTMI(13, 1, 23)],
+      menuItems: [makeMenuItem(20, 5, 0), makeMenuItem(21, 3, 0), makeMenuItem(22, 4, 0), makeMenuItem(23, 6, 0)],
+      comboComboMenuItems: [
+        { uuid: uSeq(100), name: 'Meal', description: 'combo1 desc', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(20) },
+        { uuid: uSeq(101), name: 'Meal', description: 'combo1 desc', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(21) },
+        { uuid: uSeq(102), name: 'Drink', description: 'combo2 desc', active: true, priceWhole: 5, priceHundredths: 0, comboUuid: uSeq(111), menuItemUuid: uSeq(22) },
+        { uuid: uSeq(103), name: 'Drink', description: 'combo2 desc', active: true, priceWhole: 5, priceHundredths: 0, comboUuid: uSeq(111), menuItemUuid: uSeq(23) },
+      ],
+    })
+    expect(ts[0]!.combos).toHaveLength(2)
+    expect(ts[0]!.menuItems).toHaveLength(0)
+    // combo1 = Meal (700) + combo2 = Drink (500)
+    expect(ts[0]!.totalCents).toBe(1200)
+  })
+
+  it('inactive combo combo menu item still consumed', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20), makeTMI(11, 1, 21)],
+      menuItems: [makeMenuItem(20, 5, 0), makeMenuItem(21, 3, 0)],
+      comboComboMenuItems: [
+        { uuid: uSeq(100), name: 'Meal', description: '', active: false, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(20) },
+        { uuid: uSeq(101), name: 'Meal', description: '', active: false, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(21) },
+      ],
+    })
+    expect(ts[0]!.combos).toHaveLength(1)
+    expect(ts[0]!.combos[0]!.active).toBe(false)
+    expect(ts[0]!.menuItems).toHaveLength(0)
+  })
+
+  it('combo description passthrough', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20), makeTMI(11, 1, 21)],
+      menuItems: [makeMenuItem(20, 5, 0), makeMenuItem(21, 3, 0)],
+      comboComboMenuItems: [
+        { uuid: uSeq(100), name: 'Meal', description: 'Combo deal desc', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(20) },
+        { uuid: uSeq(101), name: 'Meal', description: 'Combo deal desc', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(21) },
+      ],
+    })
+    expect(ts[0]!.combos[0]!.description).toBe('Combo deal desc')
+  })
+
+  it('repeated combo instances from same group', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [
+        makeTMI(10, 1, 20), makeTMI(11, 1, 21),
+        makeTMI(12, 1, 20), makeTMI(13, 1, 21),
+      ],
+      menuItems: [makeMenuItem(20, 5, 0), makeMenuItem(21, 3, 0)],
+      comboComboMenuItems: [
+        { uuid: uSeq(100), name: 'Meal', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(20) },
+        { uuid: uSeq(101), name: 'Meal', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(21) },
+      ],
+    })
+    expect(ts[0]!.combos).toHaveLength(2)
+    expect(ts[0]!.menuItems).toHaveLength(0)
+  })
+})
+
+// ---------- FORMAT EDGE CASES ----------
+
+describe('format edge cases', () => {
+  it('format zero', () => {
+    const ts = run({ tickets: [makeTicket(1)] })
+    expect(ts[0]!.total).toBe('0.00')
+    expect(ts[0]!.grandTotal).toBe('0.00')
+  })
+
+  it('format ninety nine cents', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 0, 99)],
+    })
+    expect(ts[0]!.total).toBe('0.99')
+  })
+
+  it('format exact dollar', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 1, 0)],
+    })
+    expect(ts[0]!.total).toBe('1.00')
+  })
+
+  it('format dollars and cents', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20)],
+      menuItems: [makeMenuItem(20, 19, 99)],
+    })
+    expect(ts[0]!.total).toBe('19.99')
+  })
+})
+
+// ---------- POINTS NULL/UNDEFINED ----------
+
+describe('points fallback', () => {
+  it('points zero when not provided', () => {
+    const ts = run({
+      tickets: [{
+        uuid: uSeq(1), id: 1001, timeStamp: '', status: 'COMPLETE',
+        locationGroupUuid: '', locationUuid: '', appUniqueUuid: '',
+        fulfillmentUuid: '', fulfillmentType: '', guestUuid: '',
+        guestAddressUuid: '', tableUuid: '', userName: '', firstName: '',
+        lastName: '', email: '', phone: '', address: '', anonymousAddress: '',
+        points: undefined as unknown as number, paymentUuid: '',
+      }],
+    })
+    expect(ts[0]!.guestsPoints).toBe(0)
+  })
+})
+
+// ---------- LOYALTY TYPE IN ELIGIBILITY ----------
+
+describe('loyalty type eligibility', () => {
+  it('LOYALTY promo falls to ineligable (no bogo, no itemless, no BOGO buy/get)', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      promotions: [makePromo(60, { type: 'LOYALTY', pointsMultiplier: 2 })],
+    })
+    expect(ts[0]!.eligablePromotions).toHaveLength(0)
+    expect(ts[0]!.ineligablePromotions).toHaveLength(1)
+  })
+})
+
+// ---------- CALCULATE COMBOS INTERNAL EDGES ----------
+
+describe('calculateCombos internal edges', () => {
+  it('count tiebreak sorts by uuid descending (larger uuid wins when same count)', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [
+        makeTMI(10, 1, 20), makeTMI(11, 1, 21),
+        makeTMI(12, 1, 22), makeTMI(13, 1, 23),
+      ],
+      menuItems: [
+        makeMenuItem(20, 5, 0), makeMenuItem(21, 3, 0),
+        makeMenuItem(22, 4, 0), makeMenuItem(23, 6, 0),
+      ],
+      comboComboMenuItems: [
+        { uuid: uSeq(100), name: 'A', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(150), menuItemUuid: uSeq(20) },
+        { uuid: uSeq(101), name: 'A', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(150), menuItemUuid: uSeq(21) },
+        { uuid: uSeq(102), name: 'B', description: '', active: true, priceWhole: 5, priceHundredths: 0, comboUuid: uSeq(151), menuItemUuid: uSeq(22) },
+        { uuid: uSeq(103), name: 'B', description: '', active: true, priceWhole: 5, priceHundredths: 0, comboUuid: uSeq(151), menuItemUuid: uSeq(23) },
+      ],
+    })
+    expect(ts[0]!.combos).toHaveLength(2)
+  })
+
+  it('combo menuItem not found in menuItems still consumed', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticketMenuItems: [makeTMI(10, 1, 20), makeTMI(11, 1, 21)],
+      menuItems: [makeMenuItem(21, 3, 0)],
+      comboComboMenuItems: [
+        { uuid: uSeq(100), name: 'Meal', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(20) },
+        { uuid: uSeq(101), name: 'Meal', description: '', active: true, priceWhole: 7, priceHundredths: 0, comboUuid: uSeq(110), menuItemUuid: uSeq(21) },
+      ],
+    })
+    expect(ts[0]!.combos).toHaveLength(1)
+    expect(ts[0]!.combos[0]!.comboMenuItems).toHaveLength(1)
+    expect(ts[0]!.combos[0]!.comboMenuItems[0]!.menuItemUuid).toBe(uSeq(21))
+    expect(ts[0]!.combos[0]!.comboMenuItems[0]!.name).toBe('Item')
+    expect(ts[0]!.menuItems).toHaveLength(0)
   })
 })

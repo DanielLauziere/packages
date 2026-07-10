@@ -1,0 +1,17 @@
+{
+  "name": "@omni/packages",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "ticket-engine"
+  ],
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  },
+  "scripts": {
+    "test": "yarn workspace @omni/ticket-engine test",
+    "test:watch": "yarn workspace @omni/ticket-engine test:watch",
+    "typecheck": "yarn workspace @omni/ticket-engine typecheck",
+    "build": "yarn workspace @omni/ticket-engine build"
+  }
+}
