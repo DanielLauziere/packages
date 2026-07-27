@@ -231,6 +231,7 @@ export const FULL_DDL = `
     "kitchenLocationGroupPrinterUuid" TEXT,
     "guestLocationGroupPrinterUuid" TEXT,
     "silentPrint" BOOLEAN NOT NULL DEFAULT 0,
+    "isOwner" BOOLEAN NOT NULL DEFAULT 0,
     FOREIGN KEY ("kitchenLocationGroupPrinterUuid") REFERENCES "locationGroupPrinter"("uuid"),
     FOREIGN KEY ("guestLocationGroupPrinterUuid") REFERENCES "locationGroupPrinter"("uuid")
   );
