@@ -413,6 +413,7 @@ function getTranslations(lang?: 'es' | 'en') {
     'Total',
     'Tarjeta',
     'Cambio',
+    'Efectivo',
   ] as const
 
   const en = [
@@ -432,6 +433,7 @@ function getTranslations(lang?: 'es' | 'en') {
     'Grand Total',
     'Card',
     'Change',
+    'Cash',
   ] as const
 
   return lang === 'en' ? en : es
@@ -569,7 +571,7 @@ export async function ticketToEscPos(
   if (ticket.firstName || ticket.lastName)
     print(`${ticket.firstName ?? ''} ${ticket.lastName ?? ''}`)
 
-  if (ticket.phone) print(leftRightExact('Tel:', ticket.phone))
+  if (ticket.phone) print(leftRightExact('Tel', ticket.phone))
   if (ticket.email) print(leftRightExact(t[0], ticket.email))
   if (ticket.phone || ticket.email || ticket.firstName || ticket.lastName) {
     print('-'.repeat(width))
@@ -800,7 +802,7 @@ export async function ticketToEscPos(
       let totalPayments = 0
       for (const payment of payments) {
         const priceString = `$${(payment.priceWhole + payment.priceHundredths / 100).toFixed(2)}`
-        let paymentNameString: string = t[13]
+        let paymentNameString: string = t[16]
         if (payment.uuid === PAYMENT_CARD_UUID) {
           paymentNameString = t[14]
         }
@@ -825,8 +827,8 @@ export async function ticketToEscPos(
 
     // Location
     builder.alignLeft()
-    if (loc.address) print(leftRightExact(`${t[5]}:`, loc.address))
-    if (loc.phone) print(leftRightExact('Tel:', loc.phone))
+    if (loc.address) print(leftRightExact(t[5], loc.address))
+    if (loc.phone) print(leftRightExact('Tel', loc.phone))
     builder.feed(1)
     if (loc.ticketDescription) print(loc.ticketDescription)
   }
