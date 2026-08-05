@@ -82,7 +82,7 @@ describe('normalizePhone', () => {
 describe('hasLogBeenApplied', () => {
   it('returns true when query returns a row', () => {
     const adapter = new MockAdapter()
-    adapter.onQuery('SELECT 1 FROM ticketLogApplied', [{ uuid: 'x' }])
+    adapter.onQuery('SELECT 1 FROM ticket_log_applied', [{ uuid: 'x' }])
     expect(hasLogBeenApplied(adapter, 'some-uuid')).toBe(true)
   })
 
@@ -108,7 +108,7 @@ describe('handleAddPaymentLog', () => {
       code: 'CASH',
       complete: true,
     })
-    const ins = adapter.findRun('INSERT INTO "ticketPayment"')
+    const ins = adapter.findRun('INSERT INTO "ticket_payment"')
     expect(ins).toBeDefined()
     expect(ins!.params).toContain('pay-001')
     expect(ins!.params).toContain(10)
@@ -117,14 +117,14 @@ describe('handleAddPaymentLog', () => {
   })
 
   it('skips insert if ticketPayment already exists', () => {
-    adapter.onQuery('SELECT 1 FROM "ticketPayment"', [{ uuid: 'tp-001' }])
+    adapter.onQuery('SELECT 1 FROM "ticket_payment"', [{ uuid: 'tp-001' }])
     handleAddPaymentLog(adapter, entry(), {
       paymentUuid: 'pay-001',
       priceWhole: 10,
       priceHundredths: 0,
       complete: false,
     })
-    const ins = adapter.findRun('INSERT INTO "ticketPayment"')
+    const ins = adapter.findRun('INSERT INTO "ticket_payment"')
     expect(ins).toBeUndefined()
   })
 
@@ -148,7 +148,7 @@ describe('handleAddPaymentLog', () => {
       priceHundredths: 0,
       complete: true,
     })
-    const ins = adapter.findRun('INSERT INTO "ticketPayment"')
+    const ins = adapter.findRun('INSERT INTO "ticket_payment"')
     expect(ins!.params).toContain(null)
     expect(ins!.params).toContain(1)
   })
@@ -176,9 +176,9 @@ describe('applyTicketLog', () => {
   describe('SET_TABLE', () => {
     it('ensures ticket exists and updates tableUuid', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
-      adapter.onQuery('SELECT 1 FROM "table"', [{ uuid: 'table-001' }])
+      adapter.onQuery('SELECT 1 FROM dining_table', [{ uuid: 'table-001' }])
       applyTicketLog(adapter, entry({ payload: { tableUuid: 'table-001' } }))
-      const update = adapter.findRun('UPDATE "ticket" SET "tableUuid"')
+      const update = adapter.findRun('UPDATE "ticket" SET table_uuid')
       expect(update).toBeDefined()
       expect(update!.params).toContain('table-001')
     })
@@ -196,7 +196,7 @@ describe('applyTicketLog', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       adapter.onQuery('SELECT uuid FROM guest', [{ uuid: 'guest-001' }])
       applyTicketLog(adapter, entry({ action: 'SET_GUEST', payload: { guestUserName: 'user@example.com' } }))
-      const update = adapter.findRun('UPDATE ticket SET "guestUuid"')
+      const update = adapter.findRun('UPDATE ticket SET guest_uuid')
       expect(update).toBeDefined()
       expect(update!.params).toContain('guest-001')
     })
@@ -230,7 +230,7 @@ describe('applyTicketLog', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       adapter.onQuery('SELECT 1 FROM fulfillment', [{ uuid: 'ful-001' }])
       applyTicketLog(adapter, entry({ action: 'SET_FULFILLMENT', payload: { fulfillmentUuid: 'ful-001' } }))
-      const update = adapter.findRun('UPDATE ticket SET "fulfillmentUuid"')
+      const update = adapter.findRun('UPDATE ticket SET fulfillment_uuid')
       expect(update).toBeDefined()
       expect(update!.params).toContain('ful-001')
     })
@@ -247,7 +247,7 @@ describe('applyTicketLog', () => {
     it('updates anonymous address', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       applyTicketLog(adapter, entry({ action: 'SET_ANONYMOUS_ADDRESS', payload: { address: '123 Main St' } }))
-      const update = adapter.findRun('UPDATE "ticket" SET "anonymousAddress"')
+      const update = adapter.findRun('UPDATE "ticket" SET anonymous_address')
       expect(update).toBeDefined()
       expect(update!.params).toContain('123 Main St')
     })
@@ -256,9 +256,9 @@ describe('applyTicketLog', () => {
   describe('ADD_ITEM', () => {
     it('inserts ticket menu item when menuItem exists', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
-      adapter.onQuery('SELECT 1 FROM menuItem', [{ uuid: 'mi-001' }])
+      adapter.onQuery('SELECT 1 FROM menu_item', [{ uuid: 'mi-001' }])
       applyTicketLog(adapter, entry({ action: 'ADD_ITEM', payload: { menuItemUuid: 'mi-001' } }))
-      const insert = adapter.findRun('INSERT OR IGNORE INTO ticketMenuItem')
+      const insert = adapter.findRun('INSERT OR IGNORE INTO ticket_menu_item')
       expect(insert).toBeDefined()
       expect(insert!.params).toContain('mi-001')
     })
@@ -273,11 +273,11 @@ describe('applyTicketLog', () => {
 
   describe('REMOVE_ITEM', () => {
     it('deletes ticketMenuItem and cascades', () => {
-      adapter.onQuery('SELECT 1 FROM ticketMenuItem', [{ uuid: 'tmi-001' }])
+      adapter.onQuery('SELECT 1 FROM ticket_menu_item', [{ uuid: 'tmi-001' }])
       applyTicketLog(adapter, entry({ action: 'REMOVE_ITEM', payload: { ticketMenuItemUuid: 'tmi-001' } }))
-      expect(adapter.findRun('DELETE FROM "ticketMenuItemModifier"')).toBeDefined()
-      expect(adapter.findRun('DELETE FROM "ticketPromotion"')).toBeDefined()
-      expect(adapter.findRun('DELETE FROM "ticketMenuItem" WHERE uuid')).toBeDefined()
+      expect(adapter.findRun('DELETE FROM "ticket_menu_item_modifier"')).toBeDefined()
+      expect(adapter.findRun('DELETE FROM "ticket_promotion"')).toBeDefined()
+      expect(adapter.findRun('DELETE FROM "ticket_menu_item" WHERE uuid')).toBeDefined()
     })
 
     it('no-ops when ticketMenuItem not found', () => {
@@ -288,9 +288,9 @@ describe('applyTicketLog', () => {
 
   describe('SET_ITEM_NOTE', () => {
     it('updates note when ticketMenuItem exists', () => {
-      adapter.onQuery('SELECT 1 FROM ticketMenuItem', [{ uuid: 'tmi-001' }])
+      adapter.onQuery('SELECT 1 FROM ticket_menu_item', [{ uuid: 'tmi-001' }])
       applyTicketLog(adapter, entry({ action: 'SET_ITEM_NOTE', payload: { ticketMenuItemUuid: 'tmi-001', note: 'no onions' } }))
-      const update = adapter.findRun('UPDATE ticketMenuItem SET note')
+      const update = adapter.findRun('UPDATE ticket_menu_item SET note')
       expect(update).toBeDefined()
       expect(update!.params).toContain('no onions')
     })
@@ -305,10 +305,10 @@ describe('applyTicketLog', () => {
   describe('ADD_MODIFIER', () => {
     it('inserts modifier when dependencies exist', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
-      adapter.onQuery('SELECT 1 FROM ticketMenuItem', [{ uuid: 'tmi-001' }])
+      adapter.onQuery('SELECT 1 FROM ticket_menu_item', [{ uuid: 'tmi-001' }])
       adapter.onQuery('SELECT 1 FROM modifier', [{ uuid: 'mod-001' }])
       applyTicketLog(adapter, entry({ action: 'ADD_MODIFIER', payload: { ticketMenuItemUuid: 'tmi-001', modifierUuid: 'mod-001' } }))
-      const insert = adapter.findRun('INSERT OR IGNORE INTO "ticketMenuItemModifier"')
+      const insert = adapter.findRun('INSERT OR IGNORE INTO "ticket_menu_item_modifier"')
       expect(insert).toBeDefined()
       expect(insert!.params).toContain('tmi-001')
       expect(insert!.params).toContain('mod-001')
@@ -323,7 +323,7 @@ describe('applyTicketLog', () => {
 
     it('throws when modifier missing', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
-      adapter.onQuery('SELECT 1 FROM ticketMenuItem', [{ uuid: 'tmi-001' }])
+      adapter.onQuery('SELECT 1 FROM ticket_menu_item', [{ uuid: 'tmi-001' }])
       expect(() =>
         applyTicketLog(adapter, entry({ action: 'ADD_MODIFIER', payload: { ticketMenuItemUuid: 'tmi-001', modifierUuid: 'missing' } })),
       ).toThrow('MISSING_DEPENDENCY')
@@ -332,9 +332,9 @@ describe('applyTicketLog', () => {
 
   describe('REMOVE_MODIFIER', () => {
     it('deletes ticketMenuItemModifier', () => {
-      adapter.onQuery('SELECT 1 FROM ticketMenuItemModifier', [{ uuid: 'tmm-001' }])
+      adapter.onQuery('SELECT 1 FROM ticket_menu_item_modifier', [{ uuid: 'tmm-001' }])
       applyTicketLog(adapter, entry({ action: 'REMOVE_MODIFIER', payload: { ticketMenuItemModifierUuid: 'tmm-001' } }))
-      const del = adapter.findRun('DELETE FROM "ticketMenuItemModifier"')
+      const del = adapter.findRun('DELETE FROM "ticket_menu_item_modifier"')
       expect(del).toBeDefined()
       expect(del!.params).toContain('tmm-001')
     })
@@ -348,22 +348,22 @@ describe('applyTicketLog', () => {
   describe('APPLY_PROMOTION', () => {
     it('inserts item-level promotion and replaces existing', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
-      adapter.onQuery('SELECT 1 FROM ticketMenuItem', [{ uuid: 'tmi-001' }])
+      adapter.onQuery('SELECT 1 FROM ticket_menu_item', [{ uuid: 'tmi-001' }])
       adapter.onQuery('SELECT 1 FROM promotion', [{ uuid: 'promo-001' }])
       applyTicketLog(adapter, entry({ action: 'APPLY_PROMOTION', payload: { promotionUuid: 'promo-001', ticketMenuItemUuid: 'tmi-001' } }))
-      const del = adapter.findRun('DELETE FROM "ticketPromotion" WHERE "ticketUuid"')
+      const del = adapter.findRun('DELETE FROM "ticket_promotion" WHERE ticket_uuid')
       expect(del).toBeDefined()
       expect(del!.params).toContain('tmi-001')
-      const insert = adapter.findRun('INSERT OR IGNORE INTO "ticketPromotion"')
+      const insert = adapter.findRun('INSERT OR IGNORE INTO "ticket_promotion"')
       expect(insert).toBeDefined()
     })
 
     it('skips duplicate itemless promotion', () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       adapter.onQuery('SELECT 1 FROM promotion', [{ uuid: 'promo-001' }])
-      adapter.onQuery('SELECT uuid FROM "ticketPromotion"', [{ uuid: 'existing-tp' }])
+      adapter.onQuery('SELECT uuid FROM "ticket_promotion"', [{ uuid: 'existing-tp' }])
       applyTicketLog(adapter, entry({ action: 'APPLY_PROMOTION', payload: { promotionUuid: 'promo-001' } }))
-      const insert = adapter.findRun('INSERT OR IGNORE INTO "ticketPromotion"')
+      const insert = adapter.findRun('INSERT OR IGNORE INTO "ticket_promotion"')
       expect(insert).toBeUndefined()
     })
 
@@ -379,7 +379,7 @@ describe('applyTicketLog', () => {
     it('deletes ticketPromotion', () => {
       adapter.onQuery('SELECT 1 FROM promotion', [{ uuid: 'promo-001' }])
       applyTicketLog(adapter, entry({ action: 'REMOVE_PROMOTION', payload: { promotionUuid: 'promo-001' } }))
-      const del = adapter.findRun('DELETE FROM "ticketPromotion"')
+      const del = adapter.findRun('DELETE FROM "ticket_promotion"')
       expect(del).toBeDefined()
       expect(del!.params).toContain('promo-001')
     })
@@ -395,7 +395,7 @@ describe('applyTicketLog', () => {
     it('delegates to handleAddPaymentLog', () => {
       adapter.onQuery('SELECT 1 FROM payment', [{ uuid: 'pay-001' }])
       applyTicketLog(adapter, entry({ action: 'ADD_PAYMENT', payload: { paymentUuid: 'pay-001', priceWhole: 10, priceHundredths: 0, complete: true } }))
-      const insert = adapter.findRun('INSERT INTO "ticketPayment"')
+      const insert = adapter.findRun('INSERT INTO "ticket_payment"')
       expect(insert).toBeDefined()
     })
   })
@@ -445,14 +445,14 @@ describe('applyLogsBatch', () => {
 
   it('applies sorted logs in priority order', () => {
     adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
-    adapter.onQuery('SELECT 1 FROM menuItem', [{ uuid: 'mi-001' }])
+    adapter.onQuery('SELECT 1 FROM menu_item', [{ uuid: 'mi-001' }])
     adapter.onQuery('SELECT 1 FROM payment', [{ uuid: 'pay-001' }])
     const logs: TicketLogEntry[] = [
       { uuid: 'log-3', ticketUuid: 'ticket-001', locationGroupUuid: 'lg-001', action: 'ADD_ITEM', payload: { menuItemUuid: 'mi-001' }, timeStamp: 1 },
       { uuid: 'log-1', ticketUuid: 'ticket-001', locationGroupUuid: 'lg-001', action: 'SET_TABLE', payload: { tableUuid: 'table-001' }, timeStamp: 2 },
       { uuid: 'log-5', ticketUuid: 'ticket-001', locationGroupUuid: 'lg-001', action: 'ADD_PAYMENT', payload: { paymentUuid: 'pay-001', priceWhole: 10, priceHundredths: 0, complete: true }, timeStamp: 3 },
     ]
-    adapter.onQuery('SELECT 1 FROM "table"', [{ uuid: 'table-001' }])
+    adapter.onQuery('SELECT 1 FROM dining_table', [{ uuid: 'table-001' }])
     const result = applyLogsBatch(adapter, logs)
     expect(result.applied).toBe(3)
     expect(result.skipped).toBe(0)
@@ -460,7 +460,7 @@ describe('applyLogsBatch', () => {
   })
 
   it('skips already-applied logs', () => {
-    adapter.onQuery('SELECT 1 FROM ticketLogApplied', [{ uuid: 'log-001' }])
+    adapter.onQuery('SELECT 1 FROM ticket_log_applied', [{ uuid: 'log-001' }])
     const result = applyLogsBatch(adapter, [entry()])
     // hasLogBeenApplied returns true → skipped
     expect(result.applied).toBe(0)
