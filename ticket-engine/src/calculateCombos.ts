@@ -13,23 +13,23 @@ type Comb = {
 }
 
 export function calculateCombos(
-  ticketMenuItems: TicketMenuItemDB[],
+  ticket_menu_items: TicketMenuItemDB[],
   comboComboMenuItems: ComboComboMenuItemDB[],
-  menuItems: MenuItemDB[],
+  menu_items: MenuItemDB[],
 ): [TicketMenuItemDB[], ComboDB[], number] {
-  let totalCents = 0
+  let total_cents = 0
   const comb: Comb[] = []
 
   for (const comboComboMenuItem of comboComboMenuItems) {
     const existsIndex = comb.findIndex(
-      (c) => c.uuid === comboComboMenuItem.comboUuid,
+      (c) => c.uuid === comboComboMenuItem.combo_uuid,
     )
 
     if (existsIndex === -1) {
       comb.push({
-        uuid: comboComboMenuItem.comboUuid,
+        uuid: comboComboMenuItem.combo_uuid,
         count: 1,
-        items: [comboComboMenuItem.menuItemUuid],
+        items: [comboComboMenuItem.menu_item_uuid],
       })
     } else {
       const existing = comb[existsIndex]
@@ -37,7 +37,7 @@ export function calculateCombos(
         comb[existsIndex] = {
           uuid: existing.uuid,
           count: existing.count + 1,
-          items: [...existing.items, comboComboMenuItem.menuItemUuid],
+          items: [...existing.items, comboComboMenuItem.menu_item_uuid],
         }
     }
   }
@@ -59,8 +59,8 @@ export function calculateCombos(
       const deleteItems: string[] = []
 
       for (const comboItem of combo.items) {
-        const ticketItem = ticketMenuItems.find(
-          (t) => t.menuItemUuid === comboItem,
+        const ticketItem = ticket_menu_items.find(
+          (t) => t.menu_item_uuid === comboItem,
         )
         if (!ticketItem) {
           hasComboItems = false
@@ -70,31 +70,31 @@ export function calculateCombos(
       }
 
       if (hasComboItems) {
-        const comboMenuItems: ComboMenuItem[] = []
+        const combo_menu_items: ComboMenuItem[] = []
 
         for (const deleteUuid of deleteItems) {
-          const index = ticketMenuItems.findIndex((t) => t.uuid === deleteUuid)
+          const index = ticket_menu_items.findIndex((t) => t.uuid === deleteUuid)
           if (index !== -1) {
-            const ticketItem = ticketMenuItems[index]
+            const ticketItem = ticket_menu_items[index]
             if (!ticketItem) continue
-            const menuItem = menuItems.find(
-              (m) => m.uuid === ticketItem.menuItemUuid,
+            const menu_item = menu_items.find(
+              (m) => m.uuid === ticketItem.menu_item_uuid,
             )
-            if (menuItem) {
-              comboMenuItems.push({
+            if (menu_item) {
+              combo_menu_items.push({
                 uuid: ticketItem.uuid,
-                menuItemCache: menuItem.cache,
-                ticketUuid: ticketItem.ticketUuid,
-                menuItemUuid: ticketItem.menuItemUuid,
-                name: menuItem.name,
+                menu_item_cache: menu_item.cache,
+                ticket_uuid: ticketItem.ticket_uuid,
+                menu_item_uuid: ticketItem.menu_item_uuid,
+                name: menu_item.name,
               })
             }
-            ticketMenuItems.splice(index, 1)
+            ticket_menu_items.splice(index, 1)
           }
         }
 
         const comboCombo = comboComboMenuItems.find(
-          (c) => c.comboUuid === combo.uuid,
+          (c) => c.combo_uuid === combo.uuid,
         )
         if (comboCombo) {
           combos.push({
@@ -102,15 +102,15 @@ export function calculateCombos(
             name: comboCombo.name,
             description: comboCombo.description,
             active: comboCombo.active,
-            priceWhole: comboCombo.priceWhole,
-            priceHundredths: comboCombo.priceHundredths,
-            comboMenuItems,
+            price_whole: comboCombo.price_whole,
+            price_hundredths: comboCombo.price_hundredths,
+            combo_menu_items,
           })
-          totalCents += comboCombo.priceWhole * 100 + comboCombo.priceHundredths
+          total_cents += comboCombo.price_whole * 100 + comboCombo.price_hundredths
         }
       }
     }
   }
 
-  return [ticketMenuItems, combos, totalCents]
+  return [ticket_menu_items, combos, total_cents]
 }

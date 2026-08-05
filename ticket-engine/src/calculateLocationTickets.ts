@@ -17,30 +17,30 @@ import {
 
 export const calculateLocationTickets = ({
   tickets,
-  ticketMenuItems,
-  menuItems,
-  bogoMenuItems,
+  ticket_menu_items,
+  menu_items,
+  bogo_menu_items,
   ticketPromotions,
   promotions,
   tables,
   modifiers,
   ticketMenuItemsModifier,
   comboComboMenuItems,
-  tipPercentage,
-  taxPercentage,
+  tip_percentage,
+  tax_percentage,
 }: {
   tickets: CompleteTicket[]
-  ticketMenuItems: TicketMenuItemDB[]
-  menuItems: MenuItemDB[]
-  bogoMenuItems: BogoMenuItemDB[]
+  ticket_menu_items: TicketMenuItemDB[]
+  menu_items: MenuItemDB[]
+  bogo_menu_items: BogoMenuItemDB[]
   ticketPromotions: TicketPromotionDB[]
   promotions: PromotionDB[]
   tables: TableDB[]
   modifiers: MenuItemModifierGroupModifierDB[]
   ticketMenuItemsModifier: TicketMenuItemModifierDB[]
   comboComboMenuItems: ComboComboMenuItemDB[]
-  tipPercentage: number
-  taxPercentage: number
+  tip_percentage: number
+  tax_percentage: number
 }): ReturnCompleteTicket[] => {
   const returnTickets: ReturnCompleteTicket[] = []
 
@@ -49,257 +49,257 @@ export const calculateLocationTickets = ({
     if (
       promotion.active &&
       promotion.type === 'LOYALTY' &&
-      promotion.pointsMultiplier > multiplier
+      promotion.points_multiplier > multiplier
     ) {
-      multiplier = promotion.pointsMultiplier
+      multiplier = promotion.points_multiplier
     }
   }
 
   for (const currentTicket of tickets) {
-    let totalCents = 0
+    let total_cents = 0
 
     const ticket: ReturnCompleteTicket = {
       uuid: currentTicket.uuid,
       id: currentTicket.id,
-      timeStamp: currentTicket.timeStamp,
+      time_stamp: currentTicket.time_stamp,
       status: currentTicket.status,
-      locationGroupUuid: currentTicket.locationGroupUuid,
+      location_group_uuid: currentTicket.location_group_uuid,
       locationUuid: currentTicket.locationUuid,
-      appUniqueUuid: currentTicket.appUniqueUuid,
-      fulfillmentUuid: currentTicket.fulfillmentUuid,
-      guestUuid: currentTicket.guestUuid,
-      guestAddressUuid: currentTicket.guestAddressUuid,
-      tableUuid: currentTicket.tableUuid,
-      userName: currentTicket.userName,
-      firstName: currentTicket.firstName,
-      lastName: currentTicket.lastName,
+      app_unique_uuid: currentTicket.app_unique_uuid,
+      fulfillment_uuid: currentTicket.fulfillment_uuid,
+      guest_uuid: currentTicket.guest_uuid,
+      guest_address_uuid: currentTicket.guest_address_uuid,
+      table_uuid: currentTicket.table_uuid,
+      user_name: currentTicket.user_name,
+      first_name: currentTicket.first_name,
+      last_name: currentTicket.last_name,
       email: currentTicket.email,
       phone: currentTicket.phone,
-      fulfillmentType: currentTicket.fulfillmentType,
+      fulfillment_type: currentTicket.fulfillment_type,
       address: currentTicket.address,
-      anonymousAddress: currentTicket.anonymousAddress,
-      guestsPoints: currentTicket.points || 0,
-      paymentUuid: currentTicket.paymentUuid,
-      menuItems: [],
+      anonymous_address: currentTicket.anonymous_address,
+      guests_points: currentTicket.points || 0,
+      payment_uuid: currentTicket.payment_uuid,
+      menu_items: [],
       combos: [],
-      appliedPromotions: [],
-      eligablePromotions: [],
-      ineligablePromotions: [],
-      redeemedPoints: 0,
-      totalPoints: 0,
-      endPoints: 0,
-      totalCents: 0,
+      applied_promotions: [],
+      eligable_promotions: [],
+      ineligable_promotions: [],
+      redeemed_points: 0,
+      total_points: 0,
+      end_points: 0,
+      total_cents: 0,
       total: '0.00',
-      tipTotal: '0.00',
-      taxTotal: '0.00',
-      taxTotalCents: 0,
-      grandTotal: '0.00',
-      grandTotalCents: 0,
+      tip_total: '0.00',
+      tax_total: '0.00',
+      tax_total_cents: 0,
+      grand_total: '0.00',
+      grand_total_cents: 0,
     }
 
-    if (currentTicket.tableUuid) {
-      const table = tables.find((t) => t.uuid === currentTicket.tableUuid)
-      if (table) ticket.tableName = table.name
+    if (currentTicket.table_uuid) {
+      const table = tables.find((t) => t.uuid === currentTicket.table_uuid)
+      if (table) ticket.table_name = table.name
     }
 
-    const ticketItemsForThisTicket = ticketMenuItems.filter(
-      (t) => t.ticketUuid === currentTicket.uuid,
+    const ticketItemsForThisTicket = ticket_menu_items.filter(
+      (t) => t.ticket_uuid === currentTicket.uuid,
     )
 
     const [remainingItems, combos, comboTotal] = calculateCombos(
       [...ticketItemsForThisTicket],
       comboComboMenuItems,
-      menuItems,
+      menu_items,
     )
 
     ticket.combos = combos
-    totalCents += comboTotal
+    total_cents += comboTotal
 
     for (const tmi of remainingItems) {
-      const menuItem = menuItems.find((mi) => mi.uuid === tmi.menuItemUuid)
-      if (!menuItem) continue
+      const menu_item = menu_items.find((mi) => mi.uuid === tmi.menu_item_uuid)
+      if (!menu_item) continue
 
       const returnMenuItem: ReturnMenuItem = {
-        uuid: menuItem.uuid,
-        cache: menuItem.cache,
-        active: menuItem.active,
-        name: menuItem.name,
-        description: menuItem.description,
-        priceWhole: menuItem.priceWhole,
-        priceHundredths: menuItem.priceHundredths,
-        originalPriceWhole: 0,
-        originalPriceHundredths: 0,
-        ticketMenuItemUuid: tmi.uuid,
-        ticketMenuItemNote: tmi.note,
-        availableModifiers: [],
-        appliedModifiers: [],
-        appliedPromotions: [],
+        uuid: menu_item.uuid,
+        cache: menu_item.cache,
+        active: menu_item.active,
+        name: menu_item.name,
+        description: menu_item.description,
+        price_whole: menu_item.price_whole,
+        price_hundredths: menu_item.price_hundredths,
+        original_price_whole: 0,
+        original_price_hundredths: 0,
+        ticket_menu_item_uuid: tmi.uuid,
+        ticket_menu_item_note: tmi.note,
+        available_modifiers: [],
+        applied_modifiers: [],
+        applied_promotions: [],
       }
 
       for (const modifier of modifiers) {
-        if (modifier.menuItemUuid !== menuItem.uuid) continue
+        if (modifier.menu_item_uuid !== menu_item.uuid) continue
 
-        returnMenuItem.availableModifiers.push(modifier)
-        returnMenuItem.modifierGroupAmountRequired = modifier.amountRequired
+        returnMenuItem.available_modifiers.push(modifier)
+        returnMenuItem.modifier_group_amount_required = modifier.amount_required
 
         for (const tm of ticketMenuItemsModifier) {
           if (
-            tm.modifierUuid === modifier.uuid &&
-            tm.ticketMenuItemUuid === tmi.uuid
+            tm.modifier_uuid === modifier.uuid &&
+            tm.ticket_menu_item_uuid === tmi.uuid
           ) {
             const appliedModifier = {
               ...modifier,
-              ticketMenuItemModifierUuid: tm.uuid,
+              ticket_menu_item_modifier_uuid: tm.uuid,
             }
 
-            returnMenuItem.appliedModifiers.push(appliedModifier)
-            totalCents += modifier.priceWhole * 100 + modifier.priceHundredths
+            returnMenuItem.applied_modifiers.push(appliedModifier)
+            total_cents += modifier.price_whole * 100 + modifier.price_hundredths
           }
         }
       }
 
       for (const tp of ticketPromotions) {
-        if (tp.ticketMenuItemUuid !== tmi.uuid) continue
+        if (tp.ticket_menu_item_uuid !== tmi.uuid) continue
 
-        const promotion = promotions.find((p) => p.uuid === tp.promotionUuid)
+        const promotion = promotions.find((p) => p.uuid === tp.promotion_uuid)
         if (!promotion) continue
 
         const promot: ReturnPromotion = { ...promotion }
 
-        returnMenuItem.appliedPromotions.push(promot)
-        ticket.appliedPromotions.push(promot)
+        returnMenuItem.applied_promotions.push(promot)
+        ticket.applied_promotions.push(promot)
 
         if (promot.type === 'PROMOTION' || promot.type === 'REWARD') {
-          const cents = menuItem.priceWhole * 100 + menuItem.priceHundredths
+          const cents = menu_item.price_whole * 100 + menu_item.price_hundredths
           let discount = 0
-          if (promot.promotionIsPercentage) {
-            discount = Math.floor((cents * promot.discountPercent) / 100)
+          if (promot.promotion_is_percentage) {
+            discount = Math.floor((cents * promot.discount_percent) / 100)
           } else {
-            discount = promot.discountWhole * 100 + promot.discountHundredths
+            discount = promot.discount_whole * 100 + promot.discount_hundredths
           }
           const final = cents - discount
-          returnMenuItem.priceWhole = Math.floor(final / 100)
-          returnMenuItem.priceHundredths = final % 100
+          returnMenuItem.price_whole = Math.floor(final / 100)
+          returnMenuItem.price_hundredths = final % 100
         }
-        returnMenuItem.originalPriceWhole = menuItem.priceWhole
-        returnMenuItem.originalPriceHundredths = menuItem.priceHundredths
+        returnMenuItem.original_price_whole = menu_item.price_whole
+        returnMenuItem.original_price_hundredths = menu_item.price_hundredths
       }
 
-      totalCents +=
-        returnMenuItem.priceWhole * 100 + returnMenuItem.priceHundredths
-      ticket.menuItems.push(returnMenuItem)
+      total_cents +=
+        returnMenuItem.price_whole * 100 + returnMenuItem.price_hundredths
+      ticket.menu_items.push(returnMenuItem)
     }
 
     const itemlessDiscounts: number[] = []
     for (const tp of ticketPromotions) {
-      if (tp.ticketMenuItemUuid) continue
+      if (tp.ticket_menu_item_uuid) continue
 
       const promotion = promotions.find(
-        (p) => p.uuid === tp.promotionUuid && p.type === 'REWARD' && p.itemless,
+        (p) => p.uuid === tp.promotion_uuid && p.type === 'REWARD' && p.itemless,
       )
       if (!promotion) continue
 
       const promot: ReturnPromotion = { ...promotion }
-      ticket.appliedPromotions.push(promot)
+      ticket.applied_promotions.push(promot)
 
       let discount: number
-      if (promot.promotionIsPercentage) {
-        discount = Math.floor((totalCents * promot.discountPercent) / 100)
+      if (promot.promotion_is_percentage) {
+        discount = Math.floor((total_cents * promot.discount_percent) / 100)
       } else {
-        discount = promot.discountWhole * 100 + promot.discountHundredths
+        discount = promot.discount_whole * 100 + promot.discount_hundredths
       }
-      totalCents -= discount
+      total_cents -= discount
       itemlessDiscounts.push(discount)
     }
 
-    for (const promo of ticket.appliedPromotions) {
+    for (const promo of ticket.applied_promotions) {
       if (promo.type === 'REWARD') {
-        ticket.redeemedPoints += promo.pointsRequired
+        ticket.redeemed_points += promo.points_required
       }
     }
 
-    ticket.totalPoints = Math.floor((totalCents * multiplier) / 100)
-    ticket.endPoints =
-      ticket.guestsPoints - ticket.redeemedPoints + ticket.totalPoints
-    ticket.totalCents = totalCents
+    ticket.total_points = Math.floor((total_cents * multiplier) / 100)
+    ticket.end_points =
+      ticket.guests_points - ticket.redeemed_points + ticket.total_points
+    ticket.total_cents = total_cents
 
     const format = (c: number) =>
       `${Math.floor(c / 100)}.${('0' + (c % 100)).slice(-2)}`
-    ticket.total = format(totalCents)
+    ticket.total = format(total_cents)
 
-    const tipCents = currentTicket.fulfillmentUuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
-      ? Math.floor((tipPercentage * totalCents) / 100)
+    const tipCents = currentTicket.fulfillment_uuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
+      ? Math.floor((tip_percentage * total_cents) / 100)
       : 0
-    ticket.tipTotal = format(tipCents)
+    ticket.tip_total = format(tipCents)
 
     const taxCents = Math.floor(
-      (taxPercentage * totalCents) / 100,
+      (tax_percentage * total_cents) / 100,
     )
-    ticket.taxTotal = format(taxCents)
-    ticket.taxTotalCents = taxCents
+    ticket.tax_total = format(taxCents)
+    ticket.tax_total_cents = taxCents
 
-    let grandTotal = totalCents + tipCents + taxCents
-    ticket.grandTotalCents = grandTotal
-    ticket.grandTotal = format(grandTotal)
+    let grand_total = total_cents + tipCents + taxCents
+    ticket.grand_total_cents = grand_total
+    ticket.grand_total = format(grand_total)
 
-    // If discounts push grandTotal negative, remove itemless promotions one at a time until we recover
-    if (grandTotal < 0) {
+    // If discounts push grand_total negative, remove itemless promotions one at a time until we recover
+    if (grand_total < 0) {
       const removeIndexes: number[] = []
       let discIdx = 0
-      for (let i = 0; i < ticket.appliedPromotions.length; i++) {
-        const p = ticket.appliedPromotions[i]!
+      for (let i = 0; i < ticket.applied_promotions.length; i++) {
+        const p = ticket.applied_promotions[i]!
         if (!p.itemless) continue
-        totalCents += itemlessDiscounts[discIdx]
+        total_cents += itemlessDiscounts[discIdx]
         discIdx++
-        const recalcTip = ticket.fulfillmentUuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
-          ? Math.floor((tipPercentage * totalCents) / 100)
+        const recalcTip = ticket.fulfillment_uuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
+          ? Math.floor((tip_percentage * total_cents) / 100)
           : 0
-        const recalcTax = Math.floor((taxPercentage * totalCents) / 100)
-        grandTotal = totalCents + recalcTip + recalcTax
+        const recalcTax = Math.floor((tax_percentage * total_cents) / 100)
+        grand_total = total_cents + recalcTip + recalcTax
         removeIndexes.push(i)
-        if (grandTotal >= 0) break
+        if (grand_total >= 0) break
       }
       for (const idx of removeIndexes.reverse()) {
-        ticket.appliedPromotions.splice(idx, 1)
+        ticket.applied_promotions.splice(idx, 1)
       }
-      // Recompute redeemedPoints from remaining promotions
-      ticket.redeemedPoints = 0
-      for (const promo of ticket.appliedPromotions) {
+      // Recompute redeemed_points from remaining promotions
+      ticket.redeemed_points = 0
+      for (const promo of ticket.applied_promotions) {
         if (promo.type === 'REWARD') {
-          ticket.redeemedPoints += promo.pointsRequired
+          ticket.redeemed_points += promo.points_required
         }
       }
       // Recalculate
-      ticket.totalPoints = Math.floor((totalCents * multiplier) / 100)
-      ticket.endPoints = ticket.guestsPoints - ticket.redeemedPoints + ticket.totalPoints
-      ticket.totalCents = totalCents
-      ticket.total = format(totalCents)
-      const newTipCents = ticket.fulfillmentUuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
-        ? Math.floor((tipPercentage * totalCents) / 100)
+      ticket.total_points = Math.floor((total_cents * multiplier) / 100)
+      ticket.end_points = ticket.guests_points - ticket.redeemed_points + ticket.total_points
+      ticket.total_cents = total_cents
+      ticket.total = format(total_cents)
+      const newTipCents = ticket.fulfillment_uuid === 'ed345e57-4fb1-4111-8603-9c820417ed3e'
+        ? Math.floor((tip_percentage * total_cents) / 100)
         : 0
-      ticket.tipTotal = format(newTipCents)
-      const newTaxCents = Math.floor((taxPercentage * totalCents) / 100)
-      ticket.taxTotal = format(newTaxCents)
-      ticket.taxTotalCents = newTaxCents
-      grandTotal = totalCents + newTipCents + newTaxCents
-      ticket.grandTotalCents = grandTotal
-      ticket.grandTotal = format(grandTotal)
+      ticket.tip_total = format(newTipCents)
+      const newTaxCents = Math.floor((tax_percentage * total_cents) / 100)
+      ticket.tax_total = format(newTaxCents)
+      ticket.tax_total_cents = newTaxCents
+      grand_total = total_cents + newTipCents + newTaxCents
+      ticket.grand_total_cents = grand_total
+      ticket.grand_total = format(grand_total)
     }
 
     for (const promotion of promotions) {
       let eligable = false
       const promot: ReturnPromotion = { ...promotion }
 
-      for (const bogo of bogoMenuItems) {
+      for (const bogo of bogo_menu_items) {
         if (
-          bogo.bogoUuid === promotion.bogoBuy &&
+          bogo.bogo_uuid === promotion.bogo_buy &&
           promotion.type === 'PROMOTION'
         ) {
-          for (const mi of ticket.menuItems) {
+          for (const mi of ticket.menu_items) {
             if (
-              mi.uuid === bogo.menuItemUuid &&
-              (mi.appliedPromotions.length === 0 ||
-                mi.appliedPromotions[0]!.uuid !== promot.uuid)
+              mi.uuid === bogo.menu_item_uuid &&
+              (mi.applied_promotions.length === 0 ||
+                mi.applied_promotions[0]!.uuid !== promot.uuid)
             ) {
               eligable = true
               break
@@ -308,16 +308,16 @@ export const calculateLocationTickets = ({
         }
 
         if (
-          bogo.bogoUuid === promotion.bogoGet &&
+          bogo.bogo_uuid === promotion.bogo_get &&
           promotion.type === 'REWARD'
         ) {
-          for (const mi of ticket.menuItems) {
+          for (const mi of ticket.menu_items) {
             if (
-              mi.uuid === bogo.menuItemUuid &&
-              (mi.appliedPromotions.length === 0 ||
-                mi.appliedPromotions[0]!.uuid !== promot.uuid) &&
-              ticket.guestsPoints - ticket.redeemedPoints >=
-                promotion.pointsRequired
+              mi.uuid === bogo.menu_item_uuid &&
+              (mi.applied_promotions.length === 0 ||
+                mi.applied_promotions[0]!.uuid !== promot.uuid) &&
+              ticket.guests_points - ticket.redeemed_points >=
+                promotion.points_required
             ) {
               eligable = true
               break
@@ -327,23 +327,23 @@ export const calculateLocationTickets = ({
       }
 
       if (promotion.type === 'REWARD' && promotion.itemless) {
-        const discount = promot.discountWhole * 100 + promot.discountHundredths
+        const discount = promot.discount_whole * 100 + promot.discount_hundredths
         if (
-          discount <= ticket.grandTotalCents &&
-          ticket.guestsPoints - ticket.redeemedPoints >=
-            promotion.pointsRequired
+          discount <= ticket.grand_total_cents &&
+          ticket.guests_points - ticket.redeemed_points >=
+            promotion.points_required
         ) {
           eligable = true
-          for (const ap of ticket.appliedPromotions) {
+          for (const ap of ticket.applied_promotions) {
             if (ap.uuid === promot.uuid) eligable = false
           }
         }
       }
 
       if (eligable && promotion.active) {
-        ticket.eligablePromotions.push(promot)
+        ticket.eligable_promotions.push(promot)
       } else {
-        ticket.ineligablePromotions.push(promot)
+        ticket.ineligable_promotions.push(promot)
       }
     }
 
@@ -351,8 +351,8 @@ export const calculateLocationTickets = ({
   }
 
   returnTickets.sort((a, b) => {
-    const aName = a.tableName || ''
-    const bName = b.tableName || ''
+    const aName = a.table_name || ''
+    const bName = b.table_name || ''
     if (aName === '' && bName === '') return 0
     if (aName === '') return 1
     if (bName === '') return -1
