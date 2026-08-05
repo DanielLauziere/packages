@@ -49,7 +49,6 @@ export type CompleteTicket = {
   time_stamp: string
   status: TicketStatus
   location_group_uuid: string
-  locationUuid: string
   app_unique_uuid: string
   fulfillment_uuid: string
   fulfillment_type: string
@@ -209,7 +208,6 @@ export type ReturnCompleteTicket = {
   time_stamp: string
   status: TicketStatus
   location_group_uuid: string
-  locationUuid: string
   app_unique_uuid: string
   fulfillment_uuid: string
   guest_uuid: string

@@ -64,7 +64,6 @@ export const calculateLocationTickets = ({
       time_stamp: currentTicket.time_stamp,
       status: currentTicket.status,
       location_group_uuid: currentTicket.location_group_uuid,
-      locationUuid: currentTicket.locationUuid,
       app_unique_uuid: currentTicket.app_unique_uuid,
       fulfillment_uuid: currentTicket.fulfillment_uuid,
       guest_uuid: currentTicket.guest_uuid,

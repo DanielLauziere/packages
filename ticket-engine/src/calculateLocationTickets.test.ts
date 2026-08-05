@@ -28,7 +28,6 @@ const makeTicket = (
   time_stamp: '2026-01-01T12:00:00.000Z',
   status: 'COMPLETE',
   location_group_uuid: uSeq(1),
-  locationUuid: '',
   app_unique_uuid: '',
   fulfillment_uuid: '',
   fulfillment_type: '',
@@ -966,7 +965,6 @@ describe('ticket fields passthrough', () => {
         time_stamp: '2026-06-15T10:30:00.000Z',
         status: 'COMPLETE',
         location_group_uuid: uSeq(2),
-        locationUuid: uSeq(3),
         app_unique_uuid: uSeq(4),
         fulfillment_uuid: uSeq(5),
         guest_uuid: uSeq(6),
@@ -1260,7 +1258,7 @@ describe('points fallback', () => {
     const ts = run({
       tickets: [{
         uuid: uSeq(1), id: 1001, time_stamp: '', status: 'COMPLETE',
-        location_group_uuid: '', locationUuid: '', app_unique_uuid: '',
+        location_group_uuid: '', app_unique_uuid: '',
         fulfillment_uuid: '', fulfillment_type: '', guest_uuid: '',
         guest_address_uuid: '', table_uuid: '', user_name: '', first_name: '',
         last_name: '', email: '', phone: '', address: '', anonymous_address: '',
