@@ -3,40 +3,40 @@ export type SetAnonymousAddressPayload = {
 }
 
 export type AddItemPayload = {
-  menuItemUuid: string
+  menu_item_uuid: string
 }
 
 export type RemoveItemPayload = {
-  ticketMenuItemUuid: string
+  ticket_menu_item_uuid: string
 }
 
 export type SetItemNotePayload = {
-  ticketMenuItemUuid: string
+  ticket_menu_item_uuid: string
   note: string | null
 }
 
 export type AddModifierPayload = {
-  ticketMenuItemUuid: string
-  modifierUuid: string
+  ticket_menu_item_uuid: string
+  modifier_uuid: string
 }
 
 export type RemoveModifierPayload = {
-  ticketMenuItemModifierUuid: string
+  ticket_menu_item_modifier_uuid: string
 }
 
 export type ApplyPromotionPayload = {
-  promotionUuid: string
-  ticketMenuItemUuid?: string
+  promotion_uuid: string
+  ticket_menu_item_uuid?: string
 }
 
 export type RemovePromotionPayload = {
-  promotionUuid: string
+  promotion_uuid: string
 }
 
 export type AddPaymentPayload = {
-  paymentUuid: string
-  priceWhole: number
-  priceHundredths: number
+  payment_uuid: string
+  price_whole: number
+  price_hundredths: number
   code?: string
   complete: boolean
 }

@@ -45,16 +45,16 @@ const seed = {
 }
 
 const logs = [
-  { uuid: 'l-table', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'SET_TABLE', payload: { tableUuid: 'tbl1' }, timeStamp: 1000 },
-  { uuid: 'l-guest', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'SET_GUEST', payload: { guestUserName: 'Dani' }, timeStamp: 2000 },
-  { uuid: 'l-fulfill', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'SET_FULFILLMENT', payload: { fulfillmentUuid: 'fu1' }, timeStamp: 3000 },
-  { uuid: 'tmi1', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'ADD_ITEM', payload: { menuItemUuid: 'mi1' }, timeStamp: 4000 },
-  { uuid: 'l-mod', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'ADD_MODIFIER', payload: { ticketMenuItemUuid: 'tmi1', modifierUuid: 'mod1' }, timeStamp: 5000 },
-  { uuid: 'l-promo', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'APPLY_PROMOTION', payload: { promotionUuid: 'promo1' }, timeStamp: 6000 },
-  { uuid: 'l-pay', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'ADD_PAYMENT', payload: { paymentUuid: 'pay1', priceWhole: 800, priceHundredths: 0, code: 'CASH', complete: false }, timeStamp: 7000 },
-  { uuid: 'l-accepted', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'SET_STATUS_ACCEPTED', payload: {}, timeStamp: 8000 },
-  { uuid: 'l-complete', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'SET_STATUS_COMPLETE', payload: {}, timeStamp: 9000 },
-  { uuid: 'l-paid', ticketUuid: 't1', locationGroupUuid: LG, adminUuid: 'admin1', action: 'SET_STATUS_PAID', payload: {}, timeStamp: 10000 },
+  { uuid: 'l-table', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_TABLE', payload: { table_uuid: 'tbl1' }, time_stamp: 1000 },
+  { uuid: 'l-guest', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_GUEST', payload: { guest_user_name: 'Dani' }, time_stamp: 2000 },
+  { uuid: 'l-fulfill', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_FULFILLMENT', payload: { fulfillment_uuid: 'fu1' }, time_stamp: 3000 },
+  { uuid: 'tmi1', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 4000 },
+  { uuid: 'l-mod', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_MODIFIER', payload: { ticket_menu_item_uuid: 'tmi1', modifier_uuid: 'mod1' }, time_stamp: 5000 },
+  { uuid: 'l-promo', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 6000 },
+  { uuid: 'l-pay', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_PAYMENT', payload: { payment_uuid: 'pay1', price_whole: 800, price_hundredths: 0, code: 'CASH', complete: false }, time_stamp: 7000 },
+  { uuid: 'l-accepted', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_STATUS_ACCEPTED', payload: {}, time_stamp: 8000 },
+  { uuid: 'l-complete', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_STATUS_COMPLETE', payload: {}, time_stamp: 9000 },
+  { uuid: 'l-paid', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_STATUS_PAID', payload: {}, time_stamp: 10000 },
 ]
 
 function row(db: DatabaseSync, sql: string, ...p: any[]): any {
@@ -185,6 +185,38 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     seedMenuDatabase(makeAdapter(db), menuSeed)
     seedMenuDatabase(makeAdapter(db), menuSeed)
     expect(row(db, 'SELECT COUNT(*) AS c FROM menu_item').c).toBe(1)
+    expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
+  })
+
+  it('seedDatabase survives a hostile seed: empty strings, nulls, missing keys, unknown keys', () => {
+    const hostile: any = {
+      country: [{ uuid: 'ct-1', name: '', nombre: null, iso2: 'SV', iso3: 'SLV', phone_code: 503, this_key_does_not_exist: 'ignored' }],
+      location_group: [{ uuid: LG, name: 'Main Location', country_uuid: 'ct-1' }],
+      menu: [{ uuid: 'menu1', name: 'Main Menu', active: 1, location_group_uuid: LG }],
+      menu_category: [
+        { uuid: 'cat1', name: 'Burgers', active: 1, location_group_uuid: LG },
+        { uuid: 'cat2', name: null, active: 1, location_group_uuid: LG },
+        { uuid: 'cat3', location_group_uuid: LG },
+      ],
+      menu_item: [
+        { uuid: 'mi1', name: '', price_whole: 5, price_hundredths: 0, active: 1, complete: 0, location_group_uuid: LG, cache: '{}' },
+        { uuid: 'mi2', name: 'Soda', price_whole: 2, price_hundredths: 0, active: 1, complete: 0, location_group_uuid: LG, cache: null },
+        { uuid: 'mi3', price_whole: 3, price_hundredths: 0, active: 1, complete: 0, location_group_uuid: LG },
+      ],
+    }
+
+    seedDatabase(makeAdapter(db), hostile)
+
+    // Row 0 with empty-string name survives (name '' → null; NOT NULL name
+    // would be filled by zeroFor, but name is nullable so it stores NULL).
+    expect((row(db, 'SELECT COUNT(*) AS c FROM country')).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM location_group')).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM menu')).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM menu_category')).c).toBe(3)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM menu_item')).c).toBe(3)
+    // Unknown keys are ignored; no extra columns, no crash.
+    const c = row(db, 'SELECT COUNT(*) AS c FROM menu_item WHERE name IS NULL')
+    expect(c.c).toBeGreaterThanOrEqual(1)
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
 
