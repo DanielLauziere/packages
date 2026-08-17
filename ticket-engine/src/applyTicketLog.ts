@@ -58,8 +58,8 @@ function ensureTicketExists(
   if (exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticket_uuid])) return
 
   adapter.run(
-    `INSERT INTO "ticket" (uuid, id, time_stamp, location_group_uuid, admin_uuid, status, is_dirty, is_local)
-     VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 1, 1)`,
+    `INSERT INTO "ticket" (uuid, id, time_stamp, location_group_uuid, admin_uuid, status, price_whole, price_hundredths, is_dirty, is_local)
+     VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 0, 0, 1, 1)`,
     [entry.ticket_uuid, ticketIdFromUUID(entry.ticket_uuid), entry.time_stamp, entry.location_group_uuid, entry.admin_uuid ?? null],
   )
 }
@@ -184,7 +184,9 @@ export function applyTicketLog(
         const p = payload as RemoveItemPayload
         const { ticket_menu_item_uuid: ticketMenuItemUuid } = p
 
-        if (!exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [ticketMenuItemUuid])) return
+        if (!exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [ticketMenuItemUuid])) {
+          throw new Error('MISSING_DEPENDENCY')
+        }
 
         adapter.run(`DELETE FROM "ticket_menu_item_modifier" WHERE ticket_menu_item_uuid = ?`, [ticketMenuItemUuid])
         adapter.run(`DELETE FROM "ticket_promotion" WHERE ticket_menu_item_uuid = ?`, [ticketMenuItemUuid])
@@ -226,7 +228,9 @@ export function applyTicketLog(
         const p = payload as RemoveModifierPayload
         const { ticket_menu_item_modifier_uuid: ticketMenuItemModifierUuid } = p
 
-        if (ticketMenuItemModifierUuid && !exists(adapter, `SELECT 1 FROM ticket_menu_item_modifier WHERE uuid = ? LIMIT 1`, [ticketMenuItemModifierUuid])) return
+        if (!exists(adapter, `SELECT 1 FROM ticket_menu_item_modifier WHERE uuid = ? LIMIT 1`, [ticketMenuItemModifierUuid])) {
+          throw new Error('MISSING_DEPENDENCY')
+        }
 
         adapter.run(`DELETE FROM "ticket_menu_item_modifier" WHERE uuid = ?`, [ticketMenuItemModifierUuid])
         break

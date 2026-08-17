@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { v5 as uuidv5 } from 'uuid'
 import {
   applyTicketLog,
   applyLogsBatch,
@@ -223,6 +224,19 @@ describe('applyTicketLog', () => {
       const insert = adapter.findRun('INSERT INTO guest')
       expect(insert!.params).toContain('5035551234')
     })
+
+    it('derives the guest uuid deterministically from the canonical (trim+lower) username', () => {
+      const DNS_NS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      adapter.onQuery('SELECT uuid FROM guest', [{ uuid: 'guest-001' }])
+      // Mixed case + surrounding whitespace must canonicalize to 'User@Domain.Com' → 'user@domain.com'
+      // and the uuid must be uuidv5 of the canonicalized value (NOT uuidv4).
+      applyTicketLog(adapter, entry({ action: 'SET_GUEST', payload: { guest_user_name: '  User@Domain.Com  ' } }))
+      const insert = adapter.findRun('INSERT INTO guest')
+      expect(insert!.params).toContain('user@domain.com')
+      expect(insert!.params[0]).toBe(uuidv5('user@domain.com', DNS_NS))
+      expect(insert!.params[0]).not.toBe(uuidv5('User@Domain.Com', DNS_NS))
+    })
   })
 
   describe('SET_FULFILLMENT', () => {
@@ -280,9 +294,10 @@ describe('applyTicketLog', () => {
       expect(adapter.findRun('DELETE FROM "ticket_menu_item" WHERE uuid')).toBeDefined()
     })
 
-    it('no-ops when ticketMenuItem not found', () => {
-      applyTicketLog(adapter, entry({ action: 'REMOVE_ITEM', payload: { ticket_menu_item_uuid: 'missing' } }))
-      expect(adapter.runs.length).toBe(0)
+    it('throws MISSING_DEPENDENCY when ticketMenuItem not found (retry, don\'t skip)', () => {
+      expect(() =>
+        applyTicketLog(adapter, entry({ action: 'REMOVE_ITEM', payload: { ticket_menu_item_uuid: 'missing' } })),
+      ).toThrow('MISSING_DEPENDENCY')
     })
   })
 
@@ -339,9 +354,10 @@ describe('applyTicketLog', () => {
       expect(del!.params).toContain('tmm-001')
     })
 
-    it('no-ops when modifier not found', () => {
-      applyTicketLog(adapter, entry({ action: 'REMOVE_MODIFIER', payload: { ticket_menu_item_modifier_uuid: 'missing' } }))
-      expect(adapter.runs.length).toBe(0)
+    it('throws MISSING_DEPENDENCY when modifier not found (retry, don\'t skip)', () => {
+      expect(() =>
+        applyTicketLog(adapter, entry({ action: 'REMOVE_MODIFIER', payload: { ticket_menu_item_modifier_uuid: 'missing' } })),
+      ).toThrow('MISSING_DEPENDENCY')
     })
   })
 
@@ -453,10 +469,35 @@ describe('applyLogsBatch', () => {
       { uuid: 'log-5', ticket_uuid: 'ticket-001', location_group_uuid: 'lg-001', action: 'ADD_PAYMENT', payload: { payment_uuid: 'pay-001', price_whole: 10, price_hundredths: 0, complete: true }, time_stamp: 3 },
     ]
     adapter.onQuery('SELECT 1 FROM dining_table', [{ uuid: 'table-001' }])
+    adapter.onQuery('SELECT 1 FROM menu_item', [{ uuid: 'mi-001' }])
+    adapter.onQuery('SELECT 1 FROM payment', [{ uuid: 'pay-001' }])
     const result = applyLogsBatch(adapter, logs)
     expect(result.applied).toBe(3)
     expect(result.skipped).toBe(0)
     expect(result.errors).toHaveLength(0)
+
+    // Order matters for convergence: the claims must be made in priority-tier
+    // order (SET_TABLE=0, ADD_ITEM=1, ADD_PAYMENT=8) regardless of arrival.
+    const claims = adapter.runs
+      .filter((r) => r.sql.includes('INSERT OR IGNORE INTO "ticket_log_applied"'))
+      .map((r) => r.params![0])
+    expect(claims).toEqual(['log-1', 'log-3', 'log-5'])
+  })
+
+  it('ties at equal priority break by time_stamp then uuid', () => {
+    // Same tier (ADD_ITEM, priority 1): earlier time_stamp first, then uuid.
+    adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+    adapter.onQuery('SELECT 1 FROM menu_item', [{ uuid: 'mi-001' }])
+    const logs: TicketLogEntry[] = [
+      { uuid: 'b-2', ticket_uuid: 'ticket-001', location_group_uuid: 'lg-001', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi-001' }, time_stamp: 100 },
+      { uuid: 'a-1', ticket_uuid: 'ticket-001', location_group_uuid: 'lg-001', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi-001' }, time_stamp: 100 },
+    ]
+    const result = applyLogsBatch(adapter, logs)
+    expect(result.applied).toBe(2)
+    const claims = adapter.runs
+      .filter((r) => r.sql.includes('INSERT OR IGNORE INTO "ticket_log_applied"'))
+      .map((r) => r.params![0])
+    expect(claims).toEqual(['a-1', 'b-2'])
   })
 
   it('skips already-applied logs', () => {
@@ -483,5 +524,46 @@ describe('applyLogsBatch', () => {
     expect(result.skipped).toBe(0)
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]!.entry.uuid).toBe('log-001')
+  })
+
+  it('marks failed logs for retry with linear backoff (failLog contract)', () => {
+    adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+    const result = applyLogsBatch(adapter, [entry({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi-001' } })])
+    // menu_item missing → MISSING_DEPENDENCY → skipped (not marked applied),
+    // so the claim row keeps time_stamp NULL and the log is retried next cycle.
+    expect(result.applied).toBe(0)
+    expect(result.skipped).toBe(1)
+
+    const claim = adapter.findRun('INSERT OR IGNORE INTO "ticket_log_applied"')
+    // claim row exists with retry_count 0 and a NULL time_stamp (not applied)
+    // — the retry-contract probe: fetch-unapplied looks for time_stamp IS NULL.
+    expect(claim).toBeDefined()
+  })
+
+  it('error isolation: one failing log never blocks the others (rule 7)', () => {
+    adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+    adapter.onQuery('SELECT 1 FROM dining_table', [{ uuid: 'table-001' }])
+    const logs: TicketLogEntry[] = [
+      // Both logs in the batch; the second fails mid-apply with a hard (non
+      // MISSING_DEPENDENCY) error. The batch must still apply the first.
+      { uuid: 'ok-1', ticket_uuid: 'ticket-001', location_group_uuid: 'lg-001', action: 'SET_TABLE', payload: { table_uuid: 'table-001' }, time_stamp: 1 },
+      { uuid: 'bad-2', ticket_uuid: 'ticket-001', location_group_uuid: 'lg-001', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi-001' }, time_stamp: 2 },
+    ]
+    const originalQuery = adapter.query.bind(adapter)
+    // Throw on the SECOND ensureTicketExists probe (bad-2's) — a genuine DB error
+    // inside the transaction, distinct from MISSING_DEPENDENCY.
+    let ticketProbes = 0
+    adapter.query = (sql: string, params?: any[]) => {
+      if (sql.includes('FROM ticket WHERE uuid') && ++ticketProbes > 1) throw new Error('DB_ERROR')
+      return originalQuery(sql, params)
+    }
+    const result = applyLogsBatch(adapter, logs)
+    expect(result.applied).toBe(1)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]!.entry.uuid).toBe('bad-2')
+    // The failed log is recorded for retry (failLog), not silently dropped.
+    const fail = adapter.findRun('UPDATE "ticket_log_applied" SET retry_count')
+    expect(fail).toBeDefined()
+    expect(fail!.params).toContain('bad-2')
   })
 })

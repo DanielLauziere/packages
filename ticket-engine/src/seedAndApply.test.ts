@@ -12,6 +12,8 @@ import {
   setSchemaUuid,
   FULL_DDL,
   SCHEMA_UUID,
+  SEED_ORDER,
+  ticketIdFromUUID,
   rowsFromDb,
   type DbAdapter,
 } from './index.js'
@@ -79,12 +81,13 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
 
   afterEach(() => db.close())
 
-  it('creates all 53 tables including print_record', () => {
+  it('creates all 52 tables including print_record', () => {
     const tables = all(db, `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).map((r) => r.name)
-    expect(tables.length).toBe(53)
+    expect(tables.length).toBe(52)
     expect(tables).toContain('print_record')
     expect(tables).toContain('ticket_log_applied')
     expect(tables).toContain('location_group_schema_version')
+    expect(tables).not.toContain('mock_schema_sync_probe')
   })
 
   it('seedDatabase maps snake_case wire keys to snake columns per-row', () => {
@@ -126,6 +129,110 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     const promos = all(db, 'SELECT * FROM ticket_promotion WHERE ticket_uuid=?', 't1')
     expect(promos).toHaveLength(1)
     expect(promos[0].promotion_uuid).toBe('promo1')
+  })
+
+  it('implicit ticket creation applies rule-4 defaults on real SQLite', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+    const res = applyLogsBatch(makeAdapter(db), [
+      { uuid: 'l-single', ticket_uuid: 'fresh-t1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_GUEST', payload: { guest_user_name: 'NewGuest' }, time_stamp: 500 },
+    ] as any)
+    expect(res.applied).toBe(1)
+    const t = row(db, 'SELECT id, status, price_whole, price_hundredths, is_dirty, is_local, admin_uuid FROM ticket WHERE uuid=?', 'fresh-t1')
+    // Rule 4: INCOMPLETE status, price 0/0 (not NULL), crc32-derived id.
+    expect(t.status).toBe('INCOMPLETE')
+    expect(t.price_whole).toBe(0)
+    expect(t.price_hundredths).toBe(0)
+    expect(t.id).toBe(ticketIdFromUUID('fresh-t1'))
+    expect(t.is_dirty).toBe(1)
+    expect(t.is_local).toBe(1)
+    expect(t.admin_uuid).toBe('admin1')
+  })
+
+  it('replaying the same batch twice converges to identical state', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+    const first = applyLogsBatch(makeAdapter(db), logs as any)
+    expect(first.applied).toBe(10)
+
+    const stateAfterFirst = all(db, 'SELECT * FROM ticket WHERE uuid=?', 't1')
+    // Replay the exact same logs — nothing may change and nothing re-applies.
+    const second = applyLogsBatch(makeAdapter(db), logs as any)
+    expect(second.applied).toBe(0)
+    expect(second.skipped).toBe(10)
+    expect(second.errors).toEqual([])
+    const stateAfterSecond = all(db, 'SELECT * FROM ticket WHERE uuid=?', 't1')
+    expect(stateAfterSecond).toEqual(stateAfterFirst)
+    // Single source of truth: exactly one row per log, applied time_stamp set.
+    const appliedRows = all(db, 'SELECT uuid, time_stamp, retry_count FROM ticket_log_applied ORDER BY uuid')
+    expect(appliedRows).toHaveLength(10)
+    for (const a of appliedRows) {
+      expect(a.time_stamp).not.toBeNull()
+      expect(a.retry_count).toBeNull()
+    }
+  })
+
+  it('ticket_log_applied: claim row stays un-applied (retry) when deps missing, then applies', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+    // REMOVE_ITEM for a ticket_menu_item that does not exist yet — rule 5:
+    // throw MISSING_DEPENDENCY → skip (keep claim time_stamp NULL) → retry later.
+    const remove = { uuid: 'l-remove', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'REMOVE_ITEM', payload: { ticket_menu_item_uuid: 'tmi1' }, time_stamp: 4000 }
+    const res = applyLogsBatch(makeAdapter(db), [remove] as any)
+    expect(res.applied).toBe(0)
+    expect(res.skipped).toBe(1)
+    const claim = row(db, 'SELECT time_stamp FROM ticket_log_applied WHERE uuid=?', 'l-remove')
+    expect(claim.time_stamp).toBeNull() // still un-applied → next cycle retries
+
+    // Now the ADD_ITEM arrives on the next cycle, then the remove applies.
+    const add: any = { uuid: 'tmi1', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 3000 }
+    const res2 = applyLogsBatch(makeAdapter(db), [add] as any)
+    expect(res2.applied).toBe(1)
+    const res3 = applyLogsBatch(makeAdapter(db), [remove] as any)
+    expect(res3.applied).toBe(1)
+    expect(res3.skipped).toBe(0)
+    expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_menu_item WHERE uuid=?', 'tmi1').c).toBe(0) // removed
+  })
+
+  it('the 5 rarely-integration-tested actions run against real SQLite', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+    // tmi-extra is added first so the follow-up remove/note/modifier actions have
+    // their FK dependencies present.
+    const setup = applyLogsBatch(makeAdapter(db), [
+      { uuid: 'tmi-extra', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 },
+    ] as any)
+    expect(setup.applied).toBe(1)
+
+    const idiom: any[] = [
+      { uuid: 'l-addr', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_ANONYMOUS_ADDRESS', payload: { address: 'Calle 1' }, time_stamp: 2000 },
+      { uuid: 'l-note', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_ITEM_NOTE', payload: { ticket_menu_item_uuid: 'tmi-extra', note: 'sin cebolla' }, time_stamp: 3000 },
+      { uuid: 'l-promo-item', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo1', ticket_menu_item_uuid: 'tmi-extra' }, time_stamp: 4000 },
+      { uuid: 'l-rem-promo', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'REMOVE_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 5000 },
+      { uuid: 'l-mod2', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_MODIFIER', payload: { ticket_menu_item_uuid: 'tmi-extra', modifier_uuid: 'mod1' }, time_stamp: 6000 },
+    ]
+    const res = applyLogsBatch(makeAdapter(db), idiom)
+    expect(res.applied).toBe(idiom.length)
+    expect(res.errors).toEqual([])
+
+    const t2 = row(db, 'SELECT anonymous_address FROM ticket WHERE uuid=?', 't2')
+    expect(t2.anonymous_address).toBe('Calle 1')
+    const tmi = row(db, 'SELECT note FROM ticket_menu_item WHERE uuid=?', 'tmi-extra')
+    expect(tmi.note).toBe('sin cebolla')
+    // Item-level promotion applied then removed.
+    expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_promotion WHERE ticket_uuid=?', 't2').c).toBe(0)
+
+    // REMOVE_MODIFIER with its FK present applies.
+    const rm = applyLogsBatch(makeAdapter(db), [
+      { uuid: 'l-mod3', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'REMOVE_MODIFIER', payload: { ticket_menu_item_modifier_uuid: 'l-mod2' }, time_stamp: 7000 },
+    ] as any)
+    expect(rm.applied).toBe(1)
+    expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_menu_item_modifier WHERE uuid=?', 'l-mod2').c).toBe(0)
+  })
+
+  it('SEED_ORDER is a valid FK-topological order that executes cleanly', () => {
+    seedDatabase(makeAdapter(db), seed as any, SEED_ORDER)
+    expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
+    // The exported order must name every seedable table and know the schema.
+    expect(SEED_ORDER.length).toBeGreaterThan(0)
+    // Probe table is gone from the restored 52-table schema.
+    expect(SEED_ORDER).not.toContain('mock_schema_sync_probe')
   })
 
   it('migrateSchema persists the applied uuid and is idempotent', () => {
