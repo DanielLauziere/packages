@@ -79,7 +79,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
 
   afterEach(() => db.close())
 
-  it('creates all 52 tables including print_record', () => {
+  it('creates all 53 tables including print_record', () => {
     const tables = all(db, `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).map((r) => r.name)
     expect(tables.length).toBe(53)
     expect(tables).toContain('print_record')
