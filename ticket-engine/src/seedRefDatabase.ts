@@ -1,65 +1,11 @@
 import type { DbAdapter } from './dbAdapter.js'
-import { dbColumnName, dbTableName } from './rowMapping.js'
-import { SEED_COLUMNS } from './generatedSchema.js'
-
-export type Seed = Record<string, unknown[]>
-
-function normalizeValue(v: unknown): unknown {
-  if (v === '') return null
-  if (typeof v === 'boolean') return v ? 1 : 0
-  return v
-}
-
-// keepSchemaKeys filters a wire row down to the columns that actually exist in
-// the union schema (schema-driven column mapping — Phase 5, replacing key-copy).
-// Under the snake_case wire contract the payload key IS the column, so this is
-// a plain intersection with SEED_COLUMNS keys (identity).
-function keepSchemaKeys(table: string, record: Record<string, unknown>): Record<string, unknown> {
-  const cols = SEED_COLUMNS[dbTableName(table)]
-  if (!cols) return record
-  const out: Record<string, unknown> = {}
-  for (const key of Object.keys(record)) {
-    if (key in cols) out[key] = record[key]
-  }
-  return out
-}
-
-function buildInsert(table: string, record: Record<string, unknown>) {
-  record = keepSchemaKeys(table, record)
-  const keys = Object.keys(record)
-  if (keys.length === 0) return null
-
-  const placeholders = keys.map(() => '?').join(',')
-  const values = keys.map((k) => normalizeValue(record[k]))
-
-  const sql = `
-    INSERT OR REPLACE INTO "${dbTableName(table)}"
-    (${keys.map((k) => `"${dbColumnName(k)}"`).join(',')})
-    VALUES (${placeholders})
-  `
-
-  return { sql, values }
-}
-
-function buildUpsert(table: string, record: Record<string, unknown>) {
-  record = keepSchemaKeys(table, record)
-  const keys = Object.keys(record)
-  if (keys.length === 0) return null
-
-  const placeholders = keys.map(() => '?').join(',')
-  const values = keys.map((k) => normalizeValue(record[k]))
-  const updateKeys = keys.filter((k) => k !== 'uuid')
-
-  const sql = `
-    INSERT INTO "${dbTableName(table)}"
-    (${keys.map((k) => `"${dbColumnName(k)}"`).join(',')})
-    VALUES (${placeholders})
-    ON CONFLICT("uuid") DO UPDATE SET
-    ${updateKeys.map((k) => `"${dbColumnName(k)}" = excluded."${dbColumnName(k)}"`).join(',')}
-  `
-
-  return { sql, values }
-}
+import {
+  buildInsert,
+  buildUpsert,
+  runRow,
+  withSeedTransaction,
+  type Seed,
+} from './seedCommon.js'
 
 // Ref-only (non-menu) tables the schema-version counter covers, minus the menu
 // family (handled by seedMenuDatabase).
@@ -107,9 +53,7 @@ const INSERT_ORDER = [
  *   and skipped, never aborting the whole seed.
  */
 export function seedRefDatabase(db: DbAdapter, seed: Seed): void {
-  db.run('BEGIN')
-
-  try {
+  withSeedTransaction(db, () => {
     // 1. UPSERT parent/dependency tables (FK targets stay put).
     for (const table of UPSERT_ORDER) {
       const rows = seed[table]
@@ -119,18 +63,14 @@ export function seedRefDatabase(db: DbAdapter, seed: Seed): void {
         if (!row || typeof row !== 'object') continue
         const upsert = buildUpsert(table, row as Record<string, unknown>)
         if (!upsert) continue
-        try {
-          db.run(upsert.sql, upsert.values)
-        } catch (err) {
-          const key = (row as { uuid?: string }).uuid ?? '[no-uuid]'
-          console.error(`🌱 seedRef ${table} ${key}: ${(err as Error).message}`)
-        }
+        const key = (row as { uuid?: string }).uuid ?? '[no-uuid]'
+        runRow(db, upsert, `seedRef ${table} ${key}`)
       }
     }
 
     // 2. DELETE leaf tables (dependent-first; nothing references them).
     for (const table of DELETE_ORDER) {
-      db.run(`DELETE FROM "${dbTableName(table)}"`)
+      db.run(`DELETE FROM "${table}"`)
     }
 
     // 3. INSERT in FK order, per-row isolated.
@@ -142,22 +82,9 @@ export function seedRefDatabase(db: DbAdapter, seed: Seed): void {
         if (!row || typeof row !== 'object') continue
         const insert = buildInsert(table, row as Record<string, unknown>)
         if (!insert) continue
-        try {
-          db.run(insert.sql, insert.values)
-        } catch (err) {
-          const key = (row as { uuid?: string; id?: number | string }).uuid ?? 'id-unknown'
-          console.error(`🌱 seedRef ${table} ${key}: ${(err as Error).message}`)
-        }
+        const key = (row as { uuid?: string; id?: number | string }).uuid ?? 'id-unknown'
+        runRow(db, insert, `seedRef ${table} ${key}`)
       }
     }
-
-    db.run('COMMIT')
-  } catch (err) {
-    try {
-      db.run('ROLLBACK')
-    } catch {
-      // ignore nested error
-    }
-    throw err
-  }
+  })
 }

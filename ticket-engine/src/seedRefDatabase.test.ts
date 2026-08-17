@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { applyFullDdl, seedDatabase, seedRefDatabase } from './index.js'
+import { applyDdl, FULL_DDL, seedDatabase, seedRefDatabase } from './index.js'
 
 function adapter(db: DatabaseSync) {
   return {
@@ -13,7 +13,7 @@ describe('seedRefDatabase', () => {
   it('upserts promotion/dining_table without clobbering ticket-referenced rows', () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyFullDdl(adapter(db))
+    applyDdl(adapter(db), FULL_DDL)
 
     const seed = {
       language: [{ uuid: 'lg-1', name: 'es', nombre: 'es' }],

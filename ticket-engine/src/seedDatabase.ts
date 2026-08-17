@@ -1,91 +1,83 @@
-import { SEED_ORDER, SEED_COLUMNS, type EngineColumn } from './generatedSchema.js'
+import { SEED_ORDER } from './generatedSchema.js'
 import type { DbAdapter } from './dbAdapter.js'
 
 export type Seed = Record<string, unknown[]>
 
-function defaultFor(col: EngineColumn): unknown {
-  if (col.default === undefined) return undefined
-  const d = col.default
-  if (col.type === 'INTEGER' || col.type === 'REAL') {
-    if (d === 'true') return 1
-    if (d === 'false') return 0
-    const n = Number(d)
-    if (!Number.isNaN(n)) return n
+// tableColumns returns the table's real column names via PRAGMA, or null when
+// the adapter can't introspect (engine-level schema-agnosticism: we never trust
+// bundled column metadata for the LIVE schema). When null, seeder falls back
+// to deriving columns from the rows themselves.
+function tableColumns(db: DbAdapter, table: string): string[] | null {
+  try {
+    const rows = db.query(`PRAGMA table_info("${table}")`) as Array<{ name?: unknown }>
+    if (rows.length === 0 || rows[0].name === undefined) return null
+    return rows.map((r) => String(r.name))
+  } catch {
+    return null
   }
-  return undefined
 }
 
-// zeroFor returns a NOT NULL-compatible placeholder for a column that must be
-// non-null but arrived empty/absent with no declared DEFAULT. This satisfies the
-// shared schema's NOT NULL constraint (never silently drops a NOT NULL column)
-// so a single row can't brick the whole seed. '' for text, 0 for numbers.
-function zeroFor(col: EngineColumn): unknown {
-  if (col.type === 'INTEGER' || col.type === 'REAL') return 0
-  return ''
-}
+// seedDatabase inserts every row from the server payload into SQLite. The
+// column set is derived from the schema itself (PRAGMA introspection when
+// available; otherwise the rows' own keys): under the snake_case wire contract
+// the payload key IS the SQLite column name (§5.5a) and the local DB is
+// rebuilt from the authoritative snapshot DDL, so no bundled column metadata
+// is needed. This is what makes "add a new table/column with zero client
+// release" true (CORE-LOGIC-SCHEMA-SYNC.md).
+//
+// - Per-row isolation: one bad row never aborts the whole seed.
+// - INSERT OR REPLACE: idempotent replay.
+// - Missing fields in a row map to NULL (AGENTS.md null/undefined contract);
+//   empty string stays '', booleans → 0/1; unknown keys are dropped.
+//
+// `order` is the FK-topological seed order from the server descriptor; when
+// omitted, the payload's own key order is used.
+export function seedDatabase(db: DbAdapter, seed: Seed, order?: string[]): void {
+  const tableOrder = order && order.length ? order : Object.keys(seed)
 
-// seedDatabase inserts every row from the server payload into SQLite, mapped
-// from snake_case wire keys (one naming scheme, §5.5a) to SQLite columns —
-// identity, no key translation. Per-row isolation: one bad row never aborts
-// the whole seed. NOT NULL columns missing from a row are filled with their
-// declared default when one exists.
-export function seedDatabase(db: DbAdapter, seed: Seed): void {
-  for (const table of SEED_ORDER) {
-    const payloadKey = table
-    const rows = seed[payloadKey]
+  for (const table of tableOrder) {
+    const rows = seed[table]
     if (!Array.isArray(rows)) continue
+    const recordRows = rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
 
-    const cols = SEED_COLUMNS[table]
-    if (!cols) continue
+    // Column set: real table columns when introspectable, else union of the
+    // rows' own keys (fixed once per table; row 0 junk is then filtered out).
+    const known = tableColumns(db, table)
+    let columns: string[]
+    if (known) {
+      columns = known
+    } else {
+      const seen = new Set<string>()
+      for (const r of recordRows) for (const k of Object.keys(r)) seen.add(k)
+      columns = Array.from(seen)
+    }
+    if (columns.length === 0) continue
 
-    for (const row of rows) {
-      if (!row || typeof row !== 'object') continue
-      const record = row as Record<string, unknown>
+    const quoted = columns.map((n) => `"${n}"`).join(',')
+    const placeholders = columns.map(() => '?').join(',')
+    const sql = `INSERT OR REPLACE INTO "${table}" (${quoted}) VALUES (${placeholders})`
 
-      const names: string[] = []
+    for (const record of recordRows) {
       const values: unknown[] = []
-
-      for (const key of Object.keys(cols)) {
-        const col = cols[key]
-        let value: unknown
-        if (key in record) {
-          value = record[key]
-          if (value === '') value = null
-          else if (typeof value === 'boolean') value = value ? 1 : 0
-        } else if (col.nullable) {
-          continue
-        } else {
-          value = defaultFor(col)
-          if (value === undefined) value = zeroFor(col)
-        }
-
-        if (value === null && !col.nullable) {
-          const filled = defaultFor(col)
-          if (filled === undefined) value = zeroFor(col)
-          else value = filled
-        }
-
-        names.push(col.name)
+      for (const key of columns) {
+        let value = record[key]
+        if (value === undefined) value = null
+        else if (typeof value === 'boolean') value = value ? 1 : 0
         values.push(value)
       }
-
-      if (names.length === 0) continue
-
-      const placeholders = names.map(() => '?').join(',')
-      const quoted = names.map((n) => `"${n}"`).join(',')
-      const sql = `INSERT OR REPLACE INTO "${table}" (${quoted}) VALUES (${placeholders})`
 
       try {
         db.run(sql, values)
       } catch (err) {
-        const key = (record.uuid ?? record.id ?? '[no-key]') as string
-        console.error(`🌱 seed ${table} ${key}: ${(err as Error).message}`)
+        const tag = (record.uuid ?? record.id ?? '[no-key]') as string
+        console.error(`🌱 seed ${table} ${tag}: ${(err as Error).message}`)
       }
     }
   }
 }
 
-// seedOrder returns the FK-topological seed order of SQLite table names.
+// seedOrder is transitional: used only when a server predates the rollout and
+// offers no descriptor seed_order. Bundled SEED_ORDER is a generated fallback.
 export function seedOrder(): string[] {
   return SEED_ORDER.slice()
 }

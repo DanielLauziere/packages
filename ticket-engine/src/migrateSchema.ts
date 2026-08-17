@@ -1,25 +1,33 @@
-import { FULL_DDL, SCHEMA_VERSION } from './generatedSchema.js'
 import type { DbAdapter } from './dbAdapter.js'
 
-// getSchemaVersion reads the persisted schema version from key_value.
-export function getSchemaVersion(db: DbAdapter): number {
+// SchemaDescriptor is the server-served schema identity (CORE-LOGIC-SCHEMA-SYNC.md
+// §8/§3.2): a content-derived uuid plus the full SQLite DDL. Clients fetch it
+// from /v1/schema/snapshot and apply/migrate against it — nothing is bundled.
+export interface SchemaDescriptor {
+  schemaUuid: string
+  fullDdl: string
+}
+
+// getSchemaUuid reads the persisted applied schema uuid from key_value.
+export function getSchemaUuid(db: DbAdapter): string {
   try {
-    const rows = db.query(`SELECT value FROM key_value WHERE key = 'schemaVersion' LIMIT 1`)
+    const rows = db.query(`SELECT value FROM key_value WHERE key = 'schema_uuid' LIMIT 1`)
     const raw = rows?.[0]?.value
-    if (raw === undefined || raw === null) return 0
-    return parseInt(String(raw), 10) || 0
+    if (raw === undefined || raw === null) return ''
+    return String(raw)
   } catch {
-    return 0
+    return ''
   }
 }
 
-export function setSchemaVersion(db: DbAdapter, version: number): void {
-  db.run(`INSERT OR REPLACE INTO key_value (key, value) VALUES (?, ?)`, ['schemaVersion', String(version)])
+export function setSchemaUuid(db: DbAdapter, uuid: string): void {
+  db.run(`INSERT OR REPLACE INTO key_value (key, value) VALUES (?, ?)`, ['schema_uuid', uuid])
 }
 
-// applyFullDdl applies the bundled union FULL_DDL idempotently (IF NOT EXISTS).
-export function applyFullDdl(db: DbAdapter): void {
-  for (const stmt of splitStatements(FULL_DDL)) {
+// applyDdl applies SQLite DDL idempotently (IF NOT EXISTS). DDL comes from the
+// server descriptor, not from a bundled constant.
+export function applyDdl(db: DbAdapter, ddl: string): void {
+  for (const stmt of splitStatements(ddl)) {
     try {
       db.run(stmt)
     } catch {
@@ -61,15 +69,16 @@ export interface MigrateResult {
   needsReseed: boolean
 }
 
-// migrateSchema applies the bundled baseline, then reconciles the persisted
-// schema version. Returns needsReseed=true when the stored version lags the
-// bundled baseline (the wrapper must wipe + re-seed from the snapshot).
-export function migrateSchema(db: DbAdapter): MigrateResult {
-  const stored = getSchemaVersion(db)
-  applyFullDdl(db)
+// migrateSchema applies the server-supplied descriptor DDL and reconciles the
+// persisted uuid. Returns needsReseed=true when the stored uuid differs — the
+// wrapper is responsible for wiping + re-seeding from the snapshot. uuid is
+// persisted here only so a fully-applied schema becomes a no-op on next boot.
+export function migrateSchema(db: DbAdapter, descriptor: SchemaDescriptor): MigrateResult {
+  const stored = getSchemaUuid(db)
+  applyDdl(db, descriptor.fullDdl)
 
-  if (stored >= SCHEMA_VERSION) return { needsReseed: false }
+  if (stored === descriptor.schemaUuid) return { needsReseed: false }
 
-  setSchemaVersion(db, SCHEMA_VERSION)
+  setSchemaUuid(db, descriptor.schemaUuid)
   return { needsReseed: true }
 }
