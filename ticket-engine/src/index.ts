@@ -1,7 +1,7 @@
 export { calculateCombos } from './calculateCombos.js'
 export { calculateLocationTickets } from './calculateLocationTickets.js'
 export { sanitizePayload } from './sanitizePayload.js'
-export { SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS } from './schema.js'
+export { SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS, SQLITE_MIN_VERSION } from './schema.js'
 export { seedDatabase, seedOrder, type Seed } from './seedDatabase.js'
 export { seedMenuDatabase } from './seedMenuDatabase.js'
 export { seedRefDatabase } from './seedRefDatabase.js'

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { DatabaseSync } from 'node:sqlite'
 import {
@@ -191,6 +191,37 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_menu_item WHERE uuid=?', 'tmi1').c).toBe(0) // removed
   })
 
+  it('T2 cross-ticket never wedge: a MISSING_DEPENDENCY on ticket A never blocks ticket B', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+    const res = applyLogsBatch(makeAdapter(db), [
+      // ticket A: first item can't apply (menu_item doesn't exist anywhere)...
+      { uuid: 'a-bad-1', ticket_uuid: 'A', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'missing-xyz' }, time_stamp: 1000 },
+      // ...but A's second item and ALL of ticket B must still apply.
+      { uuid: 'a-ok-2', ticket_uuid: 'A', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 2000 },
+      { uuid: 'b-ok-1', ticket_uuid: 'B', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 3000 },
+    ] as any)
+
+    expect(res.applied).toBe(2) // a-ok-2 + b-ok-1
+    expect(res.skipped).toBe(1) // a-bad-1 (MISSING_DEPENDENCY → retry, not wedge)
+    expect(res.errors).toEqual([])
+
+    // Ticket A got exactly its one valid item.
+    const aItems = all(db, 'SELECT menu_item_uuid FROM ticket_menu_item WHERE ticket_uuid=?', 'A')
+    expect(aItems.map((r) => r.menu_item_uuid)).toEqual(['mi1'])
+
+    // Ticket B applied fully, completely independent of A's failure.
+    const bItems = all(db, 'SELECT menu_item_uuid FROM ticket_menu_item WHERE ticket_uuid=?', 'B')
+    expect(bItems.map((r) => r.menu_item_uuid)).toEqual(['mi1'])
+
+    // Both tickets were implicitly created (rule 4) — the pipeline never halted.
+    expect((row(db, 'SELECT COUNT(*) AS c FROM ticket WHERE uuid IN (?, ?)', 'A', 'B')).c).toBe(2)
+
+    // The failed log is claimed-but-unapplied (retry contract: time_stamp NULL,
+    // retry_count kept) so the next cycle retries it instead of dropping it.
+    const claim = row(db, 'SELECT time_stamp, retry_count FROM ticket_log_applied WHERE uuid=?', 'a-bad-1')
+    expect(claim.time_stamp).toBeNull()
+  })
+
   it('the 5 rarely-integration-tested actions run against real SQLite', () => {
     seedDatabase(makeAdapter(db), seed as any)
     // tmi-extra is added first so the follow-up remove/note/modifier actions have
@@ -373,5 +404,120 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     } as any)
     expect(row(db, 'SELECT COUNT(*) AS c FROM taste_preference').c).toBe(2)
     expect(row(db, `SELECT COUNT(*) AS c FROM taste_preference WHERE note = ''`).c).toBe(1)
+  })
+
+  it('heal re-seed over live data upserts ref rows without cascading into tickets', () => {
+    // HIGH-1 regression: reconcileData heal re-seeds a NON-empty DB with a
+    // fresh server snapshot. INSERT OR REPLACE on the ref tables fires ON
+    // DELETE CASCADE (ticket→dining_table, ticket_promotion→promotion,
+    // ticket_menu_item→menu_item, ticket_payment→payment), silently wiping
+    // live orders. The seeder must UPSERT on the PK so ref rows update in
+    // place and tickets survive. Regression: this test FAILS on OR REPLACE.
+    seedDatabase(makeAdapter(db), seed as any)
+    applyLogsBatch(makeAdapter(db), logs as any)
+
+    // Heal snapshot built from the LIVE rows (complete, default-filled) with
+    // the server's renames applied — the exact shape /sync returns.
+    const snap = (t: string) => all(db, `SELECT * FROM "${t}"`).map((r) => ({ ...r }))
+    const promotion = snap('promotion')[0]
+    promotion.name = 'New BOGO'
+    promotion.description = 'renamed'
+    const table = snap('dining_table')[0]
+    table.name = '12-renamed'
+    const menuItem = snap('menu_item')[0]
+    menuItem.name = 'Cheeseburger v2'
+    const fulfillment = snap('fulfillment')[0]
+    const payment = snap('payment')[0]
+    const locationGroup = snap('location_group')[0]
+
+    seedDatabase(makeAdapter(db), {
+      location_group: [locationGroup],
+      promotion: [promotion],
+      dining_table: [table],
+      menu_item: [menuItem],
+      fulfillment: [fulfillment],
+      payment: [payment],
+    })
+
+    // Server renames landed...
+    expect(row(db, "SELECT name FROM promotion WHERE uuid='promo1'").name).toBe('New BOGO')
+    expect(row(db, "SELECT name FROM dining_table WHERE uuid='tbl1'").name).toBe('12-renamed')
+    expect(row(db, "SELECT name FROM menu_item WHERE uuid='mi1'").name).toBe('Cheeseburger v2')
+
+    // ...and the live ticket graph is untouched (no cascade, no row loss).
+    expect((row(db, 'SELECT COUNT(*) AS c FROM ticket')).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM ticket_menu_item')).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM ticket_promotion')).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM ticket_payment')).c).toBe(1)
+    expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
+  })
+})
+
+describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
+  let db: DatabaseSync
+
+  // Fixed clock so the backoff ARITHMETIC (not just ordering) is asserted:
+  // next_retry_at must equal now + (count+1)*10s exactly, not just "greater".
+  const FIXED_NOW = 1_700_000_000_000
+
+  beforeEach(() => {
+    db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
+    applyDdl(makeAdapter(db), FULL_DDL)
+    vi.spyOn(Date, 'now').mockReturnValue(FIXED_NOW)
+  })
+
+  afterEach(() => {
+    db.close()
+    vi.restoreAllMocks()
+  })
+
+  function badLog(action: string, uuid: string) {
+    return { uuid, ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action, payload: {}, time_stamp: 1 }
+  }
+
+  it('T14: failLog writes next_retry_at = now + (retry_count+1) × 10s — exact value', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+
+    const log = badLog('BOGUS_ACTION', 'bogus-1')
+    const first = applyLogsBatch(makeAdapter(db), [log] as any)
+    expect(first.applied).toBe(0)
+    expect(first.errors).toHaveLength(1)
+
+    // First failure: retry_count 0 → +1 count, next_retry_at = now + 10s.
+    let tla = row(db, 'SELECT retry_count, next_retry_at, time_stamp FROM ticket_log_applied WHERE uuid=?', 'bogus-1')
+    expect(tla.retry_count).toBe(1)
+    expect(tla.next_retry_at).toBe(FIXED_NOW + 10_000)
+    expect(tla.time_stamp).toBeNull() // still unapplied → retried next cycle
+
+    // Second failure of the same log: count 1 → backoff grows to +20s.
+    const second = applyLogsBatch(makeAdapter(db), [log] as any)
+    expect(second.applied).toBe(0)
+    tla = row(db, 'SELECT retry_count, next_retry_at FROM ticket_log_applied WHERE uuid=?', 'bogus-1')
+    expect(tla.retry_count).toBe(2)
+    expect(tla.next_retry_at).toBe(FIXED_NOW + 20_000)
+  })
+
+  it('T17: last_error is truncated to exactly 255 chars like the Go/RN clients', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+
+    // UNKNOWN_ACTION message = "UNKNOWN_ACTION: " + a 300-char action name.
+    const long = 'X'.repeat(300)
+    applyLogsBatch(makeAdapter(db), [badLog(long, 'bogus-2')] as any)
+
+    const tla = row(db, 'SELECT retry_count, last_error FROM ticket_log_applied WHERE uuid=?', 'bogus-2')
+    expect(tla.retry_count).toBe(1)
+    expect(tla.last_error).toHaveLength(255)
+    expect(tla.last_error.startsWith('UNKNOWN_ACTION: ')).toBe(true)
+    // The truncated message must be a clean prefix of the real error text:
+    // "UNKNOWN_ACTION: " (16 chars) + exactly 239 remaining X's → 255 total.
+    expect(tla.last_error.endsWith('X'.repeat(239))).toBe(true)
+  })
+
+  it('T17: short errors are stored verbatim (no padding, no mangling)', () => {
+    seedDatabase(makeAdapter(db), seed as any)
+    applyLogsBatch(makeAdapter(db), [badLog('BOGUS_ACTION', 'bogus-3')] as any)
+    const tla = row(db, 'SELECT last_error FROM ticket_log_applied WHERE uuid=?', 'bogus-3')
+    expect(tla.last_error).toBe('UNKNOWN_ACTION: BOGUS_ACTION')
   })
 })

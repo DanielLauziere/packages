@@ -184,6 +184,8 @@ export function applyTicketLog(
         const p = payload as RemoveItemPayload
         const { ticket_menu_item_uuid: ticketMenuItemUuid } = p
 
+        ensureTicketExists(adapter, entry)
+
         if (!exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [ticketMenuItemUuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
@@ -196,6 +198,8 @@ export function applyTicketLog(
 
       case 'SET_ITEM_NOTE': {
         const p = payload as SetItemNotePayload
+
+        ensureTicketExists(adapter, entry)
 
         if (!exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [p.ticket_menu_item_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
@@ -227,6 +231,8 @@ export function applyTicketLog(
       case 'REMOVE_MODIFIER': {
         const p = payload as RemoveModifierPayload
         const { ticket_menu_item_modifier_uuid: ticketMenuItemModifierUuid } = p
+
+        ensureTicketExists(adapter, entry)
 
         if (!exists(adapter, `SELECT 1 FROM ticket_menu_item_modifier WHERE uuid = ? LIMIT 1`, [ticketMenuItemModifierUuid])) {
           throw new Error('MISSING_DEPENDENCY')
@@ -271,6 +277,7 @@ export function applyTicketLog(
 
       case 'REMOVE_PROMOTION': {
         const p = payload as RemovePromotionPayload
+        ensureTicketExists(adapter, entry)
         if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotion_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
@@ -303,7 +310,7 @@ export function applyTicketLog(
       }
 
       default:
-        break
+        throw new Error(`UNKNOWN_ACTION: ${action}`)
     }
   } catch (e) {
     const msg = (e as any)?.message

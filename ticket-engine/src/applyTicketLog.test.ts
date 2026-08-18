@@ -294,6 +294,13 @@ describe('applyTicketLog', () => {
       expect(adapter.findRun('DELETE FROM "ticket_menu_item" WHERE uuid')).toBeDefined()
     })
 
+    it('ensures ticket exists (E: mirrors Go unconditional create)', () => {
+      expect(() =>
+        applyTicketLog(adapter, entry({ action: 'REMOVE_ITEM', payload: { ticket_menu_item_uuid: 'tmi-missing' } })),
+      ).toThrow('MISSING_DEPENDENCY')
+      expect(adapter.findRun('INSERT INTO "ticket"')).toBeDefined()
+    })
+
     it('throws MISSING_DEPENDENCY when ticketMenuItem not found (retry, don\'t skip)', () => {
       expect(() =>
         applyTicketLog(adapter, entry({ action: 'REMOVE_ITEM', payload: { ticket_menu_item_uuid: 'missing' } })),
@@ -308,6 +315,13 @@ describe('applyTicketLog', () => {
       const update = adapter.findRun('UPDATE ticket_menu_item SET note')
       expect(update).toBeDefined()
       expect(update!.params).toContain('no onions')
+    })
+
+    it('ensures ticket exists (E: mirrors Go unconditional create)', () => {
+      expect(() =>
+        applyTicketLog(adapter, entry({ action: 'SET_ITEM_NOTE', payload: { ticket_menu_item_uuid: 'missing', note: 'x' } })),
+      ).toThrow('MISSING_DEPENDENCY')
+      expect(adapter.findRun('INSERT INTO "ticket"')).toBeDefined()
     })
 
     it('throws MISSING_DEPENDENCY when ticketMenuItem not found', () => {
@@ -352,6 +366,13 @@ describe('applyTicketLog', () => {
       const del = adapter.findRun('DELETE FROM "ticket_menu_item_modifier"')
       expect(del).toBeDefined()
       expect(del!.params).toContain('tmm-001')
+    })
+
+    it('ensures ticket exists (E: mirrors Go unconditional create)', () => {
+      expect(() =>
+        applyTicketLog(adapter, entry({ action: 'REMOVE_MODIFIER', payload: { ticket_menu_item_modifier_uuid: 'missing' } })),
+      ).toThrow('MISSING_DEPENDENCY')
+      expect(adapter.findRun('INSERT INTO "ticket"')).toBeDefined()
     })
 
     it('throws MISSING_DEPENDENCY when modifier not found (retry, don\'t skip)', () => {
@@ -400,6 +421,13 @@ describe('applyTicketLog', () => {
       expect(del!.params).toContain('promo-001')
     })
 
+    it('ensures ticket exists (E: mirrors Go unconditional create)', () => {
+      expect(() =>
+        applyTicketLog(adapter, entry({ action: 'REMOVE_PROMOTION', payload: { promotion_uuid: 'missing' } })),
+      ).toThrow('MISSING_DEPENDENCY')
+      expect(adapter.findRun('INSERT INTO "ticket"')).toBeDefined()
+    })
+
     it('throws when promotion not found', () => {
       expect(() =>
         applyTicketLog(adapter, entry({ action: 'REMOVE_PROMOTION', payload: { promotion_uuid: 'missing' } })),
@@ -440,9 +468,13 @@ describe('applyTicketLog', () => {
   })
 
   describe('unknown action', () => {
-    it('does nothing for unknown action', () => {
-      applyTicketLog(adapter, entry({ action: 'UNKNOWN_ACTION' }))
-      expect(adapter.runs.length).toBe(0)
+    it('throws UNKNOWN_ACTION so the log backs off instead of being stamped applied', () => {
+      expect(() =>
+        applyTicketLog(adapter, entry({ action: 'UNKNOWN_ACTION' })),
+      ).toThrow('UNKNOWN_ACTION')
+      // Mirror of Go: the log is NOT marked applied; it stays unapplied
+      // (time_stamp NULL) and is retried each cycle until the cutoff prunes it.
+      expect(adapter.findRun('UPDATE "ticket_log_applied"')).toBeUndefined()
     })
   })
 })

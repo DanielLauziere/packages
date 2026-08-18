@@ -9,3 +9,10 @@
 // full rollout (server + both clients) is complete.
 export { SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS } from './generatedSchema.js'
 export type { EngineColumn } from './generatedSchema.js'
+
+// The oldest SQLite engine in the fleet: RN bundles this exact build via
+// react-native-quick-sqlite 8.2.7 (cpp/sqlite3.h SQLITE_VERSION). EVERY client
+// SQL statement must parse on it — nothing newer-only may reach the wire, DDL
+// or seeds (CRITICAL-RISKS.md Risk 2 / non-negotiable 9). The RN jest suite
+// re-reads cpp/sqlite3.h and fails the build if the bundle ever bumps past it.
+export const SQLITE_MIN_VERSION = '3.39.4'
