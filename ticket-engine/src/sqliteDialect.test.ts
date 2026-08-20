@@ -35,8 +35,7 @@ function engineSqlStatements(): string[] {
   const files = [
     'applyTicketLog.ts',
     'seedDatabase.ts',
-    'seedMenuDatabase.ts',
-    'seedRefDatabase.ts',
+    'seedGroupDatabase.ts',
     'migrateSchema.ts',
     'calculateCombos.ts',
   ]

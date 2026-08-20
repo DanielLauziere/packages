@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import {
   applyDdl,
   seedDatabase,
-  seedMenuDatabase,
+  seedGroupDatabase,
   applyLogsBatch,
   migrateSchema,
   dropAllTables,
@@ -325,11 +325,11 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(res.applied).toBe(10)
   })
 
-  it('seedMenuDatabase upserts the menu subtree from a /sync/menu payload', () => {
+  it('seedGroupDatabase upserts the menu subtree from a /sync/menu payload', () => {
     seedDatabase(makeAdapter(db), seed as any)
-    const menuSeed: any = { menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
+    const menuSeed: any = { location_group: seed.location_group, menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
 
-    seedMenuDatabase(makeAdapter(db), menuSeed)
+    seedGroupDatabase(makeAdapter(db), menuSeed)
 
     expect(row(db, 'SELECT COUNT(*) AS c FROM menu_item').c).toBe(1)
     expect(row(db, 'SELECT COUNT(*) AS c FROM menu').c).toBe(1)
@@ -339,12 +339,12 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
 
-  it('seedMenuDatabase rerun (second menu payload) is idempotent and FK-clean', () => {
+  it('seedGroupDatabase rerun (second menu payload) is idempotent and FK-clean', () => {
     seedDatabase(makeAdapter(db), seed as any)
-    const menuSeed: any = { menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
+    const menuSeed: any = { location_group: seed.location_group, menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
 
-    seedMenuDatabase(makeAdapter(db), menuSeed)
-    seedMenuDatabase(makeAdapter(db), menuSeed)
+    seedGroupDatabase(makeAdapter(db), menuSeed)
+    seedGroupDatabase(makeAdapter(db), menuSeed)
     expect(row(db, 'SELECT COUNT(*) AS c FROM menu_item').c).toBe(1)
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
