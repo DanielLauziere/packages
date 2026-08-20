@@ -13,14 +13,30 @@ import {
 // UPSERT — rows other tables depend on, so a delete+reinsert would violate FKs:
 //   - location_group: referenced by menu, dining_table, promotion,
 //     location_group_feature, location_group_activation_history,
-//     location_group_printer, guest_location_group, etc.
+//     location_group_printer, guest_location_group, admin_location, etc.
 //   - location_group_printer: referenced by location_group
-//     (guest/kitchen_location_group_printer_uuid).
+//     (guest/kitchen_location_group_printer_uuid) and admin.
+//   - guest: referenced by guest_address and ticket (guest_uuid).
+//   - guest_address: referenced by ticket (guest_address_uuid).
+//   - admin: referenced by ticket (admin_uuid), admin_balance_history,
+//     admin_location, admin_location_permission, admin_push_creds.
+//   - fulfillment: referenced by ticket (fulfillment_uuid).
+//   - payment: referenced by ticket_payment.
 //   - promotion: referenced by ticket_promotion.
 //   - dining_table: referenced by ticket (table_uuid).
+//
+// FK-topological: parents (country/language/feature live below but are seeded
+// by the full snapshot's seed_order; here only the tables this seeder touches
+// need ordering) — guest before guest_address (FK), location_group_printer
+// before admin (admin's printer FKs), and the menu/ticket dependents come last.
 const UPSERT_ORDER = [
   'location_group',
   'location_group_printer',
+  'guest',
+  'guest_address',
+  'fulfillment',
+  'payment',
+  'admin',
   'promotion',
   'dining_table',
 ]

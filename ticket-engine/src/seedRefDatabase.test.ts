@@ -32,6 +32,11 @@ describe('seedRefDatabase', () => {
       location_group_activation_history: [
         { uuid: 'ah-1', location_group_uuid: 'lgg', active: 1, day_price_cents: 17 },
       ],
+      guest: [{ uuid: 'guest-1', user_name: 'guest@x.com' }],
+      guest_address: [{ uuid: 'ga-1', address: '123 Main', guest_uuid: 'guest-1' }],
+      fulfillment: [{ uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e', name: 'Dine-In' }],
+      payment: [{ uuid: 'pay-1', name: 'Cash' }],
+      admin: [{ uuid: 'admin-1', user_name: 'a', password_hash: 'x' }],
       ticket: [
         {
           uuid: 'tkt-1',
@@ -40,6 +45,10 @@ describe('seedRefDatabase', () => {
           status: 'INCOMPLETE',
           table_uuid: 'dt1',
           location_group_uuid: 'lgg',
+          admin_uuid: 'admin-1',
+          fulfillment_uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e',
+          guest_uuid: 'guest-1',
+          guest_address_uuid: 'ga-1',
         },
       ],
       ticket_promotion: [
@@ -64,6 +73,11 @@ describe('seedRefDatabase', () => {
       location_group_activation_history: [
         { uuid: 'ah-2', location_group_uuid: 'lgg', active: 1, day_price_cents: 17 },
       ],
+      guest: [{ uuid: 'guest-1', user_name: 'guest@x.com', first_name: 'New' }],
+      guest_address: [{ uuid: 'ga-1', address: '456 New', guest_uuid: 'guest-1' }],
+      fulfillment: [{ uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e', name: 'Dine-In' }],
+      payment: [{ uuid: 'pay-2', name: 'Card' }],
+      admin: [{ uuid: 'admin-1', user_name: 'a', password_hash: 'x', first_name: 'New' }],
     }
 
     seedRefDatabase(adapter(db), refSeed as any)
@@ -80,6 +94,12 @@ describe('seedRefDatabase', () => {
     // Ticket + ticket_promotion untouched (UPSERT must not delete the FK target).
     expect(all(`SELECT COUNT(*) c FROM ticket`)[0].c).toBe(1)
     expect(all(`SELECT COUNT(*) c FROM ticket_promotion`)[0].c).toBe(1)
+
+    // Admin / fulfillment / payment (ticket FK parents) are upserted, never deleted.
+    const admin = all(`SELECT user_name, first_name FROM admin WHERE uuid = 'admin-1'`)[0]
+    expect(admin.first_name).toBe('New')
+    expect(all(`SELECT COUNT(*) c FROM fulfillment`)[0].c).toBe(1)
+    expect(all(`SELECT COUNT(*) c FROM payment`)[0].c).toBe(2) // pay-1 kept, pay-2 upserted
 
     // Leaf tables: deleted then reinserted from the new snapshot.
     expect(all(`SELECT COUNT(*) c FROM location_group_feature`)[0].c).toBe(0)
