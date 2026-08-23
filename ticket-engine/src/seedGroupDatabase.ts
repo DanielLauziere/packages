@@ -27,21 +27,29 @@ import { normalizeValue, type Seed } from './seedCommon.js'
 
 // Tables that must survive any seed/reseed and are owned by other subsystems:
 // local device/auth state (key_value, session), print claims (print_record),
-// per-location schema versioning, auth/permission wiring, guest loyalty points
-// (server-authoritative, §9), and the whole ticket family. The seed engine must
-// never write to them; a stray key in the payload is skipped, not applied.
+// per-location schema versioning, and the whole ticket family. The seed engine
+// must never write to them; a stray key in the payload is skipped, not applied.
+//
+// `admin_location` / `admin_location_permission` are intentionally NOT here: the
+// server snapshot is the authoritative source for which location group an admin
+// belongs to and their permissions (incl. the `owner` flag that drives the full
+// dashboard nav). Skipping them would leave a logged-in admin unable to see
+// their screens, so they are seeded like any other ref table.
+//
+// `guest_location_group` is intentionally NOT here either: guest loyalty points
+// are server-authoritative (§9) and arrive via the snapshot, so the local app
+// can read/display them and they refresh on every reseed. Skipping it would pin
+// every guest's points at 0 locally — which is exactly why the itemless-reward
+// and points e2e tests regressed after the seed refactor.
 const NEVER_TOUCH = new Set<string>([
   'key_value',
   'session',
   'print_record',
   'location_group_schema_version',
-  'guest_location_group',
   'environment',
   'lets_encrypt',
   'log',
   'admin_balance_history',
-  'admin_location',
-  'admin_location_permission',
   'admin_push_creds',
   'ticket',
   'ticket_log',

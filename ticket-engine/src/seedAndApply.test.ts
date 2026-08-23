@@ -3,7 +3,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
 import {
   applyDdl,
-  seedDatabase,
   seedGroupDatabase,
   applyLogsBatch,
   migrateSchema,
@@ -90,8 +89,8 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(tables).not.toContain('mock_schema_sync_probe')
   })
 
-  it('seedDatabase maps snake_case wire keys to snake columns per-row', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+  it('seedGroupDatabase maps snake_case wire keys to snake columns per-row', () => {
+    seedGroupDatabase(makeAdapter(db), seed as any)
     expect((row(db, 'SELECT COUNT(*) AS c FROM location_group')).c).toBe(1)
     expect((row(db, 'SELECT COUNT(*) AS c FROM menu_item')).c).toBe(1)
     // FK join tables populated
@@ -101,7 +100,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('applyLogsBatch applies a full ticket lifecycle', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     const res = applyLogsBatch(makeAdapter(db), logs as any)
     expect(res.applied).toBe(10)
     expect(res.skipped).toBe(0)
@@ -132,7 +131,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('implicit ticket creation applies rule-4 defaults on real SQLite', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     const res = applyLogsBatch(makeAdapter(db), [
       { uuid: 'l-single', ticket_uuid: 'fresh-t1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_GUEST', payload: { guest_user_name: 'NewGuest' }, time_stamp: 500 },
     ] as any)
@@ -149,7 +148,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('replaying the same batch twice converges to identical state', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     const first = applyLogsBatch(makeAdapter(db), logs as any)
     expect(first.applied).toBe(10)
 
@@ -171,7 +170,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('ticket_log_applied: claim row stays un-applied (retry) when deps missing, then applies', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     // REMOVE_ITEM for a ticket_menu_item that does not exist yet — rule 5:
     // throw MISSING_DEPENDENCY → skip (keep claim time_stamp NULL) → retry later.
     const remove = { uuid: 'l-remove', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'REMOVE_ITEM', payload: { ticket_menu_item_uuid: 'tmi1' }, time_stamp: 4000 }
@@ -192,7 +191,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('T2 cross-ticket never wedge: a MISSING_DEPENDENCY on ticket A never blocks ticket B', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     const res = applyLogsBatch(makeAdapter(db), [
       // ticket A: first item can't apply (menu_item doesn't exist anywhere)...
       { uuid: 'a-bad-1', ticket_uuid: 'A', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'missing-xyz' }, time_stamp: 1000 },
@@ -223,7 +222,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('the 5 rarely-integration-tested actions run against real SQLite', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     // tmi-extra is added first so the follow-up remove/note/modifier actions have
     // their FK dependencies present.
     const setup = applyLogsBatch(makeAdapter(db), [
@@ -258,7 +257,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('SEED_ORDER is a valid FK-topological order that executes cleanly', () => {
-    seedDatabase(makeAdapter(db), seed as any, SEED_ORDER)
+    seedGroupDatabase(makeAdapter(db), seed as any, SEED_ORDER)
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
     // The exported order must name every seedable table and know the schema.
     expect(SEED_ORDER.length).toBeGreaterThan(0)
@@ -303,7 +302,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     // location_group was empty, causing "FOREIGN KEY constraint failed".
     // Seeding the full base snapshot (with locationGroup + menu parents)
     // in engine SEED_ORDER must never violate FKs.
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     // All FK ancestors exist and point at parents that were inserted earlier.
     expect((row(db, 'SELECT COUNT(*) AS c FROM location_group')).c).toBeGreaterThan(0)
     expect((row(db, 'SELECT COUNT(*) AS c FROM menu')).c).toBeGreaterThan(0)
@@ -315,7 +314,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('menu-only snapshot with out-of-order parent must survive applyLogs FK references', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     // The symptom surfaced as a SECONDARY FK error when applying a
     // SET_STATUS_COMPLETE log, because the parent rows the ticket referenced
     // (table, guest, fulfillment, menu item) were absent. After a correct
@@ -326,7 +325,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('seedGroupDatabase upserts the menu subtree from a /sync/menu payload', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     const menuSeed: any = { location_group: seed.location_group, menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
 
     seedGroupDatabase(makeAdapter(db), menuSeed)
@@ -340,7 +339,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('seedGroupDatabase rerun (second menu payload) is idempotent and FK-clean', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     const menuSeed: any = { location_group: seed.location_group, menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
 
     seedGroupDatabase(makeAdapter(db), menuSeed)
@@ -349,7 +348,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
 
-  it('seedDatabase survives a hostile seed: empty strings, nulls, missing keys, unknown keys', () => {
+  it('seedGroupDatabase survives a hostile seed: empty strings, nulls, missing keys, unknown keys', () => {
     const hostile: any = {
       country: [
         { uuid: 'ct-1', name: '', nombre: 'El Salvador', iso2: 'SV', iso3: 'SLV', this_key_does_not_exist: 'ignored' },
@@ -368,7 +367,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
       ],
     }
 
-    seedDatabase(makeAdapter(db), hostile)
+    seedGroupDatabase(makeAdapter(db), hostile)
 
     // Unknown keys are dropped against the live schema (PRAGMA table_info), no
     // extra columns, no crash. Empty string name is preserved as '' — never
@@ -396,7 +395,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     // on an unmodified engine. No SEED_COLUMNS entry, no playback code — the
     // column set is derived from the live schema by PRAGMA introspection.
     applyDdl(makeAdapter(db), `CREATE TABLE IF NOT EXISTS "taste_preference" ("uuid" TEXT NOT NULL, "guest_uuid" TEXT, "note" TEXT, PRIMARY KEY ("uuid"))`)
-    seedDatabase(makeAdapter(db), {
+    seedGroupDatabase(makeAdapter(db), {
       taste_preference: [
         { uuid: 'tp-1', guest_uuid: 'guest1', note: '' },
         { uuid: 'tp-2', guest_uuid: 'guest1', unknown_key: 'dropped' },
@@ -413,7 +412,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     // ticket_menu_item→menu_item, ticket_payment→payment), silently wiping
     // live orders. The seeder must UPSERT on the PK so ref rows update in
     // place and tickets survive. Regression: this test FAILS on OR REPLACE.
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     applyLogsBatch(makeAdapter(db), logs as any)
 
     // Heal snapshot built from the LIVE rows (complete, default-filled) with
@@ -430,7 +429,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     const payment = snap('payment')[0]
     const locationGroup = snap('location_group')[0]
 
-    seedDatabase(makeAdapter(db), {
+    seedGroupDatabase(makeAdapter(db), {
       location_group: [locationGroup],
       promotion: [promotion],
       dining_table: [table],
@@ -477,7 +476,7 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
   }
 
   it('T14: failLog writes next_retry_at = now + (retry_count+1) × 10s — exact value', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
 
     const log = badLog('BOGUS_ACTION', 'bogus-1')
     const first = applyLogsBatch(makeAdapter(db), [log] as any)
@@ -499,7 +498,7 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
   })
 
   it('T17: last_error is truncated to exactly 255 chars like the Go/RN clients', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
 
     // UNKNOWN_ACTION message = "UNKNOWN_ACTION: " + a 300-char action name.
     const long = 'X'.repeat(300)
@@ -515,7 +514,7 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
   })
 
   it('T17: short errors are stored verbatim (no padding, no mangling)', () => {
-    seedDatabase(makeAdapter(db), seed as any)
+    seedGroupDatabase(makeAdapter(db), seed as any)
     applyLogsBatch(makeAdapter(db), [badLog('BOGUS_ACTION', 'bogus-3')] as any)
     const tla = row(db, 'SELECT last_error FROM ticket_log_applied WHERE uuid=?', 'bogus-3')
     expect(tla.last_error).toBe('UNKNOWN_ACTION: BOGUS_ACTION')

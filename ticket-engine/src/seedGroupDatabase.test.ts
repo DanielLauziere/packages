@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { applyDdl, FULL_DDL, seedDatabase, seedGroupDatabase, validateSeedPayload } from './index.js'
+import { applyDdl, FULL_DDL, seedGroupDatabase, validateSeedPayload, applyLogsBatch } from './index.js'
 
 function adapter(db: DatabaseSync) {
   return {
@@ -95,26 +95,23 @@ describe('seedGroupDatabase (unified seeder)', () => {
       fulfillment: [{ uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e', name: 'Dine-In' }],
       payment: [{ uuid: 'pay-1', name: 'Cash' }],
       admin: [{ uuid: 'admin-1', user_name: 'a', password_hash: 'x' }],
-      ticket: [
-        {
-          uuid: 'tkt-1',
-          id: 10001,
-          time_stamp: '2026-08-10T00:00:00Z',
-          status: 'INCOMPLETE',
-          table_uuid: 'dt1',
-          location_group_uuid: 'lgg',
-          admin_uuid: 'admin-1',
-          fulfillment_uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e',
-          guest_uuid: 'guest-1',
-          guest_address_uuid: 'ga-1',
-        },
-      ],
-      ticket_promotion: [
-        { uuid: 'tp-1', time_stamp: '2026-08-10T00:00:00Z', ticket_uuid: 'tkt-1', promotion_uuid: 'promo-1' },
-      ],
+      // NOTE: ticket family is NEVER_TOUCH for the seeder — it is not seeded via
+      // the snapshot. The ticket + its promotion below are created through the
+      // real apply pipeline so the heal test can prove the seeder leaves them
+      // untouched.
     }
 
-    seedDatabase(adapter(db), seed as any)
+    seedGroupDatabase(adapter(db), seed as any)
+
+    // Create a live ticket + ticket_promotion through the apply pipeline (the
+    // only sanctioned writer of the ticket family), so the heal reseed below
+    // has rows it must not clobber.
+    applyLogsBatch(adapter(db), [
+      { uuid: 'l-guest', ticket_uuid: 'tkt-1', location_group_uuid: 'lgg', admin_uuid: 'admin-1', action: 'SET_GUEST', payload: { guest_user_name: 'guest@x.com' }, time_stamp: 1000 },
+      { uuid: 'l-table', ticket_uuid: 'tkt-1', location_group_uuid: 'lgg', admin_uuid: 'admin-1', action: 'SET_TABLE', payload: { table_uuid: 'dt1' }, time_stamp: 1100 },
+      { uuid: 'l-ful', ticket_uuid: 'tkt-1', location_group_uuid: 'lgg', admin_uuid: 'admin-1', action: 'SET_FULFILLMENT', payload: { fulfillment_uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e' }, time_stamp: 1200 },
+      { uuid: 'l-promo', ticket_uuid: 'tkt-1', location_group_uuid: 'lgg', admin_uuid: 'admin-1', action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo-1' }, time_stamp: 1300 },
+    ] as any)
 
     // Server renamed the promotion + table and dropped one feature flag.
     const refSeed = {
@@ -305,13 +302,17 @@ describe('seedGroupDatabase (unified seeder)', () => {
     seedGroupDatabase(adapter(db), seed)
 
     const all = (s: string) => db.prepare(s).all() as any[]
+    // The seeder still refuses to touch local device/auth + ticket state:
     expect(all(`SELECT COUNT(*) c FROM key_value`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM session`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM print_record`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM ticket`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM ticket_log`)[0].c).toBe(0)
-    expect(all(`SELECT COUNT(*) c FROM guest_location_group`)[0].c).toBe(0)
-    // The seed must have applied location_group though (not in NEVER_TOUCH).
+    // guest_location_group IS a legit ref table (server-authoritative points, §9)
+    // and is seeded like any other — a malicious payload can't clobber the
+    // protected tables above, but it legitimately lands here.
+    expect(all(`SELECT COUNT(*) c FROM guest_location_group`)[0].c).toBe(1)
+    // The seed must have applied location_group too (not in NEVER_TOUCH).
     expect(all(`SELECT COUNT(*) c FROM location_group`)[0].c).toBe(1)
   })
 

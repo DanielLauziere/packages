@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
   applyDdl,
-  seedDatabase,
+  seedGroupDatabase,
   applyLogsBatch,
   FULL_DDL,
   type DbAdapter,
@@ -102,7 +102,7 @@ describe('T4 parity corpus → TS engine on real SQLite', () => {
 
   for (const scenario of corpus.scenarios) {
     it(`TS matches corpus "expect" for ${scenario.name}`, () => {
-      seedDatabase(makeAdapter(db), scenario.refs as any)
+      seedGroupDatabase(makeAdapter(db), scenario.refs as any)
 
       const res = applyLogsBatch(makeAdapter(db), scenario.logs as any)
 

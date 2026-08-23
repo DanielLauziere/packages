@@ -33,9 +33,8 @@ function lint(sqlOrSource: string): string[] {
 function engineSqlStatements(): string[] {
   const here = dirname(fileURLToPath(import.meta.url))
   const files = [
-    'applyTicketLog.ts',
-    'seedDatabase.ts',
-    'seedGroupDatabase.ts',
+     'applyTicketLog.ts',
+     'seedGroupDatabase.ts',
     'migrateSchema.ts',
     'calculateCombos.ts',
   ]
