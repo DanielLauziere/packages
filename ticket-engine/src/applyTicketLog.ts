@@ -16,12 +16,12 @@ import {
 
 export interface TicketLogEntry {
   uuid: string
-  ticketUuid: string
-  locationGroupUuid: string
+  ticket_uuid: string
+  location_group_uuid: string
   action: string
   payload: any
-  timeStamp: number
-  adminUuid?: string
+  time_stamp: number
+  admin_uuid?: string
 }
 
 export const ACTION_PRIORITY: Record<string, number> = {
@@ -55,12 +55,12 @@ function ensureTicketExists(
   adapter: DbAdapter,
   entry: TicketLogEntry,
 ): void {
-  if (exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticketUuid])) return
+  if (exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticket_uuid])) return
 
   adapter.run(
-    `INSERT INTO "ticket" (uuid, id, "timeStamp", "locationGroupUuid", "adminUuid", status, "isDirty", "isLocal")
-     VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 1, 1)`,
-    [entry.ticketUuid, ticketIdFromUUID(entry.ticketUuid), entry.timeStamp, entry.locationGroupUuid, entry.adminUuid ?? null],
+    `INSERT INTO "ticket" (uuid, id, time_stamp, location_group_uuid, admin_uuid, status, price_whole, price_hundredths, is_dirty, is_local)
+     VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 0, 0, 1, 1)`,
+    [entry.ticket_uuid, ticketIdFromUUID(entry.ticket_uuid), entry.time_stamp, entry.location_group_uuid, entry.admin_uuid ?? null],
   )
 }
 
@@ -73,13 +73,13 @@ function upsertGuest(
   const finalUuid = uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 
   adapter.run(
-    `INSERT INTO guest (uuid, username, email, phone)
+    `INSERT INTO guest (uuid, user_name, email, phone)
      VALUES (?, ?, ?, ?)
-     ON CONFLICT(username) DO UPDATE SET username = excluded.username`,
+     ON CONFLICT(user_name) DO UPDATE SET user_name = excluded.user_name`,
     [finalUuid, username, email ?? null, phone ?? null],
   )
 
-  const rows = adapter.query(`SELECT uuid FROM guest WHERE username = ? LIMIT 1`, [username])
+  const rows = adapter.query(`SELECT uuid FROM guest WHERE user_name = ? LIMIT 1`, [username])
   const found: string | undefined = (rows as any[])?.[0]?.uuid
   if (!found) throw new Error('GUEST_UPSERT_FAILED')
   return found
@@ -96,27 +96,27 @@ export function applyTicketLog(
   adapter: DbAdapter,
   entry: TicketLogEntry,
 ): void {
-  const { action, payload, ticketUuid } = entry
+  const { action, payload, ticket_uuid: ticketUuid } = entry
 
   try {
     switch (action) {
       case 'SET_TABLE': {
-        const p = payload as { tableUuid: string }
+        const p = payload as { table_uuid: string }
         ensureTicketExists(adapter, entry)
-        if (p.tableUuid && !exists(adapter, `SELECT 1 FROM "table" WHERE uuid = ?`, [p.tableUuid])) {
+        if (p.table_uuid && !exists(adapter, `SELECT 1 FROM dining_table WHERE uuid = ?`, [p.table_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        adapter.run(`UPDATE "ticket" SET "tableUuid" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.tableUuid, entry.adminUuid ?? null, ticketUuid])
+        adapter.run(`UPDATE "ticket" SET table_uuid = ?, is_dirty = 1, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.table_uuid, entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_GUEST': {
-        const p = payload as { guestUserName: string; email?: string; phone?: string }
-        if (!p.guestUserName) break
+        const p = payload as { guest_user_name: string; email?: string; phone?: string }
+        if (!p.guest_user_name) break
 
         ensureTicketExists(adapter, entry)
 
-        const raw = p.guestUserName.trim()
+        const raw = p.guest_user_name.trim()
         let userName = raw
         let email = p.email ?? ''
         let phone = p.phone ?? ''
@@ -127,11 +127,11 @@ export function applyTicketLog(
           if (!email) email = userName
         } else if (/\d/.test(raw)) {
           const phoneCodeRows = adapter.query(
-            `SELECT c."phonecode" as phoneCode
-             FROM "locationGroup" lg
-             INNER JOIN "country" c ON lg."countryUuid" = c."uuid"
-             WHERE lg."uuid" = ?`,
-            [entry.locationGroupUuid],
+            `SELECT c.phonecode as phoneCode
+             FROM location_group lg
+             INNER JOIN country c ON lg.country_uuid = c.uuid
+             WHERE lg.uuid = ?`,
+            [entry.location_group_uuid],
           )
           const countryCode = String((phoneCodeRows as any[])?.[0]?.phoneCode ?? '503')
           const normalized = normalizePhone(raw, countryCode)
@@ -144,24 +144,24 @@ export function applyTicketLog(
 
         const guest = upsertGuest(adapter, userName, email, phone)
 
-        adapter.run(`UPDATE ticket SET "guestUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [guest, entry.adminUuid ?? null, ticketUuid])
+        adapter.run(`UPDATE ticket SET guest_uuid = ?, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [guest, entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_FULFILLMENT': {
-        const p = payload as { fulfillmentUuid: string }
+        const p = payload as { fulfillment_uuid: string }
         ensureTicketExists(adapter, entry)
-        if (p.fulfillmentUuid && !exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillmentUuid])) {
+        if (p.fulfillment_uuid && !exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillment_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        adapter.run(`UPDATE ticket SET "fulfillmentUuid" = ?, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.fulfillmentUuid, entry.adminUuid ?? null, ticketUuid])
+        adapter.run(`UPDATE ticket SET fulfillment_uuid = ?, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.fulfillment_uuid, entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_ANONYMOUS_ADDRESS': {
         const p = payload as SetAnonymousAddressPayload
         ensureTicketExists(adapter, entry)
-        adapter.run(`UPDATE "ticket" SET "anonymousAddress" = ?, "isDirty" = 1, "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.address, entry.adminUuid ?? null, ticketUuid])
+        adapter.run(`UPDATE "ticket" SET anonymous_address = ?, is_dirty = 1, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.address, entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
@@ -169,37 +169,43 @@ export function applyTicketLog(
         const p = payload as AddItemPayload
         ensureTicketExists(adapter, entry)
 
-        if (!exists(adapter, `SELECT 1 FROM menuItem WHERE uuid = ? LIMIT 1`, [p.menuItemUuid])) {
+        if (!exists(adapter, `SELECT 1 FROM menu_item WHERE uuid = ? LIMIT 1`, [p.menu_item_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
 
         adapter.run(
-          `INSERT OR IGNORE INTO ticketMenuItem (uuid, ticketUuid, menuItemUuid) VALUES (?, ?, ?)`,
-          [entry.uuid, ticketUuid, p.menuItemUuid],
+          `INSERT OR IGNORE INTO ticket_menu_item (uuid, ticket_uuid, menu_item_uuid) VALUES (?, ?, ?)`,
+          [entry.uuid, ticketUuid, p.menu_item_uuid],
         )
         break
       }
 
       case 'REMOVE_ITEM': {
         const p = payload as RemoveItemPayload
-        const { ticketMenuItemUuid } = p
+        const { ticket_menu_item_uuid: ticketMenuItemUuid } = p
 
-        if (!exists(adapter, `SELECT 1 FROM ticketMenuItem WHERE uuid = ? LIMIT 1`, [ticketMenuItemUuid])) return
+        ensureTicketExists(adapter, entry)
 
-        adapter.run(`DELETE FROM "ticketMenuItemModifier" WHERE "ticketMenuItemUuid" = ?`, [ticketMenuItemUuid])
-        adapter.run(`DELETE FROM "ticketPromotion" WHERE "ticketMenuItemUuid" = ?`, [ticketMenuItemUuid])
-        adapter.run(`DELETE FROM "ticketMenuItem" WHERE uuid = ?`, [ticketMenuItemUuid])
+        if (!exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [ticketMenuItemUuid])) {
+          throw new Error('MISSING_DEPENDENCY')
+        }
+
+        adapter.run(`DELETE FROM "ticket_menu_item_modifier" WHERE ticket_menu_item_uuid = ?`, [ticketMenuItemUuid])
+        adapter.run(`DELETE FROM "ticket_promotion" WHERE ticket_menu_item_uuid = ?`, [ticketMenuItemUuid])
+        adapter.run(`DELETE FROM "ticket_menu_item" WHERE uuid = ?`, [ticketMenuItemUuid])
         break
       }
 
       case 'SET_ITEM_NOTE': {
         const p = payload as SetItemNotePayload
 
-        if (!exists(adapter, `SELECT 1 FROM ticketMenuItem WHERE uuid = ? LIMIT 1`, [p.ticketMenuItemUuid])) {
+        ensureTicketExists(adapter, entry)
+
+        if (!exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [p.ticket_menu_item_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
 
-        adapter.run(`UPDATE ticketMenuItem SET note = ? WHERE uuid = ?`, [p.note, p.ticketMenuItemUuid])
+        adapter.run(`UPDATE ticket_menu_item SET note = ? WHERE uuid = ?`, [p.note, p.ticket_menu_item_uuid])
         break
       }
 
@@ -207,28 +213,32 @@ export function applyTicketLog(
         const p = payload as AddModifierPayload
         ensureTicketExists(adapter, entry)
 
-        if (!exists(adapter, `SELECT 1 FROM ticketMenuItem WHERE uuid = ? LIMIT 1`, [p.ticketMenuItemUuid])) {
+        if (!exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [p.ticket_menu_item_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
 
-        if (!exists(adapter, `SELECT 1 FROM modifier WHERE uuid = ? LIMIT 1`, [p.modifierUuid])) {
+        if (!exists(adapter, `SELECT 1 FROM modifier WHERE uuid = ? LIMIT 1`, [p.modifier_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
 
         adapter.run(
-          `INSERT OR IGNORE INTO "ticketMenuItemModifier" (uuid, "ticketUuid", "modifierUuid", "ticketMenuItemUuid", "timeStamp") VALUES (?, ?, ?, ?, ?)`,
-          [entry.uuid, ticketUuid, p.modifierUuid, p.ticketMenuItemUuid, new Date(entry.timeStamp).toISOString()],
+          `INSERT OR IGNORE INTO "ticket_menu_item_modifier" (uuid, ticket_uuid, modifier_uuid, ticket_menu_item_uuid, time_stamp) VALUES (?, ?, ?, ?, ?)`,
+          [entry.uuid, ticketUuid, p.modifier_uuid, p.ticket_menu_item_uuid, new Date(entry.time_stamp).toISOString()],
         )
         break
       }
 
       case 'REMOVE_MODIFIER': {
         const p = payload as RemoveModifierPayload
-        const { ticketMenuItemModifierUuid } = p
+        const { ticket_menu_item_modifier_uuid: ticketMenuItemModifierUuid } = p
 
-        if (ticketMenuItemModifierUuid && !exists(adapter, `SELECT 1 FROM ticketMenuItemModifier WHERE uuid = ? LIMIT 1`, [ticketMenuItemModifierUuid])) return
+        ensureTicketExists(adapter, entry)
 
-        adapter.run(`DELETE FROM "ticketMenuItemModifier" WHERE uuid = ?`, [ticketMenuItemModifierUuid])
+        if (!exists(adapter, `SELECT 1 FROM ticket_menu_item_modifier WHERE uuid = ? LIMIT 1`, [ticketMenuItemModifierUuid])) {
+          throw new Error('MISSING_DEPENDENCY')
+        }
+
+        adapter.run(`DELETE FROM "ticket_menu_item_modifier" WHERE uuid = ?`, [ticketMenuItemModifierUuid])
         break
       }
 
@@ -236,41 +246,42 @@ export function applyTicketLog(
         const p = payload as ApplyPromotionPayload
         ensureTicketExists(adapter, entry)
 
-        if (p.ticketMenuItemUuid && !exists(adapter, `SELECT 1 FROM ticketMenuItem WHERE uuid = ? LIMIT 1`, [p.ticketMenuItemUuid])) {
+        if (p.ticket_menu_item_uuid && !exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [p.ticket_menu_item_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
 
-        if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotionUuid])) {
+        if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotion_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
 
-        if (p.ticketMenuItemUuid) {
+        if (p.ticket_menu_item_uuid) {
           // Item-level promotion: replace any existing promotion on this menu item
           adapter.run(
-            `DELETE FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "ticketMenuItemUuid" = ? AND "ticketMenuItemUuid" IS NOT NULL`,
-            [ticketUuid, p.ticketMenuItemUuid],
+            `DELETE FROM "ticket_promotion" WHERE ticket_uuid = ? AND ticket_menu_item_uuid = ? AND ticket_menu_item_uuid IS NOT NULL`,
+            [ticketUuid, p.ticket_menu_item_uuid],
           )
         } else {
           // Itemless promotion: dedup to prevent duplicate itemless reward
-          const dedupSql = `SELECT uuid FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ? AND "ticketMenuItemUuid" IS NULL`
-          if (exists(adapter, dedupSql, [ticketUuid, p.promotionUuid])) {
+          const dedupSql = `SELECT uuid FROM "ticket_promotion" WHERE ticket_uuid = ? AND promotion_uuid = ? AND ticket_menu_item_uuid IS NULL`
+          if (exists(adapter, dedupSql, [ticketUuid, p.promotion_uuid])) {
             break
           }
         }
 
         adapter.run(
-          `INSERT OR IGNORE INTO "ticketPromotion" ("uuid", "timeStamp", "ticketUuid", "promotionUuid", "ticketMenuItemUuid") VALUES (?, ?, ?, ?, ?)`,
-          [entry.uuid, new Date().toISOString(), ticketUuid, p.promotionUuid, p.ticketMenuItemUuid ?? null],
+          `INSERT OR IGNORE INTO "ticket_promotion" (uuid, time_stamp, ticket_uuid, promotion_uuid, ticket_menu_item_uuid) VALUES (?, ?, ?, ?, ?)`,
+          [entry.uuid, new Date().toISOString(), ticketUuid, p.promotion_uuid, p.ticket_menu_item_uuid ?? null],
         )
         break
       }
 
       case 'REMOVE_PROMOTION': {
         const p = payload as RemovePromotionPayload
-        if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotionUuid])) {
+        ensureTicketExists(adapter, entry)
+        if (!exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotion_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        adapter.run(`DELETE FROM "ticketPromotion" WHERE "ticketUuid" = ? AND "promotionUuid" = ?`, [ticketUuid, p.promotionUuid])
+        adapter.run(`DELETE FROM "ticket_promotion" WHERE ticket_uuid = ? AND promotion_uuid = ?`, [ticketUuid, p.promotion_uuid])
         break
       }
 
@@ -282,24 +293,24 @@ export function applyTicketLog(
 
       case 'SET_STATUS_COMPLETE': {
         ensureTicketExists(adapter, entry)
-        adapter.run(`UPDATE ticket SET status = 'COMPLETE', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
+        adapter.run(`UPDATE ticket SET status = 'COMPLETE', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_ACCEPTED': {
         ensureTicketExists(adapter, entry)
-        adapter.run(`UPDATE ticket SET status = 'ACCEPTED', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
+        adapter.run(`UPDATE ticket SET status = 'ACCEPTED', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_PAID': {
         ensureTicketExists(adapter, entry)
-        adapter.run(`UPDATE ticket SET status = 'PAID', "adminUuid" = COALESCE("adminUuid", (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.adminUuid ?? null, ticketUuid])
+        adapter.run(`UPDATE ticket SET status = 'PAID', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       default:
-        break
+        throw new Error(`UNKNOWN_ACTION: ${action}`)
     }
   } catch (e) {
     const msg = (e as any)?.message
@@ -313,20 +324,20 @@ export function hasLogBeenApplied(
   adapter: DbAdapter,
   uuid: string,
 ): boolean {
-  return exists(adapter, `SELECT 1 FROM ticketLogApplied WHERE uuid = ? AND "timeStamp" IS NOT NULL LIMIT 1`, [uuid])
+  return exists(adapter, `SELECT 1 FROM ticket_log_applied WHERE uuid = ? AND time_stamp IS NOT NULL LIMIT 1`, [uuid])
 }
 
 function claimLog(adapter: DbAdapter, entry: TicketLogEntry): void {
-  adapter.run(`INSERT OR IGNORE INTO "ticketLogApplied" ("uuid", "timeStamp", "retryCount") VALUES (?, NULL, 0)`, [entry.uuid])
+  adapter.run(`INSERT OR IGNORE INTO "ticket_log_applied" (uuid, time_stamp, retry_count) VALUES (?, NULL, 0)`, [entry.uuid])
 }
 
 function markLogApplied(adapter: DbAdapter, entry: TicketLogEntry): void {
-  adapter.run(`UPDATE "ticketLogApplied" SET "timeStamp" = ?, "retryCount" = NULL, "nextRetryAt" = NULL, "lastError" = NULL WHERE "uuid" = ?`, [entry.timeStamp, entry.uuid])
+  adapter.run(`UPDATE "ticket_log_applied" SET time_stamp = ?, retry_count = NULL, next_retry_at = NULL, last_error = NULL WHERE uuid = ?`, [entry.time_stamp, entry.uuid])
 }
 
 function failLog(adapter: DbAdapter, entry: TicketLogEntry, error: string): void {
   adapter.run(
-    `UPDATE "ticketLogApplied" SET "retryCount" = COALESCE("retryCount", 0) + 1, "nextRetryAt" = ? + (COALESCE("retryCount", 0) + 1) * 10000, "lastError" = ? WHERE "uuid" = ?`,
+    `UPDATE "ticket_log_applied" SET retry_count = COALESCE(retry_count, 0) + 1, next_retry_at = ? + (COALESCE(retry_count, 0) + 1) * 10000, last_error = ? WHERE uuid = ?`,
     [Date.now(), error.slice(0, 255), entry.uuid],
   )
 }
@@ -349,8 +360,8 @@ export function applyLogsBatch(
     const pa = ACTION_PRIORITY[a.action] ?? 999
     const pb = ACTION_PRIORITY[b.action] ?? 999
     if (pa !== pb) return pa - pb
-    if ((a.timeStamp ?? 0) < (b.timeStamp ?? 0)) return -1
-    if ((a.timeStamp ?? 0) > (b.timeStamp ?? 0)) return 1
+    if ((a.time_stamp ?? 0) < (b.time_stamp ?? 0)) return -1
+    if ((a.time_stamp ?? 0) > (b.time_stamp ?? 0)) return 1
     if (a.uuid < b.uuid) return -1
     if (a.uuid > b.uuid) return 1
     return 0
@@ -398,20 +409,20 @@ export function handleAddPaymentLog(
 ): void {
   ensureTicketExists(adapter, entry)
 
-  if (exists(adapter, `SELECT 1 FROM "ticketPayment" WHERE "ticketUuid" = ? AND "paymentUuid" = ?`, [entry.ticketUuid, payload.paymentUuid])) return
+  if (exists(adapter, `SELECT 1 FROM "ticket_payment" WHERE ticket_uuid = ? AND payment_uuid = ?`, [entry.ticket_uuid, payload.payment_uuid])) return
 
-  if (!exists(adapter, `SELECT 1 FROM payment WHERE uuid = ? LIMIT 1`, [payload.paymentUuid])) {
+  if (!exists(adapter, `SELECT 1 FROM payment WHERE uuid = ? LIMIT 1`, [payload.payment_uuid])) {
     throw new Error('MISSING_DEPENDENCY')
   }
 
   adapter.run(
-    `INSERT INTO "ticketPayment" ("uuid", "ticketUuid", "paymentUuid", "priceWhole", "priceHundredths", "code", "complete") VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO "ticket_payment" (uuid, ticket_uuid, payment_uuid, price_whole, price_hundredths, code, complete) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       entry.uuid,
-      entry.ticketUuid,
-      payload.paymentUuid,
-      payload.priceWhole,
-      payload.priceHundredths,
+      entry.ticket_uuid,
+      payload.payment_uuid,
+      payload.price_whole,
+      payload.price_hundredths,
       payload.code ?? null,
       payload.complete ? 1 : 0,
     ],

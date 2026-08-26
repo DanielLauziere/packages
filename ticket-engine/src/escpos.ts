@@ -313,8 +313,8 @@ const PAYMENT_CARD_UUID = 'bc307676-fe8b-46e4-bad9-f35fab03ed90'
 
 interface TicketPrintModifier {
   name: string
-  priceWhole: number
-  priceHundredths: number
+  price_whole: number
+  price_hundredths: number
 }
 
 interface TicketPrintPromotion {
@@ -326,17 +326,17 @@ interface TicketPrintPromotion {
 interface TicketPrintItem {
   uuid: string
   name: string
-  priceWhole: number
-  priceHundredths: number
-  ticketMenuItemNote?: string | null
-  appliedModifiers?: TicketPrintModifier[]
-  appliedPromotions?: TicketPrintPromotion[]
+  price_whole: number
+  price_hundredths: number
+  ticket_menu_item_note?: string | null
+  applied_modifiers?: TicketPrintModifier[]
+  applied_promotions?: TicketPrintPromotion[]
 }
 
 interface TicketPrintCombo {
   name: string
-  priceWhole: number
-  priceHundredths: number
+  price_whole: number
+  price_hundredths: number
 }
 
 interface GroupedItem {
@@ -349,47 +349,47 @@ interface GroupedItem {
 interface TicketPrintData {
   uuid?: string
   id?: number | null
-  timeStamp: string
-  fulfillmentUuid?: string | null
-  fulfillmentType?: string | null
-  tableName?: string | null
-  guestAddressUuid?: string | null
+  time_stamp: string
+  fulfillment_uuid?: string | null
+  fulfillment_type?: string | null
+  table_name?: string | null
+  guest_address_uuid?: string | null
   address?: string
-  anonymousAddress?: string
-  firstName?: string
-  lastName?: string
+  anonymous_address?: string
+  first_name?: string
+  last_name?: string
   phone?: string
   email?: string
   combos?: TicketPrintCombo[] | null
-  menuItems: TicketPrintItem[]
-  appliedPromotions?: TicketPrintPromotion[] | null
-  guestsPoints?: number
-  totalPoints?: number
-  redeemedPoints?: number
-  endPoints?: number
+  menu_items: TicketPrintItem[]
+  applied_promotions?: TicketPrintPromotion[] | null
+  guests_points?: number
+  total_points?: number
+  redeemed_points?: number
+  end_points?: number
   total: string
-  taxTotal: string
-  tipTotal: string
-  grandTotal: string
-  grandTotalCents: number
+  tax_total: string
+  tip_total: string
+  grand_total: string
+  grand_total_cents: number
 }
 
 interface LocationPrintData {
   name?: string
   address?: string | null
   phone?: string | null
-  ticketDescription?: string | null
-  simplePrint?: boolean
-  printNotes?: boolean
+  ticket_description?: string | null
+  simple_print?: boolean
+  print_notes?: boolean
   features?: string[]
-  taxPercentage?: number
-  tipPercentage?: number
+  tax_percentage?: number
+  tip_percentage?: number
 }
 
 interface PaymentPrintData {
   uuid: string
-  priceWhole: number
-  priceHundredths: number
+  price_whole: number
+  price_hundredths: number
 }
 
 // --------------------------------------------------
@@ -477,13 +477,13 @@ export async function ticketToEscPos(
   }
 
   const width = resolvePrinterWidth(options?.receiptPrinterWidthMm)
-  const grandTotalDollars = `$${ticket.grandTotal}`
+  const grandTotalDollars = `$${ticket.grand_total}`
   const sortedCombos = sortByName(ticket.combos ?? [])
-  const sortedMenuItems = sortByName(ticket.menuItems ?? [])
+  const sortedMenuItems = sortByName(ticket.menu_items ?? [])
 
   const showTotal =
-    (loc.taxPercentage ?? 0) > 0 ||
-    (ticket.fulfillmentType === 'EATIN' && (loc.tipPercentage ?? 0) > 0)
+    (loc.tax_percentage ?? 0) > 0 ||
+    (ticket.fulfillment_type === 'EATIN' && (loc.tip_percentage ?? 0) > 0)
 
   // ── HEADER ──
   builder.alignCenter()
@@ -517,16 +517,16 @@ export async function ticketToEscPos(
   builder.bold(false)
   builder.resetTextSize()
   builder.setTextSize(1, 1)
-  print(formatAsciiDate(ticket.timeStamp))
+  print(formatAsciiDate(ticket.time_stamp))
 
   // ── Fulfillment / Table header ──
   builder.alignCenter()
   builder.setTextSize(2.25, 2.25)
   builder.bold(true)
-  switch (ticket.fulfillmentUuid) {
+  switch (ticket.fulfillment_uuid) {
     case FULFILLMENT_UUID_EATIN: {
-      if (ticket.tableName) {
-        print(`${t[1]}: ${ticket.tableName}`)
+      if (ticket.table_name) {
+        print(`${t[1]}: ${ticket.table_name}`)
       } else {
         print(t[1])
       }
@@ -535,11 +535,11 @@ export async function ticketToEscPos(
     case FULFILLMENT_UUID_DELIVERY: {
       builder.setTextSize(1.75, 1.75)
       const addrParts: string[] = []
-      if (ticket.guestAddressUuid && ticket.address) {
+      if (ticket.guest_address_uuid && ticket.address) {
         addrParts.push(ticket.address)
       }
-      if (ticket.anonymousAddress) {
-        addrParts.push(ticket.anonymousAddress)
+      if (ticket.anonymous_address) {
+        addrParts.push(ticket.anonymous_address)
       }
       if (addrParts.length > 0) {
         print(`${t[3]}: ${addrParts.join(' + ')}`)
@@ -553,8 +553,8 @@ export async function ticketToEscPos(
       break
     }
     default: {
-      if (ticket.tableName) {
-        print(`${t[1]}: ${ticket.tableName}`)
+      if (ticket.table_name) {
+        print(`${t[1]}: ${ticket.table_name}`)
       }
       break
     }
@@ -568,12 +568,12 @@ export async function ticketToEscPos(
   if (ticket.id != null) print(`# ${ticket.id}`)
   print('-'.repeat(width))
 
-  if (ticket.firstName || ticket.lastName)
-    print(`${ticket.firstName ?? ''} ${ticket.lastName ?? ''}`)
+  if (ticket.first_name || ticket.last_name)
+    print(`${ticket.first_name ?? ''} ${ticket.last_name ?? ''}`)
 
   if (ticket.phone) print(leftRightExact('Tel', ticket.phone))
   if (ticket.email) print(leftRightExact(t[0], ticket.email))
-  if (ticket.phone || ticket.email || ticket.firstName || ticket.lastName) {
+  if (ticket.phone || ticket.email || ticket.first_name || ticket.last_name) {
     print('-'.repeat(width))
   }
 
@@ -598,10 +598,10 @@ export async function ticketToEscPos(
       }
       const group = grouped.get(item.uuid)!
       group.totalQty += 1
-      if (item.ticketMenuItemNote) {
-        group.notes.push(item.ticketMenuItemNote)
+      if (item.ticket_menu_item_note) {
+        group.notes.push(item.ticket_menu_item_note)
       }
-      for (const mod of item.appliedModifiers ?? []) {
+      for (const mod of item.applied_modifiers ?? []) {
         group.modifiers.push(mod.name)
       }
     }
@@ -622,12 +622,12 @@ export async function ticketToEscPos(
   } else {
 
     // ── CUSTOMER RECEIPT ──
-    const simple = Boolean(loc.simplePrint)
-    const shouldPrintNotes = Boolean(loc.printNotes)
+    const simple = Boolean(loc.simple_print)
+    const shouldPrintNotes = Boolean(loc.print_notes)
 
     if (ticket.combos?.length) {
       for (const combo of sortedCombos) {
-        const comboPrice = `$${combo.priceWhole}.${toCents(combo.priceHundredths)}`
+        const comboPrice = `$${combo.price_whole}.${toCents(combo.price_hundredths)}`
         print(leftRightExact(combo.name, comboPrice))
       }
       print('-'.repeat(width))
@@ -647,7 +647,7 @@ export async function ticketToEscPos(
       >()
 
       for (const item of sortedMenuItems) {
-        const unitPrice = item.priceWhole + item.priceHundredths / 100
+        const unitPrice = item.price_whole + item.price_hundredths / 100
 
         if (!grouped.has(item.uuid)) {
           grouped.set(item.uuid, {
@@ -663,18 +663,18 @@ export async function ticketToEscPos(
         const group = grouped.get(item.uuid)!
         group.totalQty += 1
 
-        if (shouldPrintNotes && item.ticketMenuItemNote) {
-          group.notes.push(item.ticketMenuItemNote)
+        if (shouldPrintNotes && item.ticket_menu_item_note) {
+          group.notes.push(item.ticket_menu_item_note)
         }
 
-        for (const mod of item.appliedModifiers ?? []) {
+        for (const mod of item.applied_modifiers ?? []) {
           group.modifiers.push({
             name: mod.name,
-            price: mod.priceWhole + mod.priceHundredths / 100,
+            price: mod.price_whole + mod.price_hundredths / 100,
           })
         }
 
-        for (const promo of item.appliedPromotions ?? []) {
+        for (const promo of item.applied_promotions ?? []) {
           if (promo.name && !group.promotions.includes(promo.name)) {
             group.promotions.push(promo.name)
           }
@@ -727,23 +727,23 @@ export async function ticketToEscPos(
 
     } else {
       for (const item of sortedMenuItems) {
-        for (const promo of item.appliedPromotions ?? []) {
+        for (const promo of item.applied_promotions ?? []) {
           builder.feed(1)
           print(`${promo.name}:`)
         }
 
-        const price = `$${(item.priceWhole + item.priceHundredths / 100).toFixed(2)}`
+        const price = `$${(item.price_whole + item.price_hundredths / 100).toFixed(2)}`
         print(leftRightExact(item.name, price))
 
-        if (shouldPrintNotes && item.ticketMenuItemNote) {
-          print(`  (${item.ticketMenuItemNote})`)
+        if (shouldPrintNotes && item.ticket_menu_item_note) {
+          print(`  (${item.ticket_menu_item_note})`)
         }
 
-        for (const mod of item.appliedModifiers ?? []) {
+        for (const mod of item.applied_modifiers ?? []) {
           let modPrice = ''
-          const hasPrice = mod.priceHundredths !== 0 || mod.priceWhole !== 0
+          const hasPrice = mod.price_hundredths !== 0 || mod.price_whole !== 0
           if (hasPrice) {
-            modPrice = `$${(mod.priceWhole + mod.priceHundredths / 100).toFixed(2)}`
+            modPrice = `$${(mod.price_whole + mod.price_hundredths / 100).toFixed(2)}`
           }
           if (shouldPrintNotes || hasPrice) {
             print(leftRightExact(`  (${mod.name})`, modPrice))
@@ -758,8 +758,8 @@ export async function ticketToEscPos(
   // ── CUSTOMER-ONLY SECTION ──
   if (!options?.kitchenTicket) {
     // Rewards
-    if (ticket.appliedPromotions) {
-      const rewards = ticket.appliedPromotions.filter(
+    if (ticket.applied_promotions) {
+      const rewards = ticket.applied_promotions.filter(
         (p) => p.type === 'REWARD' && Boolean(p.itemless) === true,
       )
       if (rewards.length) {
@@ -772,10 +772,10 @@ export async function ticketToEscPos(
 
     // Loyalty points
     if (loc.features?.includes(FEATURE_LOYALTY_UUID)) {
-      print(leftRightExact(t[6], `${ticket.guestsPoints ?? 0}`))
-      print(leftRightExact(t[7], `${ticket.totalPoints ?? 0}`))
-      print(leftRightExact(t[8], `${ticket.redeemedPoints ?? 0}`))
-      print(leftRightExact(t[9], `${ticket.endPoints ?? 0}`))
+      print(leftRightExact(t[6], `${ticket.guests_points ?? 0}`))
+      print(leftRightExact(t[7], `${ticket.total_points ?? 0}`))
+      print(leftRightExact(t[8], `${ticket.redeemed_points ?? 0}`))
+      print(leftRightExact(t[9], `${ticket.end_points ?? 0}`))
       print('-'.repeat(width))
     }
 
@@ -783,14 +783,14 @@ export async function ticketToEscPos(
     builder.bold(true)
     if (showTotal) {
       print(leftRightExact(t[10], `$${ticket.total}`))
-      if ((loc.taxPercentage ?? 0) > 0) {
-        print(leftRightExact(t[11], `$${ticket.taxTotal}`))
+      if ((loc.tax_percentage ?? 0) > 0) {
+        print(leftRightExact(t[11], `$${ticket.tax_total}`))
       }
       if (
-        ticket.fulfillmentType === 'EATIN' &&
-        (loc.tipPercentage ?? 0) > 0
+        ticket.fulfillment_type === 'EATIN' &&
+        (loc.tip_percentage ?? 0) > 0
       ) {
-        print(leftRightExact(t[12], `$${ticket.tipTotal}`))
+        print(leftRightExact(t[12], `$${ticket.tip_total}`))
       }
     }
     print(leftRightExact(t[13], grandTotalDollars))
@@ -801,15 +801,15 @@ export async function ticketToEscPos(
       const payments = options.payments
       let totalPayments = 0
       for (const payment of payments) {
-        const priceString = `$${(payment.priceWhole + payment.priceHundredths / 100).toFixed(2)}`
+        const priceString = `$${(payment.price_whole + payment.price_hundredths / 100).toFixed(2)}`
         let paymentNameString: string = t[16]
         if (payment.uuid === PAYMENT_CARD_UUID) {
           paymentNameString = t[14]
         }
         print(leftRightExact(paymentNameString, priceString))
-        totalPayments += payment.priceWhole * 100 + payment.priceHundredths
+        totalPayments += payment.price_whole * 100 + payment.price_hundredths
       }
-      const change = totalPayments - ticket.grandTotalCents
+      const change = totalPayments - ticket.grand_total_cents
       const changeString = `$${(change / 100).toFixed(2)}`
       print(leftRightExact(t[15], changeString))
     }
@@ -830,7 +830,7 @@ export async function ticketToEscPos(
     if (loc.address) print(leftRightExact(t[5], loc.address))
     if (loc.phone) print(leftRightExact('Tel', loc.phone))
     builder.feed(1)
-    if (loc.ticketDescription) print(loc.ticketDescription)
+    if (loc.ticket_description) print(loc.ticket_description)
   }
 
   return safePrint(builder, {

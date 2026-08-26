@@ -3,40 +3,40 @@ export type SetAnonymousAddressPayload = {
 }
 
 export type AddItemPayload = {
-  menuItemUuid: string
+  menu_item_uuid: string
 }
 
 export type RemoveItemPayload = {
-  ticketMenuItemUuid: string
+  ticket_menu_item_uuid: string
 }
 
 export type SetItemNotePayload = {
-  ticketMenuItemUuid: string
+  ticket_menu_item_uuid: string
   note: string | null
 }
 
 export type AddModifierPayload = {
-  ticketMenuItemUuid: string
-  modifierUuid: string
+  ticket_menu_item_uuid: string
+  modifier_uuid: string
 }
 
 export type RemoveModifierPayload = {
-  ticketMenuItemModifierUuid: string
+  ticket_menu_item_modifier_uuid: string
 }
 
 export type ApplyPromotionPayload = {
-  promotionUuid: string
-  ticketMenuItemUuid?: string
+  promotion_uuid: string
+  ticket_menu_item_uuid?: string
 }
 
 export type RemovePromotionPayload = {
-  promotionUuid: string
+  promotion_uuid: string
 }
 
 export type AddPaymentPayload = {
-  paymentUuid: string
-  priceWhole: number
-  priceHundredths: number
+  payment_uuid: string
+  price_whole: number
+  price_hundredths: number
   code?: string
   complete: boolean
 }
@@ -46,35 +46,34 @@ export type TicketStatus = string
 export type CompleteTicket = {
   uuid: string
   id: number
-  timeStamp: string
+  time_stamp: string
   status: TicketStatus
-  locationGroupUuid: string
-  locationUuid: string
-  appUniqueUuid: string
-  fulfillmentUuid: string
-  fulfillmentType: string
-  guestUuid: string
-  guestAddressUuid: string
-  tableUuid: string
-  userName: string
-  firstName: string
-  lastName: string
+  location_group_uuid: string
+  app_unique_uuid: string
+  fulfillment_uuid: string
+  fulfillment_type: string
+  guest_uuid: string
+  guest_address_uuid: string
+  table_uuid: string
+  user_name: string
+  first_name: string
+  last_name: string
   email: string
   phone: string
   address: string
-  anonymousAddress: string
+  anonymous_address: string
   points: number
-  paymentUuid: string
+  payment_uuid: string
 }
 
 export type MenuItemModifierGroupModifierDB = {
   uuid: string
-  menuItemUuid: string
+  menu_item_uuid: string
   name: string
   active: boolean
-  priceWhole: number
-  priceHundredths: number
-  amountRequired: number
+  price_whole: number
+  price_hundredths: number
+  amount_required: number
 }
 
 export type MenuItemDB = {
@@ -83,8 +82,8 @@ export type MenuItemDB = {
   name: string
   description: string
   active: boolean
-  priceWhole: number
-  priceHundredths: number
+  price_whole: number
+  price_hundredths: number
 }
 
 export type PromotionDB = {
@@ -93,43 +92,43 @@ export type PromotionDB = {
   active: boolean
   type: string
   itemless: boolean
-  bogoBuy: string
-  bogoGet: string
-  pointsRequired: number
-  pointsMultiplier: number
-  promotionIsPercentage: boolean
-  discountPercent: number
-  discountWhole: number
-  discountHundredths: number
-  locationGroupUuid: string
+  bogo_buy: string
+  bogo_get: string
+  points_required: number
+  points_multiplier: number
+  promotion_is_percentage: boolean
+  discount_percent: number
+  discount_whole: number
+  discount_hundredths: number
+  location_group_uuid: string
 }
 
 export type TicketPromotionDB = {
   uuid: string
-  ticketUuid: string
-  promotionUuid: string
-  ticketMenuItemUuid: string | null
-  timeStamp: string
+  ticket_uuid: string
+  promotion_uuid: string
+  ticket_menu_item_uuid: string | null
+  time_stamp: string
 }
 
 export type TicketMenuItemDB = {
   uuid: string
-  ticketUuid: string
-  menuItemUuid: string
+  ticket_uuid: string
+  menu_item_uuid: string
   note: string | null
 }
 
 export type TicketMenuItemModifierDB = {
   uuid: string
-  ticketMenuItemUuid: string
-  modifierUuid: string
-  ticketUuid: string
+  ticket_menu_item_uuid: string
+  modifier_uuid: string
+  ticket_uuid: string
 }
 
 export type BogoMenuItemDB = {
   uuid: string
-  menuItemUuid: string
-  bogoUuid: string
+  menu_item_uuid: string
+  bogo_uuid: string
 }
 
 export type ComboDB = {
@@ -137,16 +136,16 @@ export type ComboDB = {
   name: string
   description: string | null
   active: boolean
-  priceWhole: number
-  priceHundredths: number
-  comboMenuItems: ComboMenuItem[]
+  price_whole: number
+  price_hundredths: number
+  combo_menu_items: ComboMenuItem[]
 }
 
 export type ComboMenuItem = {
   uuid: string
-  ticketUuid: string
-  menuItemUuid: string
-  menuItemCache: string
+  ticket_uuid: string
+  menu_item_uuid: string
+  menu_item_cache: string
   name: string
 }
 
@@ -160,10 +159,10 @@ export type ComboComboMenuItemDB = {
   name: string
   description: string
   active: boolean
-  priceWhole: number
-  priceHundredths: number
-  comboUuid: string
-  menuItemUuid: string
+  price_whole: number
+  price_hundredths: number
+  combo_uuid: string
+  menu_item_uuid: string
 }
 
 export type ReturnPromotion = {
@@ -172,15 +171,15 @@ export type ReturnPromotion = {
   active: boolean
   type: string
   itemless: boolean
-  bogoBuy: string
-  bogoGet: string
-  pointsRequired: number
-  pointsMultiplier: number
-  promotionIsPercentage: boolean
-  discountPercent: number
-  discountWhole: number
-  discountHundredths: number
-  locationGroupUuid: string
+  bogo_buy: string
+  bogo_get: string
+  points_required: number
+  points_multiplier: number
+  promotion_is_percentage: boolean
+  discount_percent: number
+  discount_whole: number
+  discount_hundredths: number
+  location_group_uuid: string
 }
 
 export type ReturnMenuItem = {
@@ -189,56 +188,55 @@ export type ReturnMenuItem = {
   active: boolean
   name: string
   description: string
-  priceWhole: number
-  priceHundredths: number
-  originalPriceWhole: number
-  originalPriceHundredths: number
-  ticketMenuItemUuid: string
-  ticketMenuItemNote: string | null
-  availableModifiers: MenuItemModifierGroupModifierDB[]
-  appliedModifiers: (MenuItemModifierGroupModifierDB & {
-    ticketMenuItemModifierUuid: string
+  price_whole: number
+  price_hundredths: number
+  original_price_whole: number
+  original_price_hundredths: number
+  ticket_menu_item_uuid: string
+  ticket_menu_item_note: string | null
+  available_modifiers: MenuItemModifierGroupModifierDB[]
+  applied_modifiers: (MenuItemModifierGroupModifierDB & {
+    ticket_menu_item_modifier_uuid: string
   })[]
-  appliedPromotions: ReturnPromotion[]
-  modifierGroupAmountRequired?: number
+  applied_promotions: ReturnPromotion[]
+  modifier_group_amount_required?: number
 }
 
 export type ReturnCompleteTicket = {
   uuid: string
   id: number
-  timeStamp: string
+  time_stamp: string
   status: TicketStatus
-  locationGroupUuid: string
-  locationUuid: string
-  appUniqueUuid: string
-  fulfillmentUuid: string
-  guestUuid: string
-  guestAddressUuid: string
-  tableUuid: string
-  tableName?: string
-  userName: string
-  firstName: string
-  lastName: string
+  location_group_uuid: string
+  app_unique_uuid: string
+  fulfillment_uuid: string
+  guest_uuid: string
+  guest_address_uuid: string
+  table_uuid: string
+  table_name?: string
+  user_name: string
+  first_name: string
+  last_name: string
   email: string
   phone: string
-  fulfillmentType: string
+  fulfillment_type: string
   address: string
-  anonymousAddress: string
-  guestsPoints: number
-  paymentUuid: string
-  menuItems: ReturnMenuItem[]
+  anonymous_address: string
+  guests_points: number
+  payment_uuid: string
+  menu_items: ReturnMenuItem[]
   combos: ComboDB[]
-  appliedPromotions: ReturnPromotion[]
-  eligablePromotions: ReturnPromotion[]
-  ineligablePromotions: ReturnPromotion[]
-  redeemedPoints: number
-  totalPoints: number
-  endPoints: number
-  totalCents: number
+  applied_promotions: ReturnPromotion[]
+  eligable_promotions: ReturnPromotion[]
+  ineligable_promotions: ReturnPromotion[]
+  redeemed_points: number
+  total_points: number
+  end_points: number
+  total_cents: number
   total: string
-  tipTotal: string
-  taxTotal: string
-  taxTotalCents: number
-  grandTotal: string
-  grandTotalCents: number
+  tip_total: string
+  tax_total: string
+  tax_total_cents: number
+  grand_total: string
+  grand_total_cents: number
 }
