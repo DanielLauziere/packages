@@ -26,12 +26,23 @@ export function setSchemaUuid(db: DbAdapter, uuid: string): void {
 
 // applyDdl applies SQLite DDL idempotently (IF NOT EXISTS). DDL comes from the
 // server descriptor, not from a bundled constant.
+//
+// Errors are NOT silently swallowed. A malformed or unsupported statement must
+// surface so a buggy descriptor fails loudly on the first device (a partial
+// schema would otherwise let the reseed fail FK and loop every device to
+// RECOVER). Only genuine "already exists" errors are ignored — those are the
+// expected result of idempotent `CREATE ... IF NOT EXISTS` replay against a
+// schema that already has the object. (Schema-sync brick guard, T21.)
 export function applyDdl(db: DbAdapter, ddl: string): void {
   for (const stmt of splitStatements(ddl)) {
     try {
       db.run(stmt)
-    } catch {
-      // idempotent DDL; ignore duplicate-object errors
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // Idempotent replay of `CREATE ... IF NOT EXISTS` is the only benign case.
+      if (!/already exists/i.test(msg)) {
+        throw err
+      }
     }
   }
 }
