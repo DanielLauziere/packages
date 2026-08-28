@@ -7,6 +7,15 @@ export { seedGroupDatabase, validateSeedPayload } from './seedGroupDatabase.js'
 export { migrateSchema, applyDdl, getSchemaUuid, setSchemaUuid, splitStatements, dropAllTables, type MigrateResult, type SchemaDescriptor } from './migrateSchema.js'
 export type { DbAdapter } from './dbAdapter.js'
 export { applyTicketLog, applyLogsBatch, hasLogBeenApplied, handleAddPaymentLog, normalizePhone, ACTION_PRIORITY } from './applyTicketLog.js'
+export {
+  NUM_BUCKETS,
+  fastHashUuid,
+  bucketForTicket,
+  buildBuckets,
+  buildBucketHashes,
+  getDirtyBuckets,
+} from './syncBuckets.js'
+export type { BucketHashes, BucketMap } from './syncBuckets.js'
 export type { TicketLogEntry } from './applyTicketLog.js'
 export { rowFromDb, rowsFromDb, dbColumnName, dbTableName } from './rowMapping.js'
 export type * from './types.js'
