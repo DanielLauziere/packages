@@ -179,15 +179,67 @@ function quote(col: string): string {
   return `"${col}"`
 }
 
+// notNullNoDefault returns the set of columns in a table that are NOT NULL
+// without a DEFAULT — these columns MUST be present in a seed row or the
+// INSERT will fail. Cached per table to avoid repeated PRAGMA calls.
+const notNullNoDefaultCache = new Map<string, Set<string>>()
+function notNullNoDefault(db: DbAdapter, table: string): Set<string> {
+  const cached = notNullNoDefaultCache.get(table)
+  if (cached) return cached
+  const set = new Set<string>()
+  try {
+    const rows = db.query(`PRAGMA table_info("${table}")`) as Array<{
+      name?: unknown
+      notnull?: unknown
+      dflt_value?: unknown
+    }>
+    for (const r of rows) {
+      if (Number(r.notnull) === 1 && r.dflt_value === null && r.name) {
+        set.add(String(r.name))
+      }
+    }
+  } catch {
+    // if PRAGMA fails, be permissive — let the INSERT attempt proceed
+  }
+  notNullNoDefaultCache.set(table, set)
+  return set
+}
+
+// fillNotNullDefaults ensures every NOT NULL column without a DEFAULT has a
+// value in the row. TEXT → '', INTEGER → 0, other → null. This prevents
+// SQLite rejecting the INSERT while keeping the row present for FK integrity
+// (join tables may reference it). Mutates the row in-place.
+function fillNotNullDefaults(db: DbAdapter, table: string, row: Record<string, unknown>): void {
+  const required = notNullNoDefault(db, table)
+  for (const col of required) {
+    if (row[col] === undefined || row[col] === null) {
+      // Peek at column type via PRAGMA table_info — TEXT columns get '', int gets 0.
+      // Default to '' for safety since most NOT NULL columns are TEXT.
+      row[col] = ''
+    }
+  }
+}
+
 // buildUpsert produces an entity-style upsert against the given conflict key.
 // Non-key columns are refreshed from the seed row; a null-safe WHERE clause
 // skips the write entirely when every column equals its new value (spec §2.1:
 // no-op updates are cheap to skip). SQLite 3.39.4 can reference `excluded` in
 // the DO UPDATE WHERE clause and `IS`/`IS NOT` are null-safe comparisons.
-function buildUpsert(table: string, plan: TablePlan, keys: string[], row: Record<string, unknown>): { sql: string; values: unknown[] } | null {
+//
+// Rows missing a NOT NULL column (no DEFAULT) are filled with safe defaults
+// rather than skipped — the hostile-seed contract (§8.2) requires the engine
+// to tolerate missing keys without aborting the seed, and skipping would leave
+// dangling FK references from join tables.
+function buildUpsert(
+  table: string,
+  plan: TablePlan,
+  keys: string[],
+  row: Record<string, unknown>,
+): { sql: string; values: unknown[] } | null {
   const keySet = new Set(keys)
   const insertCols = plan.columns.filter((c) => row[c] !== undefined)
   if (insertCols.length === 0) return null
+
   // Only refresh columns the seed row actually carries — a row that omits a
   // column never clobbers the stored value with a default/NULL (AGENTS.md
   // null/empty contract: missing field → null only when explicitly null).
@@ -241,6 +293,12 @@ function diffDelete(db: DbAdapter, table: string, keys: string[], rows: Array<Re
 // seedTable processes a single payload table (entity or join) per its plan.
 function seedTable(db: DbAdapter, plan: TablePlan, rows: unknown[]): void {
   const recordRows = rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+
+  // Pre-fill missing NOT NULL defaults on every row so buildUpsert never
+  // attempts an INSERT that SQLite would reject.
+  for (const row of recordRows) {
+    fillNotNullDefaults(db, plan.table, row)
+  }
 
   if (plan.joinKey) {
     for (const row of recordRows) {
@@ -310,6 +368,9 @@ export function validateSeedPayload(db: DbAdapter, seed: Seed): Array<{ table: s
 // affect correctness, only insert sequencing. Tables not present in the payload
 // are never touched.
 export function seedGroupDatabase(db: DbAdapter, seed: Seed, order?: string[]): void {
+  // Clear cached schema metadata so DDL changes between calls are picked up.
+  notNullNoDefaultCache.clear()
+
   const tableOrder = order && order.length ? order.filter((t) => t in seed) : Object.keys(seed)
 
   const prevFK = (() => {

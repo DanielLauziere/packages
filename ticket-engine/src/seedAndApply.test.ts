@@ -372,14 +372,15 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     // Unknown keys are dropped against the live schema (PRAGMA table_info), no
     // extra columns, no crash. Empty string name is preserved as '' — never
     // coerced to null (AGENTS.md §null/empty contract).
-    expect((row(db, 'SELECT COUNT(*) AS c FROM country')).c).toBe(1)
-    expect((row(db, `SELECT COUNT(*) AS c FROM country WHERE name = ''`)).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM country')).c).toBe(2)
+    expect((row(db, `SELECT COUNT(*) AS c FROM country WHERE name = ''`)).c).toBe(2)
     // Rows missing a NOT NULL column (menu_category.name, menu_item.cache) or
-    // carrying null for one are skipped in isolation, never aborting the seed.
+    // carrying null for one get safe defaults filled (TEXT → '') so they insert
+    // successfully — skipping would leave dangling FK references from join tables.
     expect((row(db, 'SELECT COUNT(*) AS c FROM location_group')).c).toBe(1)
     expect((row(db, 'SELECT COUNT(*) AS c FROM menu')).c).toBe(1)
-    expect((row(db, 'SELECT COUNT(*) AS c FROM menu_category')).c).toBe(1)
-    expect((row(db, 'SELECT COUNT(*) AS c FROM menu_item')).c).toBe(1)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM menu_category')).c).toBe(3)
+    expect((row(db, 'SELECT COUNT(*) AS c FROM menu_item')).c).toBe(2)
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
 
