@@ -92,10 +92,10 @@ function serializeTicket(db: DatabaseSync, ticketUuid: string, wanted: Record<st
 describe('T4 parity corpus → TS engine on real SQLite', () => {
   let db: DatabaseSync
 
-  beforeEach(() => {
-    db = new DatabaseSync(':memory:')
-    db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(makeAdapter(db), FULL_DDL)
+  beforeEach(async () => {
+    db = new DatabaseSync(":memory:")
+    db.exec("PRAGMA foreign_keys = ON")
+    await applyDdl(makeAdapter(db), FULL_DDL)
   })
 
   afterEach(() => db.close())

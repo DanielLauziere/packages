@@ -68,15 +68,15 @@ export function buildUpsert(table: string, record: Record<string, unknown>): Bui
 
 // withSeedTransaction wraps a seed body in BEGIN/COMMIT with ROLLBACK on error,
 // so a failed seed never leaves a half-applied snapshot.
-export function withSeedTransaction(db: DbAdapter, work: () => void): void {
-  db.run('BEGIN')
+export async function withSeedTransaction(db: DbAdapter, work: () => Promise<void>): Promise<void> {
+  await db.run('BEGIN')
 
   try {
-    work()
-    db.run('COMMIT')
+    await work()
+    await db.run('COMMIT')
   } catch (err) {
     try {
-      db.run('ROLLBACK')
+      await db.run('ROLLBACK')
     } catch {
       // ignore nested error
     }
@@ -87,9 +87,9 @@ export function withSeedTransaction(db: DbAdapter, work: () => void): void {
 // runRow executes a single seed write with per-row isolation (ticket-engine
 // rule 7): a malformed row is logged and skipped, never aborting the seed.
 // `tag` is the full log prefix, e.g. `seedMenu menu_item <uuid>`.
-export function runRow(db: DbAdapter, stmt: BuiltStatement, tag: string): void {
+export async function runRow(db: DbAdapter, stmt: BuiltStatement, tag: string): Promise<void> {
   try {
-    db.run(stmt.sql, stmt.values)
+    await db.run(stmt.sql, stmt.values)
   } catch (err) {
     console.error(`🌱 ${tag}: ${(err as Error).message}`)
   }

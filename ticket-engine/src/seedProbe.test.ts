@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
 import { applyDdl, FULL_DDL, seedGroupDatabase } from './index.js'
 function adapter(db: DatabaseSync){return{run:(s:string,p:unknown[]=[])=>db.prepare(s).run(...(p as any)),query:(s:string,p:unknown[]=[])=>db.prepare(s).all(...(p as any))}}
-describe('seed FK',()=>{it('probe',()=>{
-  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys = ON');applyDdl(adapter(db),FULL_DDL)
+describe('seed FK',async()=>{it('probe',async()=>{
+  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys = ON');await applyDdl(adapter(db),FULL_DDL)
   const seed={
     language:[{uuid:'lg',name:'es',nombre:'es'}],
     country:[{uuid:'ct-1',name:'El Salvador',nombre:'El Salvador',iso2:'SV',iso3:'SLV',phone_code:503,language_uuid:'lg'}],

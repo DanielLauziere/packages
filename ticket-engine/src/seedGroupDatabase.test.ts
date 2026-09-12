@@ -18,10 +18,10 @@ const LG = (extra: Record<string, unknown> = {}) => ({ uuid: 'lgg', name: 'X', u
 // journal guarantees the file is atomic; even so, the engine must (a) surface
 // the error, (b) leave the DB as it was before the seed (old version preserved,
 // §2.3), and (c) let a subsequent seed complete and land.
-it('mid-seed failure rolls back everything; the next seed completes (§4.2)', () => {
+it('mid-seed failure rolls back everything; the next seed completes (§4.2)', async () => {
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
-  applyDdl(adapter(db), FULL_DDL)
+  await applyDdl(adapter(db), FULL_DDL)
 
   const seed: any = {
     country: COUNTRY,
@@ -62,10 +62,10 @@ it('mid-seed failure rolls back everything; the next seed completes (§4.2)', ()
 })
 
 describe('seedGroupDatabase (unified seeder)', () => {
-  it('upserts promotion/dining_table without clobbering ticket-referenced rows', () => {
+  it('upserts promotion/dining_table without clobbering ticket-referenced rows', async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(adapter(db), FULL_DDL)
+    await applyDdl(adapter(db), FULL_DDL)
 
     const seed = {
       language: [{ uuid: 'lg-1', name: 'es', nombre: 'es' }],
@@ -169,10 +169,10 @@ describe('seedGroupDatabase (unified seeder)', () => {
     expect(all('PRAGMA foreign_key_check')).toHaveLength(0)
   })
 
-  it('entity tables are never deleted from; only join tables diff-delete', () => {
+  it('entity tables are never deleted from; only join tables diff-delete', async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(adapter(db), FULL_DDL)
+    await applyDdl(adapter(db), FULL_DDL)
 
     const seed = {
       country: COUNTRY,
@@ -199,10 +199,10 @@ describe('seedGroupDatabase (unified seeder)', () => {
     expect(all('PRAGMA foreign_key_check')).toHaveLength(0)
   })
 
-  it('join tables diff-delete rows the server stopped sending, keyed by unique constraint', () => {
+  it('join tables diff-delete rows the server stopped sending, keyed by unique constraint', async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(adapter(db), FULL_DDL)
+    await applyDdl(adapter(db), FULL_DDL)
 
     const base = {
       country: COUNTRY,
@@ -251,10 +251,10 @@ describe('seedGroupDatabase (unified seeder)', () => {
     expect(all('PRAGMA foreign_key_check')).toHaveLength(0)
   })
 
-  it('menu family seeds idempotently across two identical payloads', () => {
+  it('menu family seeds idempotently across two identical payloads', async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(adapter(db), FULL_DDL)
+    await applyDdl(adapter(db), FULL_DDL)
 
     const menuSeed: any = {
       seed_version: 42,
@@ -284,10 +284,10 @@ describe('seedGroupDatabase (unified seeder)', () => {
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
   })
 
-  it('never touches ticket/local tables even if a malicious payload includes them', () => {
+  it('never touches ticket/local tables even if a malicious payload includes them', async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(adapter(db), FULL_DDL)
+    await applyDdl(adapter(db), FULL_DDL)
 
     const seed: any = {
       country: COUNTRY,
@@ -316,10 +316,10 @@ describe('seedGroupDatabase (unified seeder)', () => {
     expect(all(`SELECT COUNT(*) c FROM location_group`)[0].c).toBe(1)
   })
 
-  it('validateSeedPayload flags unknown tables, protected tables, un-keyed rows, and non-arrays', () => {
+  it('validateSeedPayload flags unknown tables, protected tables, un-keyed rows, and non-arrays', async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(adapter(db), FULL_DDL)
+    await applyDdl(adapter(db), FULL_DDL)
 
     const seed: any = {
       seed_version: 42,
@@ -348,4 +348,63 @@ describe('seedGroupDatabase (unified seeder)', () => {
     }
     expect(validateSeedPayload(adapter(db), good)).toEqual([])
   })
+
+  it('admin_location_permission diff-delete removes stale permission rows on re-seed', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
+    await applyDdl(adapter(db), FULL_DDL)
+
+    const seed = {
+      country: COUNTRY,
+      location_group: [LG()],
+      permission: [
+        { uuid: 'perm-1', name: 'UPDATE_LOYALTY' },
+        { uuid: 'perm-2', name: 'UPDATE_PERSONNEL' },
+        { uuid: 'perm-3', name: 'SEE_ANALYTICS' },
+      ],
+      admin: [
+        { uuid: 'admin-1', user_name: 'a1', password_hash: 'x' },
+      ],
+      admin_location: [
+        { uuid: 'al-1', admin_uuid: 'admin-1', owner: 0, location_group_uuid: 'lgg' },
+      ],
+      admin_location_permission: [
+        { uuid: 'alp-1', admin_location_uuid: 'al-1', permission_uuid: 'perm-1' },
+        { uuid: 'alp-2', admin_location_uuid: 'al-1', permission_uuid: 'perm-2' },
+        { uuid: 'alp-3', admin_location_uuid: 'al-1', permission_uuid: 'perm-3' },
+      ],
+    }
+    seedGroupDatabase(adapter(db), seed as any)
+
+    const all = (s: string) => db.prepare(s).all() as any[]
+    expect(all(`SELECT COUNT(*) c FROM admin_location_permission`)[0].c).toBe(3)
+
+    // Server removed perm-3 (SEE_ANALYTICS) — the reseed must purge its row.
+    const reseed = {
+      country: COUNTRY,
+      location_group: [LG()],
+      permission: [
+        { uuid: 'perm-1', name: 'UPDATE_LOYALTY' },
+        { uuid: 'perm-2', name: 'UPDATE_PERSONNEL' },
+        { uuid: 'perm-3', name: 'SEE_ANALYTICS' },
+      ],
+      admin: [
+        { uuid: 'admin-1', user_name: 'a1', password_hash: 'x' },
+      ],
+      admin_location: [
+        { uuid: 'al-1', admin_uuid: 'admin-1', owner: 0, location_group_uuid: 'lgg' },
+      ],
+      admin_location_permission: [
+        { uuid: 'alp-1', admin_location_uuid: 'al-1', permission_uuid: 'perm-1' },
+        { uuid: 'alp-2', admin_location_uuid: 'al-1', permission_uuid: 'perm-2' },
+      ],
+    }
+    seedGroupDatabase(adapter(db), reseed as any)
+
+    expect(all(`SELECT COUNT(*) c FROM admin_location_permission`)[0].c).toBe(2)
+    const perms = all(`SELECT permission_uuid FROM admin_location_permission ORDER BY permission_uuid`)
+    expect(perms.map(p => p.permission_uuid)).toEqual(['perm-1', 'perm-2'])
+    expect(all('PRAGMA foreign_key_check')).toHaveLength(0)
+  })
+
 })

@@ -72,10 +72,10 @@ function all(db: DatabaseSync, sql: string, ...p: any[]): any[] {
 describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   let db: DatabaseSync
 
-  beforeEach(() => {
+  beforeEach(async () => {
     db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(makeAdapter(db), FULL_DDL)
+    await applyDdl(makeAdapter(db), FULL_DDL)
   })
 
   afterEach(() => db.close())
@@ -265,19 +265,19 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(SEED_ORDER).not.toContain('mock_schema_sync_probe')
   })
 
-  it('migrateSchema persists the applied uuid and is idempotent', () => {
+  it('migrateSchema persists the applied uuid and is idempotent', async () => {
     expect(getSchemaUuid(makeAdapter(db))).toBe('')
-    const first = migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
+    const first = await migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
     expect(first.needsReseed).toBe(true)
-    const second = migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
+    const second = await migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
     expect(second.needsReseed).toBe(false)
     expect(getSchemaUuid(makeAdapter(db))).toBe(SCHEMA_UUID)
   })
 
-  it('migrateSchema requests a reseed when the stored uuid differs', () => {
-    applyDdl(makeAdapter(db), FULL_DDL)
+  it('migrateSchema requests a reseed when the stored uuid differs', async () => {
+    await applyDdl(makeAdapter(db), FULL_DDL)
     setSchemaUuid(makeAdapter(db), 'some-old-schema-uuid')
-    const res = migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
+    const res = await migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
     expect(res.needsReseed).toBe(true)
     expect(getSchemaUuid(makeAdapter(db))).toBe(SCHEMA_UUID)
   })
@@ -391,11 +391,11 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(snake[0]).toMatchObject({ ticket_uuid: 't1', decision: 'printed', printed_at: 123, synced: 0 })
   })
 
-  it('a brand-new server table seeds with zero client release (no bundled metadata)', () => {
+  it('a brand-new server table seeds with zero client release (no bundled metadata)', async () => {
     // CORE-LOGIC-SCHEMA-SYNC.md: a table added server-side must seed
     // on an unmodified engine. No SEED_COLUMNS entry, no playback code — the
     // column set is derived from the live schema by PRAGMA introspection.
-    applyDdl(makeAdapter(db), `CREATE TABLE IF NOT EXISTS "taste_preference" ("uuid" TEXT NOT NULL, "guest_uuid" TEXT, "note" TEXT, PRIMARY KEY ("uuid"))`)
+    await applyDdl(makeAdapter(db), `CREATE TABLE IF NOT EXISTS "taste_preference" ("uuid" TEXT NOT NULL, "guest_uuid" TEXT, "note" TEXT, PRIMARY KEY ("uuid"))`)
     seedGroupDatabase(makeAdapter(db), {
       taste_preference: [
         { uuid: 'tp-1', guest_uuid: 'guest1', note: '' },
@@ -460,10 +460,10 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
   // next_retry_at must equal now + (count+1)*10s exactly, not just "greater".
   const FIXED_NOW = 1_700_000_000_000
 
-  beforeEach(() => {
+  beforeEach(async () => {
     db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
-    applyDdl(makeAdapter(db), FULL_DDL)
+    await applyDdl(makeAdapter(db), FULL_DDL)
     vi.spyOn(Date, 'now').mockReturnValue(FIXED_NOW)
   })
 

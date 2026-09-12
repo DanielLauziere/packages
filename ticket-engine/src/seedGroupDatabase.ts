@@ -68,6 +68,12 @@ const JOIN_OVERRIDE = new Set<string>([
   'bogo_menu_item',
   'location_group_feature',
   'location_group_activation_history',
+  // admin_location_permission is a many-to-many join (admin_location ↔ permission)
+  // with no UNIQUE constraint on its FK columns. Without this entry, classify()
+  // treats it as an ENTITY table (upsert by uuid only, no diff-delete), so
+  // permission rows the server stops sending linger indefinitely and the local
+  // app reports stale permissions. JOIN_OVERRIDE forces diff-delete by uuid.
+  'admin_location_permission',
 ])
 
 interface TablePlan {
@@ -77,9 +83,9 @@ interface TablePlan {
   joinKey: string[] | null
 }
 
-function tableColumns(db: DbAdapter, table: string): { columns: string[]; pk: string[] } | null {
+async function tableColumns(db: DbAdapter, table: string): Promise<{ columns: string[]; pk: string[] } | null> {
   try {
-    const rows = db.query(`PRAGMA table_info("${table}")`) as Array<{ name?: unknown; pk?: unknown }>
+    const rows = await db.query(`PRAGMA table_info("${table}")`) as Array<{ name?: unknown; pk?: unknown }>
     if (rows.length === 0 || rows[0].name === undefined) return null
     const pk = rows
       .filter((r) => Number(r.pk) > 0)
@@ -91,9 +97,9 @@ function tableColumns(db: DbAdapter, table: string): { columns: string[]; pk: st
   }
 }
 
-function uniqueIndexes(db: DbAdapter, table: string): string[][] {
+async function uniqueIndexes(db: DbAdapter, table: string): Promise<string[][]> {
   try {
-    const indexes = db.query(`PRAGMA index_list("${table}")`) as Array<{
+    const indexes = await db.query(`PRAGMA index_list("${table}")`) as Array<{
       name?: unknown
       unique?: unknown
       origin?: unknown
@@ -105,7 +111,7 @@ function uniqueIndexes(db: DbAdapter, table: string): string[][] {
       // CREATE UNIQUE INDEX must be added to JOIN_OVERRIDE if it needs diff
       // deletion.
       if (ix.origin !== 'u' || !ix.name) continue
-      const cols = db.query(`PRAGMA index_info("${ix.name}")`) as Array<{ name?: unknown }>
+      const cols = await db.query(`PRAGMA index_info("${ix.name}")`) as Array<{ name?: unknown }>
       out.push(cols.map((r) => String(r.name)).filter(Boolean))
     }
     return out
@@ -114,9 +120,9 @@ function uniqueIndexes(db: DbAdapter, table: string): string[][] {
   }
 }
 
-function foreignKeyColumns(db: DbAdapter, table: string): Set<string> {
+async function foreignKeyColumns(db: DbAdapter, table: string): Promise<Set<string>> {
   try {
-    const rows = db.query(`PRAGMA foreign_key_list("${table}")`) as Array<{ from?: unknown }>
+    const rows = await db.query(`PRAGMA foreign_key_list("${table}")`) as Array<{ from?: unknown }>
     return new Set(rows.map((r) => String(r.from)).filter(Boolean))
   } catch {
     return new Set()
@@ -128,8 +134,8 @@ function foreignKeyColumns(db: DbAdapter, table: string): Set<string> {
 //     table (menu_item_menu_category, combo_menu_item, ...);
 //   - a table with JOIN_OVERRIDE keyed by uuid is a JOIN table lacking a UNIQUE;
 //   - everything else with a uuid primary key is an ENTITY (upsert by uuid).
-function classify(db: DbAdapter, table: string): TablePlan | null {
-  const info = tableColumns(db, table)
+async function classify(db: DbAdapter, table: string): Promise<TablePlan | null> {
+  const info = await tableColumns(db, table)
   const columns = info ? info.columns : null
   const pk = info ? info.pk : []
   if (!columns || columns.length === 0) return null
@@ -138,8 +144,8 @@ function classify(db: DbAdapter, table: string): TablePlan | null {
   if (JOIN_OVERRIDE.has(table)) {
     joinKey = pk.length ? pk : null
   } else {
-    const fks = foreignKeyColumns(db, table)
-    for (const key of uniqueIndexes(db, table)) {
+    const fks = await foreignKeyColumns(db, table)
+    for (const key of await uniqueIndexes(db, table)) {
       if (key.length && key.every((c) => fks.has(c))) {
         joinKey = key
         break
@@ -167,9 +173,9 @@ function rowValues(columns: string[], row: Record<string, unknown>): unknown[] {
   })
 }
 
-function runRow(db: DbAdapter, sql: string, values: unknown[], tag: string): void {
+async function runRow(db: DbAdapter, sql: string, values: unknown[], tag: string): Promise<void> {
   try {
-    db.run(sql, values)
+    await db.run(sql, values)
   } catch (err) {
     console.error(`🌱 ${tag}: ${(err as Error).message}`)
   }
@@ -183,12 +189,12 @@ function quote(col: string): string {
 // without a DEFAULT — these columns MUST be present in a seed row or the
 // INSERT will fail. Cached per table to avoid repeated PRAGMA calls.
 const notNullNoDefaultCache = new Map<string, Set<string>>()
-function notNullNoDefault(db: DbAdapter, table: string): Set<string> {
+async function notNullNoDefault(db: DbAdapter, table: string): Promise<Set<string>> {
   const cached = notNullNoDefaultCache.get(table)
   if (cached) return cached
   const set = new Set<string>()
   try {
-    const rows = db.query(`PRAGMA table_info("${table}")`) as Array<{
+    const rows = await db.query(`PRAGMA table_info("${table}")`) as Array<{
       name?: unknown
       notnull?: unknown
       dflt_value?: unknown
@@ -209,8 +215,8 @@ function notNullNoDefault(db: DbAdapter, table: string): Set<string> {
 // value in the row. TEXT → '', INTEGER → 0, other → null. This prevents
 // SQLite rejecting the INSERT while keeping the row present for FK integrity
 // (join tables may reference it). Mutates the row in-place.
-function fillNotNullDefaults(db: DbAdapter, table: string, row: Record<string, unknown>): void {
-  const required = notNullNoDefault(db, table)
+async function fillNotNullDefaults(db: DbAdapter, table: string, row: Record<string, unknown>): Promise<void> {
+  const required = await notNullNoDefault(db, table)
   for (const col of required) {
     if (row[col] === undefined || row[col] === null) {
       // Peek at column type via PRAGMA table_info — TEXT columns get '', int gets 0.
@@ -268,36 +274,36 @@ function renderValue(v: unknown): unknown {
 // diffDelete removes join rows whose unique key is not present in the seed.
 // Row-value NOT IN is supported since SQLite 3.15, so the 3.39.4 floor holds.
 // Values are parameterized — never string-interpolated (injection-free).
-function diffDelete(db: DbAdapter, table: string, keys: string[], rows: Array<Record<string, unknown>>): void {
+async function diffDelete(db: DbAdapter, table: string, keys: string[], rows: Array<Record<string, unknown>>): Promise<void> {
   const tag = `seedGroup ${table}`
   try {
     if (rows.length === 0) {
-      db.run(`DELETE FROM "${table}"`)
+      await db.run(`DELETE FROM "${table}"`)
       return
     }
     if (keys.length === 1) {
       const key = keys[0]
       const placeholders = rows.map(() => '?').join(',')
       const values = rows.map((r) => renderValue(r[key]))
-      db.run(`DELETE FROM "${table}" WHERE ${quote(key)} NOT IN (${placeholders})`, values)
+      await db.run(`DELETE FROM "${table}" WHERE ${quote(key)} NOT IN (${placeholders})`, values)
       return
     }
     const placeholders = rows.map(() => `(${keys.map(() => '?').join(',')})`).join(',')
     const values = rows.flatMap((r) => keys.map((k) => renderValue(r[k])))
-    db.run(`DELETE FROM "${table}" WHERE (${keys.map(quote).join(',')}) NOT IN (${placeholders})`, values)
+    await db.run(`DELETE FROM "${table}" WHERE (${keys.map(quote).join(',')}) NOT IN (${placeholders})`, values)
   } catch (err) {
     console.error(`🌱 ${tag}: ${(err as Error).message}`)
   }
 }
 
 // seedTable processes a single payload table (entity or join) per its plan.
-function seedTable(db: DbAdapter, plan: TablePlan, rows: unknown[]): void {
+async function seedTable(db: DbAdapter, plan: TablePlan, rows: unknown[]): Promise<void> {
   const recordRows = rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
 
   // Pre-fill missing NOT NULL defaults on every row so buildUpsert never
   // attempts an INSERT that SQLite would reject.
   for (const row of recordRows) {
-    fillNotNullDefaults(db, plan.table, row)
+    await fillNotNullDefaults(db, plan.table, row)
   }
 
   if (plan.joinKey) {
@@ -305,9 +311,9 @@ function seedTable(db: DbAdapter, plan: TablePlan, rows: unknown[]): void {
       const upsert = buildUpsert(plan.table, plan, plan.joinKey, row)
       if (!upsert) continue
       const key = row['uuid'] ?? plan.joinKey.map((k) => row[k]).join('/') ?? '[no-key]'
-      runRow(db, upsert.sql, upsert.values, `seedGroup ${plan.table} ${String(key)}`)
+      await runRow(db, upsert.sql, upsert.values, `seedGroup ${plan.table} ${String(key)}`)
     }
-    diffDelete(db, plan.table, plan.joinKey, recordRows)
+    await diffDelete(db, plan.table, plan.joinKey, recordRows)
     return
   }
 
@@ -315,7 +321,7 @@ function seedTable(db: DbAdapter, plan: TablePlan, rows: unknown[]): void {
     const upsert = buildUpsert(plan.table, plan, plan.pk, row)
     if (!upsert) continue
     const key = row['uuid'] ?? plan.pk.map((k) => row[k]).join('/') ?? '[no-key]'
-    runRow(db, upsert.sql, upsert.values, `seedGroup ${plan.table} ${String(key)}`)
+    await runRow(db, upsert.sql, upsert.values, `seedGroup ${plan.table} ${String(key)}`)
   }
 }
 
@@ -329,7 +335,7 @@ function seedTable(db: DbAdapter, plan: TablePlan, rows: unknown[]): void {
 //   - nonTable: payload values that are not arrays.
 // An empty slice means the payload is complete and self-consistent with the
 // schema — it will seed with no skipped tables and no un-keyed rows.
-export function validateSeedPayload(db: DbAdapter, seed: Seed): Array<{ table: string; issue: string; detail?: unknown }> {
+export async function validateSeedPayload(db: DbAdapter, seed: Seed): Promise<Array<{ table: string; issue: string; detail?: unknown }>> {
   const problems: Array<{ table: string; issue: string; detail?: unknown }> = []
 
   for (const [table, rows] of Object.entries(seed)) {
@@ -337,17 +343,21 @@ export function validateSeedPayload(db: DbAdapter, seed: Seed): Array<{ table: s
       problems.push({ table, issue: 'neverTouch' })
       continue
     }
-    if (!Array.isArray(rows)) {
+    // Normalize null → [] so servers that send null for
+    // an empty table are treated as "delete all rows" (join tables),
+    // not as a validation error.
+    const normalizedRows = rows === null ? [] : rows
+    if (!Array.isArray(normalizedRows)) {
       problems.push({ table, issue: 'nonTable', detail: typeof rows })
       continue
     }
-    const plan = classify(db, table)
+    const plan = await classify(db, table)
     if (!plan) {
       problems.push({ table, issue: 'unknown' })
       continue
     }
     const key = plan.joinKey ?? plan.pk
-    for (const row of rows) {
+    for (const row of normalizedRows) {
       if (typeof row !== 'object' || row === null) {
         problems.push({ table, issue: 'missingKeys', detail: 'row is not an object' })
         continue
@@ -367,48 +377,49 @@ export function validateSeedPayload(db: DbAdapter, seed: Seed): Array<{ table: s
 // (diagnostic readability); with foreign_keys off the seed order does not
 // affect correctness, only insert sequencing. Tables not present in the payload
 // are never touched.
-export function seedGroupDatabase(db: DbAdapter, seed: Seed, order?: string[]): void {
+export async function seedGroupDatabase(db: DbAdapter, seed: Seed, order?: string[]): Promise<void> {
   // Clear cached schema metadata so DDL changes between calls are picked up.
   notNullNoDefaultCache.clear()
 
   const tableOrder = order && order.length ? order.filter((t) => t in seed) : Object.keys(seed)
 
-  const prevFK = (() => {
+  const prevFK = await (async () => {
     try {
-      const rows = db.query('PRAGMA foreign_keys') as Array<{ foreign_keys?: unknown }>
+      const rows = await db.query('PRAGMA foreign_keys') as Array<{ foreign_keys?: unknown }>
       return rows[0]?.foreign_keys ?? 1
     } catch {
       return 1
     }
   })()
-  const restore = () => {
+  const restore = async () => {
     try {
-      db.run(prevFK ? 'PRAGMA foreign_keys = ON' : 'PRAGMA foreign_keys = OFF')
+      await db.run(prevFK ? 'PRAGMA foreign_keys = ON' : 'PRAGMA foreign_keys = OFF')
     } catch {
       // ignore restore errors
     }
   }
 
-  db.run('PRAGMA foreign_keys = OFF')
+  await db.run('PRAGMA foreign_keys = OFF')
   try {
-    db.run('BEGIN')
+    await db.run('BEGIN')
     for (const table of tableOrder) {
       if (NEVER_TOUCH.has(table)) continue
       const rows = seed[table]
-      if (!Array.isArray(rows)) continue
-      const plan = classify(db, table)
+      const normalizedRows = rows === null ? [] : rows
+      if (!Array.isArray(normalizedRows)) continue
+      const plan = await classify(db, table)
       if (!plan) continue
-      seedTable(db, plan, rows)
+      await seedTable(db, plan, normalizedRows)
     }
-    db.run('COMMIT')
+    await db.run('COMMIT')
   } catch (err) {
     try {
-      db.run('ROLLBACK')
+      await db.run('ROLLBACK')
     } catch {
       // ignore nested error
     }
     throw err
   } finally {
-    restore()
+    await restore()
   }
 }
