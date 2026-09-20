@@ -1,0 +1,1281 @@
+{
+  "sections": [
+    {
+      "id": "welcome",
+      "title": "Welcome & Getting Started",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz is a full-featured POS and online ordering system designed for restaurants of all sizes. From menu management to order processing, loyalty programs to real-time reporting, everything you need is in one place. No contracts, no hidden fees — you only pay for the days you use it."
+        },
+        {
+          "type": "heading",
+          "body": "What DirectEatz Includes"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Online ordering portal for your customers",
+            "Admin dashboard to manage orders, menu, staff, and settings",
+            "Real-time order board with sound notifications",
+            "Customer loyalty programs and promotions",
+            "Receipt printing",
+            "Sales reporting and billing",
+            "Offline-capable with automatic sync when connected"
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Getting Started"
+        },
+        {
+          "type": "paragraph",
+          "body": "If you are a new restaurant, use the Auto Onboarding flow to set up your restaurant in minutes. You will create your account, add your restaurant details, set up your menu, and be ready to take orders — all in one guided process."
+        },
+        {
+          "type": "paragraph",
+          "body": "Once your restaurant is set up, log into the admin dashboard (Tablero) to manage orders, update your menu, configure promotions, add staff, and customize your settings."
+        },
+        {
+          "type": "heading",
+          "body": "Understanding the Dashboard"
+        },
+        {
+          "type": "paragraph",
+          "body": "The admin dashboard is organized into groups accessible from the left sidebar: Orders (order board) for live orders, New Order to create customer orders, Reporting for sales data, Dashboard for billing and display settings, Settings for restaurant setup, menu, printers, tables, and personnel, and Marketing for promotions, loyalty programs, and rewards."
+        },
+        {
+          "type": "note",
+          "body": "Your customers access your menu and place orders through your public ordering page. There are three account types: anonymous (no login required), lite (staff adds their email or phone so loyalty points accumulate and can be applied by staff at the customer's request), and full (customers log in to view and redeem their points themselves)."
+        }
+      ]
+    },
+    {
+      "id": "auto-onboarding",
+      "title": "Auto Onboarding",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Auto Onboarding is a quick setup wizard that creates your restaurant and admin account in minutes. You will create your account, enter your restaurant details, and be ready to manage your restaurant from the dashboard."
+        },
+        {
+          "type": "heading",
+          "body": "How It Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "The onboarding flow is a single step. You enter your email, password, restaurant name, address, phone number, and a short description. Your URL is automatically generated from your restaurant name. Once you submit, your account is created and you are taken directly to the dashboard."
+        },
+        {
+          "type": "heading",
+          "body": "Tips for a Successful Setup"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Take time to set up your menu with clear categories and descriptions — it makes ordering easier for customers",
+            "Upload high-quality photos for your menu items to increase order rates",
+            "Configure your service hours and fulfillment options in Settings so customers know when to expect their order",
+            "Test an order through the customer view to verify the full flow"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "title": "Orders (Tablero)",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Order Board, or Tablero, is your live command center. All incoming orders appear here in real time, organized by status. You can view order details, update statuses, modify items, process payments, and print receipts — all from one screen."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Orders (web)  |  Bottom nav → Pedidos (mobile)",
+          "devices": {
+            "web": "Side menu → Orders",
+            "mobile": "Bottom nav → Pedidos"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Order Statuses"
+        },
+        {
+          "type": "list",
+          "items": [
+            "NEW — The order has been placed and is waiting for your action. A sound notification plays and the board flashes.",
+            "ACCEPTED — You have accepted the order and are working on it.",
+            "COMPLETED — The order has been picked up or delivered.",
+            "CANCELLED — The order was cancelled."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Working with Orders"
+        },
+        {
+          "type": "paragraph",
+          "body": "Click on any order card to open its details panel. Large orders are visually enlarged on the board so you can prioritize them at a glance. From the details panel you can make the following adjustments:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Update the order status",
+            "Add or remove items",
+            "Edit item quantities",
+            "Add or remove modifiers",
+            "Apply promotions and discounts",
+            "Transfer the order to another table",
+            "Add internal notes",
+            "Process payments with the on-screen keypad"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "The payment keypad supports the full checkout flow: enter the amount received (cash or card), calculate change automatically, open the cash drawer, and print a customer receipt."
+        },
+        {
+          "type": "paragraph",
+          "body": "All adjustments sync in real time across all connected devices."
+        },
+        {
+          "type": "heading",
+          "body": "Sound & Visual Alerts"
+        },
+        {
+          "type": "paragraph",
+          "body": "When a new order arrives, a notification sound plays and the board flashes. You can mute the sound from the header bar if needed."
+        },
+        {
+          "type": "paragraph",
+          "body": "Push notifications extend this beyond the app. Enable admin push notifications to receive alerts for new orders even when your device is locked or the app is closed. Guest push notifications keep your customers informed — they receive updates when their order status changes even if they have closed the ordering page."
+        },
+        {
+          "type": "heading",
+          "body": "Offline Handling"
+        },
+        {
+          "type": "paragraph",
+          "body": "Orders are cached locally on your device. If your internet connection drops, you can continue viewing, updating, and processing payments. All changes are synced automatically when the connection is restored. The sync indicator in the header shows your current connection status."
+        },
+        {
+          "type": "heading",
+          "body": "Loyalty Points on Orders"
+        },
+        {
+          "type": "paragraph",
+          "body": "When you take an order as an admin, you play a key role in helping your customers earn loyalty points. Here is how it works:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "If the customer orders without providing any details (anonymous), they will not earn points. However, if loyalty is activated, the receipt shows how many points they would have earned — encouraging them to create an account next time.",
+            "If the customer provides their email or phone number, a lite account is created automatically. Points accumulate on their behalf. On future visits, they can give their phone number again to access their points, and you can apply rewards at their request.",
+            "If the customer later logs in using the app with the same email or phone number, their lite account converts to a full password-protected account. All their points are preserved and they can redeem rewards themselves."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "menu",
+      "title": "Menu Management",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Menu section lets you build and manage your entire menu — schedules, categories, items, modifiers, combos, and images. Changes you make are reflected immediately in your customer-facing ordering page."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Update menu (web)  |  Bottom nav → Settings → Update Menu (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Update menu",
+            "mobile": "Bottom nav → Settings → Update Menu"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Menu Schedule"
+        },
+        {
+          "type": "paragraph",
+          "body": "Each menu has its own schedule that controls when it is available for ordering. Your guests can install your restaurant's app directly from your website — it works like a native app without going through an app store. If the menu's schedule marks the restaurant as closed, guests cannot place orders. This prevents orders on holidays, vacations, or after hours, so setting the schedule correctly is essential."
+        },
+        {
+          "type": "heading",
+          "body": "Multiple Menus"
+        },
+        {
+          "type": "paragraph",
+          "body": "You can create multiple menus with different schedules. For example, create a Breakfast menu available from 6am to 11am and a Lunch / Dinner menu for the rest of the day. Each menu holds its own categories, items, and schedule. If you only need one set of items available all day, a single menu is sufficient."
+        },
+        {
+          "type": "heading",
+          "body": "Categories"
+        },
+        {
+          "type": "paragraph",
+          "body": "Categories organize your menu items into a hierarchy up to three levels deep. For example: Drinks → Hot Drinks → Coffees. You can create categories, sub-categories, and sub-sub-categories, and move items between them at any time."
+        },
+        {
+          "type": "heading",
+          "body": "Menu Items"
+        },
+        {
+          "type": "paragraph",
+          "body": "Create menu items with a name, description, price, and optional photo. Assign each item to a category, sub-category, or sub-sub-category. Items can be moved to a different category after creation. You can also toggle items as available or unavailable without deleting them."
+        },
+        {
+          "type": "heading",
+          "body": "Combos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Combos let you bundle multiple menu items together at a special price. For example, a Combo Meal might include a main item, a side, and a drink for a discounted price. When a customer adds a combo to their order, all included items are added together."
+        },
+        {
+          "type": "heading",
+          "body": "Modifiers"
+        },
+        {
+          "type": "paragraph",
+          "body": "Modifiers let customers customize their items with options that adjust the price. Common examples include size options (Small, Medium, Large), spice levels, and extra toppings. Each modifier has a name and an optional price that gets added to the bill."
+        },
+        {
+          "type": "heading",
+          "body": "Notes vs Modifiers"
+        },
+        {
+          "type": "paragraph",
+          "body": "Notes are free-form text that customers or staff can add to any menu item — for allergies, special requests, or unique instructions. Notes do NOT add cost to the bill. If you want to charge for extras, always create a modifier instead."
+        },
+        {
+          "type": "paragraph",
+          "body": "Modifiers also speed up order processing. Staff can add common instructions like \"no onion\" or \"well done\" with a single tap instead of typing them out on a device keyboard. The more modifiers you create, the more uniform your orders become and the easier it is to track what your customers are ordering."
+        },
+        {
+          "type": "heading",
+          "body": "Images"
+        },
+        {
+          "type": "paragraph",
+          "body": "You can upload photos for your menu items. High-quality images help customers decide what to order. Supported formats include JPEG, PNG, and WebP."
+        }
+      ]
+    },
+    {
+      "id": "promotions",
+      "title": "Promotions",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Promotions let you offer discounts and special deals to your customers. You can create percentage-based discounts, fixed amount discounts, or free item offers. Promotions can be scheduled for specific days or date ranges."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Marketing → Promotions (web)  |  Bottom nav → Marketing → Promotions (mobile)",
+          "devices": {
+            "web": "Side menu → Marketing → Promotions",
+            "mobile": "Bottom nav → Marketing → Promotions"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Value to Customers"
+        },
+        {
+          "type": "paragraph",
+          "body": "Promotions attract new customers and encourage repeat visits. A well-timed discount can boost sales during slow periods. Limited-time offers create urgency and drive more orders."
+        },
+        {
+          "type": "heading",
+          "body": "How to Set Up"
+        },
+        {
+          "type": "paragraph",
+          "body": "Go to the Promotions section in your admin dashboard. Click Create Promotion. Choose a discount type (percentage off, fixed amount off, or free item), set the discount value, optionally link it to specific menu items, and set the active dates. You can enable or disable promotions at any time."
+        },
+        {
+          "type": "heading",
+          "body": "How It Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "When a customer opens the guest app, any active promotions are displayed immediately. The customer can select an applicable promotion when placing an order, and the discount is applied to their total before payment."
+        },
+        {
+          "type": "heading",
+          "body": "Technical Details"
+        },
+        {
+          "type": "paragraph",
+          "body": "Promotions can be item-specific (applied to a particular menu item) or order-wide (applied to the entire order). Multiple promotions cannot be stacked on the same order. Promotions that require a menu item will be removed automatically if the item is removed from the order. Expired promotions are hidden from customers but preserved in your history."
+        }
+      ]
+    },
+    {
+      "id": "loyalty",
+      "title": "Loyalty & Rewards",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The loyalty program lets you reward your regular customers with points that can be redeemed for discounts or free items. This encourages repeat business and builds customer loyalty."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Marketing → Loyalty programs (web)  |  Bottom nav → Marketing → Loyalty (mobile)",
+          "devices": {
+            "web": "Side menu → Marketing → Loyalty programs",
+            "mobile": "Bottom nav → Marketing → Loyalty"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Value to Customers"
+        },
+        {
+          "type": "paragraph",
+          "body": "Customers earn points on every order, which they can redeem for rewards. This gives them a reason to choose your restaurant over competitors and keeps them coming back."
+        },
+        {
+          "type": "heading",
+          "body": "How to Set Up"
+        },
+        {
+          "type": "paragraph",
+          "body": "Go to the Loyalty section in your admin dashboard. First, set the points multiplier — this determines how many points customers earn per dollar spent. For example, a multiplier of 10 means a $10 order earns 100 points."
+        },
+        {
+          "type": "paragraph",
+          "body": "Next, create rewards. Each reward needs a name, description, and the number of points required to redeem it. You can choose the reward type:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Discount on order — a fixed amount or percentage off the total",
+            "Free item — select a specific menu item that the customer receives for free"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Once your rewards are created, toggle the program on to activate it. You can enable or disable individual rewards at any time without losing accumulated points."
+        },
+        {
+          "type": "heading",
+          "body": "How It Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "When a customer places an order through a lite or full account, they earn points based on the order total and your points multiplier. Points are tracked per customer and per restaurant location."
+        },
+        {
+          "type": "paragraph",
+          "body": "How points are redeemed depends on the account type:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Anonymous — the customer can see available rewards but needs to create an account to redeem them",
+            "Lite — staff adds the customer's email or phone so points accumulate. Staff can apply rewards at the customer's request from the admin panel",
+            "Full — the customer logs in and can view their points and apply rewards themselves during checkout"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Active rewards and loyalty information are also visible in the guest app, so customers always know what rewards are available and how many points they have."
+        },
+        {
+          "type": "heading",
+          "body": "How Guest Points Work in Practice"
+        },
+        {
+          "type": "paragraph",
+          "body": "Loyalty must first be activated in Settings → Features before it can be used. Once active, here is how points work depending on how the customer interacts with your restaurant:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Guest orders through the app without logging in — they see loyalty info but earn no points. The receipt shows how many points they would have gained, encouraging them to create an account.",
+            "Guest orders through the app and logs in — they earn points and can redeem rewards immediately. Full loyalty benefits apply.",
+            "Admin takes an anonymous order — the customer gets no points, but the receipt displays potential points if loyalty is active.",
+            "Admin takes an order and the customer provides their email or phone — a lite account is created. Points accumulate and are available on every future visit. Staff can apply rewards at the customer's request.",
+            "Admin takes an order, the customer provides their email or phone, and later logs in using the app — the lite account converts to a full password-protected account. All their points are preserved and they can now view and redeem rewards directly."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fulfillment",
+      "title": "Fulfillment Types",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Fulfillment types determine how customers receive their orders. You can choose from three options: Eat-in, Pickup / Curbside, and Delivery."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Restaurant setup (web)  |  Bottom nav → Settings → Restaurant Setup (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Restaurant setup",
+            "mobile": "Bottom nav → Settings → Restaurant Setup"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Delivery"
+        },
+        {
+          "type": "paragraph",
+          "body": "Customers enter their delivery address and place their order. The order appears on your board with the delivery address. You prepare the order and arrange delivery."
+        },
+        {
+          "type": "heading",
+          "body": "Pickup"
+        },
+        {
+          "type": "paragraph",
+          "body": "Customers place an order and come to your restaurant to pick it up. The estimated preparation time is displayed during checkout."
+        },
+        {
+          "type": "heading",
+          "body": "Curbside"
+        },
+        {
+          "type": "paragraph",
+          "body": "Customers place an order, drive to your location, and you bring the order to their car."
+        },
+        {
+          "type": "heading",
+          "body": "Eat-In / Dine-In"
+        },
+        {
+          "type": "paragraph",
+          "body": "Customers place an order from their table using a QR code. The order is sent to the kitchen, and staff can deliver it to the table when ready. This requires setting up tables with QR codes linked to your menu."
+        },
+        {
+          "type": "heading",
+          "body": "Configuring Fulfillment"
+        },
+        {
+          "type": "paragraph",
+          "body": "Go to Settings and enable the fulfillment types you want to offer. For dine-in, create tables in the Tables section and print QR code tent cards."
+        }
+      ]
+    },
+    {
+      "id": "dte",
+      "title": "Electronic Invoicing (DTE)",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz supports electronic invoicing (DTE) for El Salvador. When enabled, paid tickets are emitted to Hacienda (the Salvadoran tax authority) as electronic invoices. This section covers how to set up DTE, view sent documents, and manage your signing credentials."
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Side menu → Settings → Electronic Invoice (DTE)",
+            "mobile": "Bottom nav → Settings → Facturación electrónica"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "What You Need"
+        },
+        {
+          "type": "paragraph",
+          "body": "To use DTE you need a digital signature certificate in PKCS#12 format (.p12 or .pfx) issued by a recognized Certificate Authority (e.g. Autoescuela, Icaro, or another provider authorized by Hacienda). You also need your Hacienda portal username and password."
+        },
+        {
+          "type": "paragraph",
+          "body": "If you do not yet have a certificate, contact your tax advisor or the certificate provider to request one. The certificate is tied to your RNC (Registro Nacional de Contribuyentes)."
+        },
+        {
+          "type": "heading",
+          "body": "Setting Up DTE"
+        },
+        {
+          "type": "paragraph",
+          "body": "1. Go to the DTE Setup section (see breadcrumb above)."
+        },
+        {
+          "type": "paragraph",
+          "body": "2. Upload your PKCS#12 certificate file (.p12 or .pfx)."
+        },
+        {
+          "type": "paragraph",
+          "body": "3. Enter the certificate password, Hacienda portal username, and Hacienda portal password."
+        },
+        {
+          "type": "paragraph",
+          "body": "4. Click Save Credentials."
+        },
+        {
+          "type": "paragraph",
+          "body": "5. Click Test Emission to verify your credentials work by sending a test DTE to Hacienda."
+        },
+        {
+          "type": "paragraph",
+          "body": "6. Once the test succeeds, toggle DTE to enabled. Paid tickets will now be emitted to Hacienda automatically."
+        },
+        {
+          "type": "note",
+          "body": "DTE is only available for restaurants with the appropriate permission. Credentials are stored encrypted on your device and are never sent to the DirectEatz server."
+        },
+        {
+          "type": "heading",
+          "body": "Where to Find DTE Setup"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Web (admin dashboard) — Side menu → Settings → Electronic Invoice (DTE)",
+            "Mobile (native app) — Bottom nav → Settings group → Facturación electrónica"
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "DTE Document Statuses"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Pending — The DTE has been queued but not yet sent to Hacienda.",
+            "Sent — The DTE was successfully sent to Hacienda.",
+            "Failed — The DTE could not be sent. Check your credentials and network, then retry.",
+            "Anulled — The DTE was annulled (cancelled) after being sent."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Viewing Sent Documents (DTE History)"
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Side menu → Settings → DTE Tickets",
+            "mobile": "Bottom nav → Settings → Documentos DTE"
+          }
+        },
+        {
+          "type": "paragraph",
+          "body": "The DTE History section shows all DTE documents that have been emitted, along with their status, type, date, and DTE number. You can filter by status and date range, export to CSV, and view or print individual invoices."
+        },
+        {
+          "type": "heading",
+          "body": "Contingency Mode"
+        },
+        {
+          "type": "paragraph",
+          "body": "If your internet connection is down when you try to emit a DTE, the document is stored locally and queued. When connectivity is restored, the pending documents are sent automatically. If a DTE remains pending for an extended period, you can use the Flush Contingency button to force-send all queued documents."
+        }
+      ]
+    },
+    {
+      "id": "tables",
+      "title": "Tables & QR Codes",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Tables section lets you manage your physical tables and generate QR codes so customers can order from their table. Each table gets a unique QR code that links directly to your menu."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Tables (web)  |  Bottom nav → Settings → Tables (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Tables",
+            "mobile": "Bottom nav → Settings → Tables"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Value to Customers"
+        },
+        {
+          "type": "paragraph",
+          "body": "QR codes do more than let customers order from their table. Each person at the table can create their own separate order — no more confusion over split tickets or waiting 20 minutes for a server to take a large group's orders. Once an order is completed, guests can place another one without waiting. Customers can also install the guest app directly from the ordering page and order from home in the future, increasing your overall revenue."
+        },
+        {
+          "type": "heading",
+          "body": "How to Set Up"
+        },
+        {
+          "type": "paragraph",
+          "body": "Go to the Tables section. Add your tables by name or number (e.g., Table 1, Patio 3). You can also create sections for different areas (Indoor, Patio, Bar). Once tables are created, you can download or print QR codes for each table. Place the QR tent cards on the tables so customers can scan and order."
+        },
+        {
+          "type": "heading",
+          "body": "How It Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "When a customer scans the QR code, they are taken to your ordering page with the table pre-selected. They add items to their order and submit. You receive the order on your board with the table number displayed, so you know where to deliver it."
+        }
+      ]
+    },
+    {
+      "id": "payments",
+      "title": "Payments",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Payments are processed directly from the order screen using the on-screen keypad. Two payment types are available: Cash and Card."
+        },
+        {
+          "type": "heading",
+          "body": "How to Process a Payment"
+        },
+        {
+          "type": "paragraph",
+          "body": "Open the order details and tap the payment keypad. Select Cash or Card, then enter the amount received. For cash payments, change is calculated automatically. For card payments, enter the confirmation code provided by your card terminal."
+        },
+        {
+          "type": "heading",
+          "body": "Reporting"
+        },
+        {
+          "type": "paragraph",
+          "body": "The Reports section shows a breakdown of payments by type (cash vs card) along with card confirmation codes, so you can reconcile your transactions."
+        }
+      ]
+    },
+    {
+      "id": "personnel",
+      "title": "Personnel & Permissions",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Personnel section lets you manage your staff accounts and control what each team member can do in the admin dashboard. You can add, remove, and set granular permissions."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Personnel (web)  |  Bottom nav → Settings → Personnel (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Personnel",
+            "mobile": "Bottom nav → Settings → Personnel"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Permissions"
+        },
+        {
+          "type": "paragraph",
+          "body": "Each staff member can be given one or more permissions. Instead of predefined roles, you simply toggle the permissions each person needs:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "OWNER — Full access to all settings, billing, and management. Only the restaurant owner has this permission.",
+            "UPDATE MENU — Add, edit, and remove menu items, categories, modifiers, and combos, and change the menu schedule.",
+            "UPDATE LOYALTY — Create and manage promotions and loyalty programs.",
+            "UPDATE RESTAURANT — Change restaurant information, features, color theme, and tables.",
+            "UPDATE PERSONNEL — Add, remove, and manage staff accounts and their permissions.",
+            "ADJUST ORDERS — Controls whether the staff member can open and modify closed tickets in the reporting section. Disabling this prevents untrustworthy admins from altering past orders.",
+            "SEE TOTALS — Controls whether the staff member can see the total sales amount for the selected time period in reports. Disabling this hides revenue data from staff you don't want seeing how much the business made."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Adding Staff"
+        },
+        {
+          "type": "paragraph",
+          "body": "There are two steps to add a staff member:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "The staff member creates their own account using the app or website at directEatz.com. They enter their email, name, and choose a password.",
+            "In the Personnel section, click Add new user and enter the staff member's email to link them to your restaurant. They will appear in the list and you can set their permissions."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Removing Staff"
+        },
+        {
+          "type": "paragraph",
+          "body": "In the Personnel section, click on a staff member and tap Remove. This unlinks them from your restaurant — their account is not deleted, so they can be re-linked later if needed. The owner cannot be removed."
+        }
+      ]
+    },
+    {
+      "id": "printers",
+      "title": "Printers",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Printers section lets you connect network printers so tickets print directly in the kitchen or wherever you need them."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Printers (web)  |  Bottom nav → Settings → Printers (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Printers",
+            "mobile": "Bottom nav → Settings → Printers"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Setting Up a Printer"
+        },
+        {
+          "type": "paragraph",
+          "body": "Printers connect over your WiFi network. To set one up, you need the printer’s IP address. For most thermal printers, you can find the IP by printing a self-test page (hold the feed button while powering on) or checking the printer’s Settings menu under Network or Wi-Fi."
+        },
+        {
+          "type": "paragraph",
+          "body": "Once you have the IP, go to the Printers section and click Add Printer. Give it a name (e.g. “Kitchen”), enter the IP address, and select the paper width in millimeters (usually 58mm or 80mm for thermal printers). Print a test receipt and adjust the width mm as needed."
+        },
+        {
+          "type": "heading",
+          "body": "Connection Types"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Network printer (TCP) — Connects directly to a thermal printer over your network using ESC/POS commands. The ticket prints immediately without any print dialog or preview. This is the best option for restaurants because it works silently in the background — kitchen tickets print the moment an order comes in, with no staff interaction needed. Requires a printer that supports TCP connections on your local network.",
+            "Traditional (Normal print) — Opens your browser’s print dialog. Works with any printer connected to the device (thermal, inkjet, laser, etc.). Disadvantage: Staff must interact with the print preview dialog before the ticket prints.",
+            "Relay — Browsers cannot send raw network requests, so the relay option lets you install a small relay server on your network that receives print jobs from the browser and forwards them to the printer over TCP. This adds some complexity but enables printing from any device running the admin dashboard."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Auto Print (Silent Printing)"
+        },
+        {
+          "type": "paragraph",
+          "body": "When Auto Print is turned on, a kitchen ticket prints automatically as soon as a new order comes in — no buttons to press. Kitchen staff are alerted immediately and can start preparing. When off, staff must manually print tickets."
+        },
+        {
+          "type": "heading",
+          "body": "Ticket Printing Options"
+        },
+        {
+          "type": "paragraph",
+          "body": "There are two types of tickets: a kitchen ticket (for the kitchen staff to prepare the order) and a customer ticket (a receipt for the guest). The native app lets you choose which type to print. Auto Print always sends a kitchen ticket, and the checkout flow always sends a customer ticket. Kitchen tickets always group items and include notes — the toggles below only affect customer receipts."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Simple print (customer ticket) — Groups identical items with a combined quantity (e.g. “3 × Burger $27.00”) instead of listing each item on its own line. Makes tickets shorter and easier to read.",
+            "Print notes (customer ticket) — Prints any special instructions or notes the customer added to their items (e.g. “no onions”, “extra sauce”) on the ticket."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Using Printers Across Devices"
+        },
+        {
+          "type": "paragraph",
+          "body": "Once a printer is added, every device connected to your restaurant can see and select it. Just go to Settings → Printers and toggle on the printer you want to use on that device."
+        },
+        {
+          "type": "heading",
+          "body": "Editing a Printer"
+        },
+        {
+          "type": "paragraph",
+          "body": "Click on an existing printer in the list to update its name, IP address, paper width, or connection type. Changes take effect immediately."
+        }
+      ]
+    },
+    {
+      "id": "reports",
+      "title": "Reports & Analytics",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Reports section shows your sales and order history. Filter by date range to review past activity."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Reporting (web)  |  Bottom nav → Informes (mobile)",
+          "devices": {
+            "web": "Side menu → Reporting",
+            "mobile": "Bottom nav → Informes"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Sales by Date"
+        },
+        {
+          "type": "paragraph",
+          "body": "Use the date filter at the top to select a time period. The report shows a list of all orders within that range with basic details: ticket number, total, items, timestamp, and payments."
+        },
+        {
+          "type": "heading",
+          "body": "Viewing Past Orders"
+        },
+        {
+          "type": "paragraph",
+          "body": "Click on any order to see full ticket details. If the staff member has the ADJUST ORDERS permission, they can reopen and make changes to closed tickets. Without it, past orders are view-only."
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Settings section is where you configure your restaurant’s features, information, appearance, and staff access."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings (web)  |  Bottom nav → Settings (mobile)",
+          "devices": {
+            "web": "Side menu → Settings",
+            "mobile": "Bottom nav → Settings"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Restaurant Setup"
+        },
+        {
+          "type": "heading",
+          "body": "Features"
+        },
+        {
+          "type": "paragraph",
+          "body": "Toggle which fulfillment types and features are available for your customers:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Delivery — Enables online ordering for delivery. Customers enter their address and pay online. Requires a Delivery feature for the guest checkout flow.",
+            "Eat-in — Enables dine-in ordering. Customers can order from their table using the guest app. Shows table number on kitchen tickets.",
+            "Curbside — Enables curbside pickup. Customers check in when they arrive and staff are notified.",
+            "Loyalty — Enables the loyalty points program. Customers earn points on orders and can redeem rewards."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Restaurant Information"
+        },
+        {
+          "type": "paragraph",
+          "body": "Set your restaurant name, phone number, address, city, and default tip percentage. The tip percentage only applies to Eat-in orders — it is added to the grand total automatically as a service charge. This information appears on your customer-facing ordering page and printed receipts."
+        },
+        {
+          "type": "heading",
+          "body": "About Us"
+        },
+        {
+          "type": "paragraph",
+          "body": "Write a short description of your restaurant that appears on the guest ordering page."
+        },
+        {
+          "type": "heading",
+          "body": "Images"
+        },
+        {
+          "type": "paragraph",
+          "body": "Upload photos of your restaurant. Images are displayed on the customer-facing ordering page."
+        },
+        {
+          "type": "heading",
+          "body": "Customer App Colors"
+        },
+        {
+          "type": "paragraph",
+          "body": "Choose a color theme for your guest-facing pages."
+        }
+      ]
+    },
+    {
+      "id": "billing",
+      "title": "Billing",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Billing section shows your account balance and lets you add credit. Each restaurant has a daily rate that is automatically deducted from your balance."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Dashboard (web)  |  Bottom nav → Dashboard (mobile)",
+          "devices": {
+            "web": "Side menu → Dashboard",
+            "mobile": "Bottom nav → Dashboard"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "How Billing Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "Your restaurant has a fixed cost of {{dayPrice}} per active day. Instead of monthly invoices, you add credit to your account and the daily cost is deducted automatically. The dashboard shows your remaining balance so you always know where you stand."
+        },
+        {
+          "type": "heading",
+          "body": "Adding Credit"
+        },
+        {
+          "type": "paragraph",
+          "body": "Go to the Billing section and choose a payment method:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "PayPal — Select a reload amount and pay instantly through PayPal. The credit is added to your account immediately.",
+            "Bank transfer — Transfer the amount to the provided bank account, then enter the amount and a confirmation code in the app. A DirectEatz staff member will verify the transfer and add the credit to your account."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Invoices"
+        },
+        {
+          "type": "paragraph",
+          "body": "You can view and print current and past invoices from the Billing section. Each invoice shows your usage and charges for that period."
+        }
+      ]
+    },
+    {
+      "id": "tvDisplay",
+      "title": "TV Menu Display",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The TV Menu Display section gives you a link you can open on any TV or monitor in your restaurant to show your menu to customers."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Dashboard → TV Display (web)  |  Bottom nav → TV Display (mobile)",
+          "devices": {
+            "web": "Side menu → Dashboard → TV Display",
+            "mobile": "Bottom nav → TV Display"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Setting Up"
+        },
+        {
+          "type": "paragraph",
+          "body": "Go to the TV Display section and open the link on a TV or monitor connected to the internet. The page displays your menu in a full-screen format that updates automatically when you make changes."
+        }
+      ]
+    },
+    {
+      "id": "qrCodes",
+      "title": "QR Codes",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The QR Codes section provides QR codes for your guest ordering page, admin dashboard, and mobile app download links. Print and display them so customers can easily access your online ordering."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Dashboard → QR Codes (web)  |  Bottom nav → QR Code (mobile)",
+          "devices": {
+            "web": "Side menu → Dashboard → QR Codes",
+            "mobile": "Bottom nav → QR Code"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Available QR Codes"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Guest App — Links to your restaurant’s ordering page. Customers scan to browse your menu and place orders.",
+            "Admin — Links to your admin dashboard. Useful for quick access on a second device.",
+            "Google Play — Links to the DirectEatz app on the Google Play Store for Android devices.",
+            "App Store — Links to the DirectEatz app on the Apple App Store for iOS devices."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Each QR code can be downloaded as a PNG image for printing on tables, menus, or signage."
+        }
+      ]
+    },
+    {
+      "id": "sync",
+      "title": "Sync & Offline Mode",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz is designed to work even when your internet connection is unreliable. Orders, menu changes, and settings are stored locally on your device and synchronized with the server when connectivity is available."
+        },
+        {
+          "type": "heading",
+          "body": "How Sync Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "Every action you take (creating an order, updating the menu, applying a promotion) is recorded as a log entry. These logs are stored locally and sent to the server in batches. The server replays the logs in order to reconstruct the current state. This guarantees that no data is lost and all devices see the same state after sync."
+        },
+        {
+          "type": "heading",
+          "body": "Offline Operation"
+        },
+        {
+          "type": "paragraph",
+          "body": "If your internet connection drops, you can continue working normally. Orders can be created, modified, and completed offline. When the connection is restored, all changes are synced automatically. The sync indicator in the header shows your current status: connected, syncing, or offline."
+        },
+        {
+          "type": "heading",
+          "body": "Best Practices"
+        },
+        {
+          "type": "paragraph",
+          "body": "Keep your device connected to the internet when possible to ensure timely sync. If you notice the sync indicator showing offline for an extended period, check your network connection. Changes made on one device may take a few seconds to appear on another device after syncing."
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security & Roles",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Your data is encrypted in transit and protected by secure authentication."
+        },
+        {
+          "type": "heading",
+          "body": "Authentication"
+        },
+        {
+          "type": "paragraph",
+          "body": "All admin users log in with a username and password. Sessions are managed with secure tokens that refresh automatically. Passwords are stored securely and never exposed."
+        },
+        {
+          "type": "heading",
+          "body": "Data Privacy"
+        },
+        {
+          "type": "paragraph",
+          "body": "Customer data is stored securely and used only for order processing and loyalty programs. Each restaurant location only has access to its own data. Guest information is never shared between different restaurants."
+        }
+      ]
+    },
+    {
+      "id": "colors",
+      "title": "Customer App Colors",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Choose a color scheme that best matches your restaurant. This color will be shown to your guests when they open your restaurant's guest app by scanning the QR code on the table."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Customer App Colors (web)  |  Bottom nav → Settings → Colors (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Customer App Colors",
+            "mobile": "Bottom nav → Settings → Colors"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "How It Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "When you download the table QR code image, it will use this color as well so your guests' entire experience is color-coded. The preview below shows how your selection will appear to customers."
+        }
+      ]
+    },
+    {
+      "id": "functions",
+      "title": "Restaurant Features",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Activate or deactivate features for your restaurant. Toggle each feature on or off to enable or disable it for your location."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Functions (web)  |  Bottom nav → Settings → Functions (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Functions",
+            "mobile": "Bottom nav → Settings → Functions"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "What Each Feature Controls"
+        },
+        {
+          "type": "paragraph",
+          "body": "Features control which capabilities are available to your staff and guests. For example, enabling online ordering allows guests to place orders through the guest app, while loyalty programs let customers earn rewards."
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "title": "Sales Reports",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "View detailed sales reports and order history. Analyze your restaurant's performance with filtering by date ranges and time periods."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Reporting (web)  |  Bottom nav → Informes (mobile)",
+          "devices": {
+            "web": "Side menu → Reporting",
+            "mobile": "Bottom nav → Informes"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Filtering Reports"
+        },
+        {
+          "type": "paragraph",
+          "body": "Use the date pickers and time range chips to filter your report. You can view today, yesterday, this week, last week, this month, or last month. The report updates automatically when you change the date range."
+        },
+        {
+          "type": "heading",
+          "body": "Exporting Data"
+        },
+        {
+          "type": "paragraph",
+          "body": "Click the download button to export your report as a CSV file. This file can be opened in Excel or other spreadsheet applications for further analysis."
+        }
+      ]
+    },
+    {
+      "id": "analytics",
+      "title": "Analytics Dashboard",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "A comprehensive view of your restaurant's performance. Analyze revenue, orders, guests, and more with interactive charts and detailed tables."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Analytics (web)  |  Bottom nav → Analytics (mobile)",
+          "devices": {
+            "web": "Side menu → Analytics",
+            "mobile": "Bottom nav → Analytics"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Date Filtering"
+        },
+        {
+          "type": "paragraph",
+          "body": "Use the date pickers and quick range chips to filter your analytics. You can view today, yesterday, this week, last week, this month, or last month. The dashboard updates automatically when you change the date range. You can select up to 93 days of data."
+        },
+        {
+          "type": "heading",
+          "body": "Key Performance Indicators (KPIs)"
+        },
+        {
+          "type": "paragraph",
+          "body": "The KPI cards at the top show your most important metrics at a glance:"
+        },
+        {
+          "type": "list",
+          "body": "Total Revenue - The total sales amount for the selected period\\nOrders - The total number of orders placed\\nAverage Order Value - The average amount spent per order\\nItems Sold - The total number of menu items sold\\nUnique Guests - The number of different customers who placed orders"
+        },
+        {
+          "type": "heading",
+          "body": "Revenue Trend"
+        },
+        {
+          "type": "paragraph",
+          "body": "A bar chart showing your daily revenue over the selected time period. This helps you identify trends and patterns in your sales performance."
+        },
+        {
+          "type": "heading",
+          "body": "Top Items"
+        },
+        {
+          "type": "paragraph",
+          "body": "Shows your best-selling menu items ranked by quantity sold. The horizontal bar chart visualizes which items are most popular, while the table below provides detailed revenue and quantity data for each item."
+        },
+        {
+          "type": "heading",
+          "body": "Fulfillment Breakdown"
+        },
+        {
+          "type": "paragraph",
+          "body": "A pie chart and table showing how orders are being fulfilled (e.g., dine-in, takeout, delivery). This helps you understand which order types are most common at your restaurant."
+        },
+        {
+          "type": "heading",
+          "body": "Orders Over Time"
+        },
+        {
+          "type": "paragraph",
+          "body": "A bar chart showing the number of orders placed each day. This is useful for identifying busy days and planning staffing accordingly."
+        },
+        {
+          "type": "heading",
+          "body": "Guest Analytics"
+        },
+        {
+          "type": "paragraph",
+          "body": "A table showing your customers' ordering behavior including their name, email, number of orders, total amount spent, and loyalty points earned. This helps you identify your most valuable customers."
+        },
+        {
+          "type": "heading",
+          "body": "Promotions Performance"
+        },
+        {
+          "type": "paragraph",
+          "body": "A table showing how your promotions are performing. It includes the promotion name, type, number of redemptions, and points redeemed. This helps you evaluate which promotions drive the most engagement."
+        },
+        {
+          "type": "heading",
+          "body": "Exporting Data"
+        },
+        {
+          "type": "paragraph",
+          "body": "Click the download button at the bottom to save a screenshot of your analytics dashboard as an image file. This is useful for sharing reports or keeping records."
+        }
+      ]
+    },
+    {
+      "id": "updateMenu",
+      "title": "Update Menu",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Manage your restaurant's menu. Create and edit menus, categories, subcategories, items, and combos."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "How to find this: Side menu → Settings → Update menu (web)  |  Bottom nav → Settings → Update Menu (mobile)",
+          "devices": {
+            "web": "Side menu → Settings → Update menu",
+            "mobile": "Bottom nav → Settings → Update Menu"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Menu Management"
+        },
+        {
+          "type": "paragraph",
+          "body": "Select a menu from the top buttons to view and edit it. You can create multiple menus for different purposes (e.g., dine-in, takeout, catering)."
+        },
+        {
+          "type": "heading",
+          "body": "Adding Content"
+        },
+        {
+          "type": "list",
+          "body": "Categories — Group related items together (e.g., Appetizers, Mains, Desserts)\\nSubcategories — Further organize items within a category\\nItems — Individual menu items with name, price, description, and image\\nCombos — Bundle multiple items together at a special price"
+        },
+        {
+          "type": "heading",
+          "body": "Editing Items"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tap on any item to edit its details. You can update the name, price, description, and image. Changes are saved automatically and appear on your guest app in real-time."
+        }
+      ]
+    }
+  ]
+}

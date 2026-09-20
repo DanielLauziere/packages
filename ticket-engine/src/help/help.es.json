@@ -1,0 +1,1281 @@
+{
+  "sections": [
+    {
+      "id": "welcome",
+      "title": "Bienvenida & Primeros Pasos",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz es un sistema POS y de pedidos en línea completo diseñado para restaurantes de todos los tamaños. Desde la gestión del menú hasta el procesamiento de pedidos, programas de lealtad e informes en tiempo real, todo lo que necesitas está en un solo lugar. Sin contratos, sin cargos ocultos — solo pagas por los días que lo usas."
+        },
+        {
+          "type": "heading",
+          "body": "Qué Incluye DirectEatz"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Portal de pedidos en línea para tus clientes",
+            "Panel de administración para gestionar pedidos, menú, personal y configuración",
+            "Tablero de pedidos en tiempo real con notificaciones de sonido",
+            "Programas de lealtad y promociones",
+            "Impresión de recibos",
+            "Informes de ventas y facturación",
+            "Capacidad offline con sincronización automática"
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Primeros Pasos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Si eres un restaurante nuevo, usa el flujo de Auto Onboarding para configurar tu restaurante en minutos. Crearás tu cuenta, agregarás los detalles de tu restaurante, configurarás tu menú y estarás listo para recibir pedidos, todo en un solo proceso guiado."
+        },
+        {
+          "type": "paragraph",
+          "body": "Una vez que tu restaurante esté configurado, inicia sesión en el panel de administración (Tablero) para gestionar pedidos, actualizar tu menú, configurar promociones, agregar personal y personalizar tus ajustes."
+        },
+        {
+          "type": "heading",
+          "body": "Entendiendo el Panel"
+        },
+        {
+          "type": "paragraph",
+          "body": "El panel de administración está organizado en grupos accesibles desde la barra lateral izquierda: Pedidos (tablero) para pedidos en vivo, Nuevo Pedido para crear pedidos, Informes para datos de ventas, Panel para facturación y pantallas, Ajustes para configuración del restaurante, menú, impresoras, mesas y personal, y Marketing para promociones, lealtad y premios."
+        },
+        {
+          "type": "note",
+          "body": "Tus clientes acceden a tu menú y realizan pedidos a través de tu página pública de pedidos. Hay tres tipos de cuenta: anónima (sin inicio de sesión), ligera (el personal agrega su correo o teléfono para que los puntos de lealtad se acumulen y el personal pueda aplicarlos a solicitud del cliente) y completa (los clientes inician sesión para ver y usar sus puntos ellos mismos)."
+        }
+      ]
+    },
+    {
+      "id": "auto-onboarding",
+      "title": "Auto Onboarding",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Auto Onboarding es un asistente de configuración rápida que crea tu restaurante y cuenta de administrador en minutos. Crearás tu cuenta, ingresarás los detalles de tu restaurante y estarás listo para gestionar tu restaurante desde el panel."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona"
+        },
+        {
+          "type": "paragraph",
+          "body": "El flujo de onboarding consiste en un solo paso. Ingresas tu correo, contraseña, nombre del restaurante, dirección, número de teléfono y una breve descripción. Tu URL se genera automáticamente a partir del nombre de tu restaurante. Al enviar, tu cuenta se crea y accedes directamente al panel."
+        },
+        {
+          "type": "heading",
+          "body": "Consejos para una Configuración Exitosa"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Dedica tiempo a configurar tu menú con categorías y descripciones claras — facilita los pedidos a tus clientes",
+            "Sube fotos de alta calidad para tus artículos del menú y aumenta las tasas de pedido",
+            "Configura tus horarios de servicio y opciones de cumplimiento en Ajustes para que los clientes sepan cuándo esperar su pedido",
+            "Prueba un pedido desde la vista del cliente para verificar el flujo completo"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "title": "Pedidos (Tablero)",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "El Tablero de pedidos es tu centro de comando en vivo. Todos los pedidos entrantes aparecen aquí en tiempo real, organizados por estado. Puedes ver detalles del pedido, actualizar estados, modificar artículos, procesar pagos e imprimir recibos, todo desde una sola pantalla."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Orders (web)  |  Bottom nav → Pedidos (móvil)",
+          "devices": {
+            "web": "Side menu → Orders",
+            "mobile": "Bottom nav → Pedidos"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Estados de Pedido"
+        },
+        {
+          "type": "list",
+          "items": [
+            "NUEVO — El pedido se ha realizado y está esperando tu acción. Una notificación de sonido suena y el tablero parpadea.",
+            "ACEPTADO — Has aceptado el pedido y estás trabajando en él.",
+            "COMPLETADO — El pedido ha sido recogido o entregado.",
+            "CANCELADO — El pedido fue cancelado."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Trabajando con Pedidos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Haz clic en cualquier tarjeta de pedido para abrir su panel de detalles. Los pedidos grandes se muestran visualmente agrandados en el tablero para que puedas priorizarlos de un vistazo. Desde el panel de detalles puedes realizar los siguientes ajustes:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Actualizar el estado del pedido",
+            "Agregar o quitar artículos",
+            "Editar cantidades de artículos",
+            "Agregar o quitar modificadores",
+            "Aplicar promociones y descuentos",
+            "Transferir el pedido a otra mesa",
+            "Agregar notas internas",
+            "Procesar pagos con el teclado en pantalla"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "El teclado de pago admite el flujo completo de cobro: ingresa el monto recibido (efectivo o tarjeta), calcula el cambio automáticamente, abre el cajón de efectivo e imprime un recibo para el cliente."
+        },
+        {
+          "type": "paragraph",
+          "body": "Todos los ajustes se sincronizan en tiempo real en todos los dispositivos conectados."
+        },
+        {
+          "type": "heading",
+          "body": "Alertas de Sonido y Visuales"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando llega un nuevo pedido, suena una notificación y el tablero parpadea. Puedes silenciar el sonido desde la barra superior si es necesario."
+        },
+        {
+          "type": "paragraph",
+          "body": "Las notificaciones push extienden esto más allá de la app. Activa las notificaciones push de administrador para recibir alertas de nuevos pedidos incluso cuando tu dispositivo esté bloqueado o la app esté cerrada. Las notificaciones push para clientes mantienen informados a tus comensales — reciben actualizaciones cuando cambia el estado de su pedido incluso si han cerrado la página de pedidos."
+        },
+        {
+          "type": "heading",
+          "body": "Manejo Offline"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los pedidos se almacenan en caché localmente en tu dispositivo. Si tu conexión a internet se cae, puedes continuar viendo, actualizando y procesando pagos. Todos los cambios se sincronizan automáticamente cuando se restablece la conexión. El indicador de sincronización en el encabezado muestra tu estado de conexión actual."
+        },
+        {
+          "type": "heading",
+          "body": "Puntos de Lealtad en Pedidos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando tomas un pedido como administrador, juegas un papel clave en ayudar a tus clientes a ganar puntos de lealtad. Así es como funciona:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Si el cliente pide sin proporcionar ningún detalle (anónimo), no ganará puntos. Sin embargo, si la lealtad está activada, el recibo muestra cuántos puntos habría ganado — animándolo a crear una cuenta la próxima vez.",
+            "Si el cliente proporciona su correo o número de teléfono, se crea automáticamente una cuenta ligera. Los puntos se acumulan en su nombre. En visitas futuras, puede dar su número de teléfono nuevamente para acceder a sus puntos, y tú puedes aplicar recompensas a su solicitud.",
+            "Si el cliente luego inicia sesión usando la app con el mismo correo o número de teléfono, su cuenta ligera se convierte en una cuenta completa protegida con contraseña. Todos sus puntos se conservan y pueden canjear recompensas por sí mismos."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "menu",
+      "title": "Gestión del Menú",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Menú te permite construir y gestionar todo tu menú — horarios, categorías, artículos, modificadores, combos e imágenes. Los cambios que hagas se reflejan inmediatamente en tu página de pedidos para clientes."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Update menu (web)  |  Bottom nav → Settings → Update Menu (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Update menu",
+            "mobile": "Bottom nav → Settings → Update Menu"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Horario del Menú"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cada menú tiene su propio horario que controla cuándo está disponible para pedidos. Tus clientes pueden instalar la app de tu restaurante directamente desde tu sitio web — funciona como una app nativa sin necesidad de una tienda de aplicaciones. Si el horario del menú indica que el restaurante está cerrado, los clientes no podrán realizar pedidos. Esto evita pedidos en días festivos, vacaciones o fuera del horario de atención, por lo que configurar el horario correctamente es esencial."
+        },
+        {
+          "type": "heading",
+          "body": "Múltiples Menús"
+        },
+        {
+          "type": "paragraph",
+          "body": "Puedes crear múltiples menús con diferentes horarios. Por ejemplo, crea un menú de Desayuno disponible de 6am a 11am y un menú de Almuerzo / Cena para el resto del día. Cada menú tiene sus propias categorías, artículos y horario. Si solo necesitas un conjunto de artículos disponible todo el día, un solo menú es suficiente."
+        },
+        {
+          "type": "heading",
+          "body": "Categorías"
+        },
+        {
+          "type": "paragraph",
+          "body": "Las categorías organizan tus artículos del menú en una jerarquía de hasta tres niveles. Por ejemplo: Bebidas → Bebidas Calientes → Cafés. Puedes crear categorías, subcategorías y sub-subcategorías, y mover artículos entre ellas en cualquier momento."
+        },
+        {
+          "type": "heading",
+          "body": "Artículos del Menú"
+        },
+        {
+          "type": "paragraph",
+          "body": "Crea artículos del menú con nombre, descripción, precio y foto opcional. Asigna cada artículo a una categoría, subcategoría o sub-subcategoría. Los artículos se pueden mover a otra categoría después de creados. También puedes activar o desactivar artículos sin eliminarlos."
+        },
+        {
+          "type": "heading",
+          "body": "Combos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los combos te permiten agrupar múltiples artículos del menú a un precio especial. Por ejemplo, un Combo puede incluir un plato principal, un acompañante y una bebida a un precio reducido. Cuando un cliente agrega un combo a su pedido, todos los artículos incluidos se agregan juntos."
+        },
+        {
+          "type": "heading",
+          "body": "Modificadores"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los modificadores permiten a los clientes personalizar sus artículos con opciones que ajustan el precio. Ejemplos comunes incluyen opciones de tamaño (Pequeño, Mediano, Grande), niveles de picante e ingredientes extra. Cada modificador tiene un nombre y un precio opcional que se agrega a la cuenta."
+        },
+        {
+          "type": "heading",
+          "body": "Notas vs Modificadores"
+        },
+        {
+          "type": "paragraph",
+          "body": "Las notas son texto libre que los clientes o el personal pueden agregar a cualquier artículo del menú — para alergias, solicitudes especiales o instrucciones únicas. Las notas NO agregan costo a la cuenta. Si deseas cobrar por extras, crea siempre un modificador en su lugar."
+        },
+        {
+          "type": "paragraph",
+          "body": "Los modificadores también aceleran el procesamiento de pedidos. El personal puede agregar instrucciones comunes como \"sin cebolla\" o \"bien cocido\" con un solo toque en lugar de escribirlas en un teclado. Cuantos más modificadores crees, más uniformes serán tus pedidos y más fácil será rastrear lo que tus clientes están ordenando."
+        },
+        {
+          "type": "heading",
+          "body": "Imágenes"
+        },
+        {
+          "type": "paragraph",
+          "body": "Puedes subir fotos para tus artículos del menú. Las imágenes de alta calidad ayudan a los clientes a decidir qué pedir. Los formatos compatibles incluyen JPEG, PNG y WebP."
+        }
+      ]
+    },
+    {
+      "id": "promotions",
+      "title": "Promociones",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Las promociones te permiten ofrecer descuentos y ofertas especiales a tus clientes. Puedes crear descuentos porcentuales, descuentos de cantidad fija u ofertas de artículos gratis. Las promociones se pueden programar para días específicos o rangos de fechas."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Marketing → Promotions (web)  |  Bottom nav → Marketing → Promotions (móvil)",
+          "devices": {
+            "web": "Side menu → Marketing → Promotions",
+            "mobile": "Bottom nav → Marketing → Promotions"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Valor para los Clientes"
+        },
+        {
+          "type": "paragraph",
+          "body": "Las promociones atraen nuevos clientes y fomentan visitas repetidas. Un descuento bien programado puede aumentar las ventas durante períodos lentos. Las ofertas por tiempo limitado crean urgencia y generan más pedidos."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Configurar"
+        },
+        {
+          "type": "paragraph",
+          "body": "Ve a la sección de Promociones en tu panel de administración. Haz clic en Crear Promoción. Elige un tipo de descuento (porcentaje, cantidad fija o artículo gratis), establece el valor del descuento, opcionalmente vincúlalo a artículos específicos del menú y establece las fechas activas. Puedes activar o desactivar promociones en cualquier momento."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando un cliente abre la app de invitados, las promociones activas se muestran de inmediato. El cliente puede seleccionar una promoción aplicable al realizar un pedido y el descuento se aplica a su total antes del pago."
+        },
+        {
+          "type": "heading",
+          "body": "Detalles Técnicos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Las promociones pueden ser específicas de un artículo (aplicadas a un artículo particular del menú) o de todo el pedido (aplicadas al pedido completo). No se pueden apilar múltiples promociones en el mismo pedido. Las promociones que requieren un artículo del menú se eliminarán automáticamente si el artículo se elimina del pedido. Las promociones vencidas se ocultan de los clientes pero se conservan en tu historial."
+        }
+      ]
+    },
+    {
+      "id": "loyalty",
+      "title": "Lealtad y Recompensas",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "El programa de lealtad te permite recompensar a tus clientes habituales con puntos que pueden canjear por descuentos o artículos gratis. Esto fomenta la repetición de negocios y construye la lealtad del cliente."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Marketing → Loyalty programs (web)  |  Bottom nav → Marketing → Loyalty (móvil)",
+          "devices": {
+            "web": "Side menu → Marketing → Loyalty programs",
+            "mobile": "Bottom nav → Marketing → Loyalty"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Valor para los Clientes"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los clientes ganan puntos en cada pedido, que pueden canjear por recompensas. Esto les da una razón para elegir tu restaurante sobre la competencia y los hace regresar."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Configurar"
+        },
+        {
+          "type": "paragraph",
+          "body": "Ve a la sección de Lealtad en tu panel de administración. Primero, establece el multiplicador de puntos — esto determina cuántos puntos ganan los clientes por dólar gastado. Por ejemplo, un multiplicador de 10 significa que un pedido de $10 gana 100 puntos."
+        },
+        {
+          "type": "paragraph",
+          "body": "Luego, crea recompensas. Cada recompensa necesita un nombre, descripción y la cantidad de puntos requerida para canjearla. Puedes elegir el tipo de recompensa:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Descuento en el pedido — un monto fijo o porcentaje de descuento sobre el total",
+            "Artículo gratis — selecciona un artículo específico del menú que el cliente recibe gratis"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Una vez que tus recompensas estén creadas, activa el programa para ponerlo en funcionamiento. Puedes activar o desactivar recompensas individuales en cualquier momento sin perder los puntos acumulados."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando un cliente realiza un pedido a través de una cuenta ligera o completa, gana puntos basados en el total del pedido y tu multiplicador de puntos. Los puntos se rastrean por cliente y por ubicación del restaurante."
+        },
+        {
+          "type": "paragraph",
+          "body": "Cómo se canjean los puntos depende del tipo de cuenta:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Anónima — el cliente puede ver las recompensas disponibles pero necesita crear una cuenta para canjearlas",
+            "Ligera — el personal agrega el correo o teléfono del cliente para que los puntos se acumulen. El personal puede aplicar recompensas a solicitud del cliente desde el panel de administración",
+            "Completa — el cliente inicia sesión y puede ver sus puntos y aplicar recompensas durante el pago"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Las recompensas activas y la información de lealtad también son visibles en la app de invitados, para que los clientes siempre sepan qué recompensas están disponibles y cuántos puntos tienen."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funcionan los Puntos en la Práctica"
+        },
+        {
+          "type": "paragraph",
+          "body": "La lealtad debe activarse primero en Ajustes → Funciones antes de poder usarse. Una vez activa, así es como funcionan los puntos según cómo el cliente interactúa con tu restaurante:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "El cliente pide por la app sin iniciar sesión — ve información de lealtad pero no gana puntos. El recibo muestra cuántos puntos habría ganado, animándolo a crear una cuenta.",
+            "El cliente pide por la app e inicia sesión — gana puntos y puede canjear recompensas de inmediato. Todos los beneficios de lealtad aplican.",
+            "El administrador toma un pedido anónimo — el cliente no recibe puntos, pero el recibo muestra los puntos potenciales si la lealtad está activa.",
+            "El administrador toma un pedido y el cliente proporciona su correo o teléfono — se crea una cuenta ligera. Los puntos se acumulan y están disponibles en cada visita futura. El personal puede aplicar recompensas a solicitud del cliente.",
+            "El administrador toma un pedido, el cliente proporciona su correo o teléfono, y luego inicia sesión usando la app — la cuenta ligera se convierte en una cuenta completa protegida con contraseña. Todos sus puntos se conservan y ahora pueden ver y canjear recompensas directamente."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fulfillment",
+      "title": "Tipos de Cumplimiento",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Los tipos de cumplimiento determinan cómo los clientes reciben sus pedidos. Puedes elegir entre tres opciones: Comedor, Pickup / Curbside y Delivery."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Restaurant setup (web)  |  Bottom nav → Settings → Restaurant Setup (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Restaurant setup",
+            "mobile": "Bottom nav → Settings → Restaurant Setup"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Delivery"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los clientes ingresan su dirección de entrega y realizan su pedido. El pedido aparece en tu tablero con la dirección de entrega. Preparas el pedido y organizas la entrega."
+        },
+        {
+          "type": "heading",
+          "body": "Pickup"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los clientes hacen un pedido y vienen a tu restaurante a recogerlo. El tiempo estimado de preparación se muestra durante el pago."
+        },
+        {
+          "type": "heading",
+          "body": "Curbside"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los clientes hacen un pedido, conducen a tu ubicación y tú llevas el pedido a su auto."
+        },
+        {
+          "type": "heading",
+          "body": "Comedor"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los clientes hacen un pedido desde su mesa usando un código QR. El pedido se envía a la cocina y el personal puede llevarlo a la mesa cuando esté listo. Esto requiere configurar mesas con códigos QR vinculados a tu menú."
+        },
+        {
+          "type": "heading",
+          "body": "Configuración"
+        },
+        {
+          "type": "paragraph",
+          "body": "Ve a Ajustes y activa los tipos de cumplimiento que deseas ofrecer. Para comedor, crea mesas en la sección de Mesas e imprime tarjetas con código QR."
+        }
+      ]
+    },
+    {
+      "id": "dte",
+      "title": "Facturación Electrónica (DTE)",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz admite facturación electrónica (DTE) para El Salvador. Cuando está habilitada, los tickets pagados se emiten a Hacienda (la autoridad tributaria salvadoreña) como facturas electrónicas. Esta sección cubre cómo configurar DTE, ver documentos enviados y gestionar tus credenciales de firma."
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Side menu → Settings → Electronic Invoice (DTE)",
+            "mobile": "Bottom nav → Settings → Facturación electrónica"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Lo Que Necesitas"
+        },
+        {
+          "type": "paragraph",
+          "body": "Para usar DTE necesitas un certificado de firma digital en formato PKCS#12 (.p12 o .pfx) emitido por una Autoridad de Certificación reconocida (ej. Autoescuela, Icaro, u otro proveedor autorizado por Hacienda). También necesitas tu nombre de usuario y contraseña del portal de Hacienda."
+        },
+        {
+          "type": "paragraph",
+          "body": "Si aún no tienes un certificado, contacta a tu asesor fiscal o al proveedor del certificado para solicitar uno. El certificado está vinculado a tu RNC (Registro Nacional de Contribuyentes)."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Configurar DTE"
+        },
+        {
+          "type": "paragraph",
+          "body": "1. Ve a la sección de Configuración DTE (ver ruta de navegación arriba)."
+        },
+        {
+          "type": "paragraph",
+          "body": "2. Sube tu archivo de certificado PKCS#12 (.p12 o .pfx)."
+        },
+        {
+          "type": "paragraph",
+          "body": "3. Ingresa la contraseña del certificado, nombre de usuario del portal de Hacienda y contraseña del portal de Hacienda."
+        },
+        {
+          "type": "paragraph",
+          "body": "4. Haz clic en Guardar Credenciales."
+        },
+        {
+          "type": "paragraph",
+          "body": "5. Haz clic en Emisión de Prueba para verificar que tus credenciales funcionan enviando un DTE de prueba a Hacienda."
+        },
+        {
+          "type": "paragraph",
+          "body": "6. Una vez que la prueba tenga éxito, activa DTE. Los tickets pagados se emitirán a Hacienda automáticamente."
+        },
+        {
+          "type": "note",
+          "body": "DTE solo está disponible para restaurantes con el permiso apropiado. Las credenciales se almacenan encriptadas en tu dispositivo y nunca se envían al servidor de DirectEatz."
+        },
+        {
+          "type": "heading",
+          "body": "Dónde Encontrar Configuración DTE"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Web (panel de administración) — Menú lateral → Ajustes → Facturación Electrónica (DTE)",
+            "Mobile (app nativa) — Navegación inferior → Grupo de Ajustes → Facturación electrónica"
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Estados de Documentos DTE"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Pendiente — El DTE ha sido puesto en cola pero no enviado a Hacienda.",
+            "Enviado — El DTE se envió exitosamente a Hacienda.",
+            "Fallido — El DTE no se pudo enviar. Verifica tus credenciales y red, luego reintentar.",
+            "Anulado — El DTE fue anulado después de ser enviado."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Ver Documentos Enviados (Historial DTE)"
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Side menu → Settings → DTE Tickets",
+            "mobile": "Bottom nav → Settings → Documentos DTE"
+          }
+        },
+        {
+          "type": "paragraph",
+          "body": "La sección de Historial DTE muestra todos los documentos DTE emitidos, junto con su estado, tipo, fecha y número de DTE. Puedes filtrar por estado y rango de fechas, exportar a CSV y ver o imprimir facturas individuales."
+        },
+        {
+          "type": "heading",
+          "body": "Modo de Contingencia"
+        },
+        {
+          "type": "paragraph",
+          "body": "Si tu conexión a internet se cae cuando intentas emitir un DTE, el documento se almacena localmente y se pone en cola. Cuando se restablece la conectividad, los documentos pendientes se envían automáticamente. Si un DTE permanece pendiente por un período prolongado, puedes usar el botón Vaciar Contingencia para enviar forzadamente todos los documentos en cola."
+        }
+      ]
+    },
+    {
+      "id": "tables",
+      "title": "Mesas y Códigos QR",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Mesas te permite gestionar tus mesas físicas y generar códigos QR para que los clientes puedan pedir desde su mesa. Cada mesa obtiene un código QR único que enlaza directamente a tu menú."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Tables (web)  |  Bottom nav → Settings → Tables (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Tables",
+            "mobile": "Bottom nav → Settings → Tables"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Valor para los Clientes"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los códigos QR no solo permiten a los clientes pedir desde su mesa. Cada persona en la mesa puede crear su propio pedido por separado — sin confusión con cuentas divididas ni esperar 20 minutos a que un mesero tome los pedidos de un grupo grande. Una vez que un pedido se completa, los clientes pueden hacer otro sin esperar. Los clientes también pueden instalar la app de invitados directamente desde la página de pedidos y pedir desde casa en el futuro, aumentando tus ingresos."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Configurar"
+        },
+        {
+          "type": "paragraph",
+          "body": "Ve a la sección de Mesas. Agrega tus mesas por nombre o número (ej. Mesa 1, Patio 3). También puedes crear secciones para diferentes áreas (Interior, Patio, Bar). Una vez que las mesas estén creadas, puedes descargar o imprimir códigos QR para cada mesa. Coloca las tarjetas QR en las mesas para que los clientes escaneen y pidan."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando un cliente escanea el código QR, es llevado a tu página de pedidos con la mesa preseleccionada. Agregan artículos a su pedido y lo envían. Recibes el pedido en tu tablero con el número de mesa mostrado, para que sepas dónde llevarlo."
+        }
+      ]
+    },
+    {
+      "id": "payments",
+      "title": "Pagos",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Los pagos se procesan directamente desde la pantalla de pedidos usando el teclado en pantalla. Hay dos tipos de pago disponibles: Efectivo y Tarjeta."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Procesar un Pago"
+        },
+        {
+          "type": "paragraph",
+          "body": "Abre los detalles del pedido y toca el teclado de pago. Selecciona Efectivo o Tarjeta, luego ingresa el monto recibido. Para pagos en efectivo, el cambio se calcula automáticamente. Para pagos con tarjeta, ingresa el código de confirmación proporcionado por tu terminal de tarjeta."
+        },
+        {
+          "type": "heading",
+          "body": "Informes"
+        },
+        {
+          "type": "paragraph",
+          "body": "La sección de Informes muestra un desglose de los pagos por tipo (efectivo vs tarjeta) junto con los códigos de confirmación de tarjeta, para que puedas conciliar tus transacciones."
+        }
+      ]
+    },
+    {
+      "id": "personnel",
+      "title": "Personal y Permisos",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Personal te permite gestionar las cuentas de tu equipo y controlar lo que cada miembro puede hacer en el panel de administración. Puedes agregar, eliminar y establecer permisos detallados."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Personnel (web)  |  Bottom nav → Settings → Personnel (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Personnel",
+            "mobile": "Bottom nav → Settings → Personnel"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Permisos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cada miembro del personal puede recibir uno o más permisos. En lugar de roles predefinidos, simplemente activas los permisos que cada persona necesita:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "DUEÑO — Acceso completo a todas las configuraciones, facturación y gestión. Solo el dueño del restaurante tiene este permiso.",
+            "ACTUALIZAR MENÚ — Agregar, editar y eliminar artículos del menú, categorías, modificadores y combos, y cambiar el horario del menú.",
+            "ACTUALIZAR LEALTAD — Crear y gestionar promociones y programas de lealtad.",
+            "ACTUALIZAR RESTAURANTE — Cambiar la información del restaurante, funciones, tema de color y mesas.",
+            "ACTUALIZAR PERSONAL — Agregar, eliminar y gestionar cuentas del personal y sus permisos.",
+            "AJUSTAR PEDIDOS — Controla si el miembro del personal puede abrir y modificar tickets cerrados en la sección de informes. Desactivar esto evita que administradores no confiables alteren pedidos anteriores.",
+            "VER TOTALES — Controla si el miembro del personal puede ver el monto total de ventas en el período seleccionado en los informes. Desactivar esto oculta los datos de ingresos al personal que no quieres que vea cuánto ganó el negocio."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Agregar Personal"
+        },
+        {
+          "type": "paragraph",
+          "body": "Hay dos pasos para agregar un miembro del personal:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "El miembro del personal crea su propia cuenta usando la app o el sitio web directEatz.com. Ingresa su correo, nombre y elige una contraseña.",
+            "En la sección de Personal, haz clic en Agregar nuevo usuario e ingresa el correo del miembro del personal para vincularlo a tu restaurante. Aparecerá en la lista y podrás establecer sus permisos."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Eliminar Personal"
+        },
+        {
+          "type": "paragraph",
+          "body": "En la sección de Personal, haz clic en un miembro del personal y toca Eliminar. Esto lo desvincula de tu restaurante — su cuenta no se elimina, por lo que puede volver a vincularse más tarde. El dueño no puede ser eliminado."
+        }
+      ]
+    },
+    {
+      "id": "printers",
+      "title": "Impresoras",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Impresoras te permite conectar impresoras de red para que los tickets se impriman directamente en la cocina o donde los necesites."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Printers (web)  |  Bottom nav → Settings → Printers (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Printers",
+            "mobile": "Bottom nav → Settings → Printers"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Configurar una Impresora"
+        },
+        {
+          "type": "paragraph",
+          "body": "Las impresoras se conectan a través de tu red WiFi. Para configurar una, necesitas la dirección IP de la impresora. En la mayoría de las impresoras térmicas, puedes encontrar la IP imprimiendo una página de autodiagnóstico (mantén presionado el botón de avance de papel mientras enciendes) o revisando el menú de Configuración de red de la impresora."
+        },
+        {
+          "type": "paragraph",
+          "body": "Una vez que tengas la IP, ve a la sección de Impresoras y haz clic en Agregar Impresora. Ponle un nombre (ej. \"Cocina\"), ingresa la dirección IP y selecciona el ancho del papel en milímetros (generalmente 58mm u 80mm para impresoras térmicas). Imprime un recibo de prueba y ajusta los mm de ser necesario."
+        },
+        {
+          "type": "heading",
+          "body": "Tipos de Conexión"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Impresora de red (TCP) — Se conecta directamente a una impresora térmica en tu red usando comandos ESC/POS. El ticket se imprime de inmediato sin ningún cuadro de diálogo o vista previa. Es la mejor opción para restaurantes porque funciona silenciosamente en segundo plano — los tickets de cocina se imprimen en el momento en que llega un pedido, sin necesidad de interacción del personal. Requiere una impresora compatible con conexiones TCP en tu red local.",
+            "Tradicional (Impresión normal) — Abre el cuadro de diálogo de impresión del navegador. Funciona con cualquier impresora conectada al dispositivo (térmica, inyección de tinta, láser, etc.). Desventaja: El personal debe interactuar con la vista previa antes de que el ticket se imprima.",
+            "Relé — Los navegadores no pueden enviar solicitudes de red directas, así que la opción de relé te permite instalar un pequeño servidor de retransmisión en tu red que recibe los trabajos de impresión del navegador y los reenvía a la impresora mediante TCP. Esto añade algo de complejidad pero permite imprimir desde cualquier dispositivo que ejecute el panel de administración."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Impresión Automática (Silenciosa)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando la Impresión Automática está activada, un ticket de cocina se imprime automáticamente tan pronto como llega un nuevo pedido, sin necesidad de presionar botones. El personal de cocina es alertado de inmediato y puede comenzar a preparar. Cuando está desactivada, el personal debe imprimir los tickets manualmente."
+        },
+        {
+          "type": "heading",
+          "body": "Opciones de Impresión de Tickets"
+        },
+        {
+          "type": "paragraph",
+          "body": "Hay dos tipos de tickets: un ticket de cocina (para que el personal de cocina prepare el pedido) y un ticket de cliente (un recibo para el comensal). La app nativa te permite elegir qué tipo imprimir. La Impresión Automática siempre envía un ticket de cocina, y el flujo de cierre de venta siempre envía un ticket de cliente. Los tickets de cocina siempre agrupan artículos e incluyen notas — las opciones a continuación solo afectan los recibos de cliente."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Impresión simple (ticket de cliente) — Agrupa artículos idénticos con una cantidad combinada (ej. \"3 × Hamburguesa $27.00\") en lugar de listar cada artículo en su propia línea. Hace que los tickets sean más cortos y fáciles de leer.",
+            "Imprimir notas (ticket de cliente) — Imprime cualquier instrucción especial o nota que el cliente agregó a sus artículos (ej. \"sin cebolla\", \"extra salsa\") en el ticket."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Usar Impresoras en Varios Dispositivos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Una vez que se agrega una impresora, todos los dispositivos conectados a tu restaurante pueden verla y seleccionarla. Simplemente ve a Ajustes → Impresoras y activa la impresora que deseas usar en ese dispositivo."
+        },
+        {
+          "type": "heading",
+          "body": "Editar una Impresora"
+        },
+        {
+          "type": "paragraph",
+          "body": "Haz clic en una impresora existente en la lista para actualizar su nombre, dirección IP, ancho del papel o tipo de conexión. Los cambios se aplican de inmediato."
+        }
+      ]
+    },
+    {
+      "id": "reports",
+      "title": "Informes y Analíticas",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Informes muestra el historial de ventas y pedidos. Filtra por rango de fechas para revisar la actividad pasada."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Reporting (web)  |  Bottom nav → Informes (móvil)",
+          "devices": {
+            "web": "Side menu → Reporting",
+            "mobile": "Bottom nav → Informes"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Ventas por Fecha"
+        },
+        {
+          "type": "paragraph",
+          "body": "Usa el filtro de fecha en la parte superior para seleccionar un período. El informe muestra una lista de todos los pedidos dentro de ese rango con detalles básicos: número de ticket, total, artículos, marca de tiempo y pagos."
+        },
+        {
+          "type": "heading",
+          "body": "Ver Pedidos Anteriores"
+        },
+        {
+          "type": "paragraph",
+          "body": "Haz clic en cualquier pedido para ver los detalles completos del ticket. Si el miembro del personal tiene el permiso AJUSTAR PEDIDOS, puede reabrir y hacer cambios a tickets cerrados. Sin él, los pedidos anteriores son solo de visualización."
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Configuración",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Configuración es donde puedes ajustar las funciones, información, apariencia y acceso del personal de tu restaurante."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings (web)  |  Bottom nav → Settings (móvil)",
+          "devices": {
+            "web": "Side menu → Settings",
+            "mobile": "Bottom nav → Settings"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Configuración del Restaurante"
+        },
+        {
+          "type": "heading",
+          "body": "Funciones"
+        },
+        {
+          "type": "paragraph",
+          "body": "Activa o desactiva los tipos de cumplimiento y funciones disponibles para tus clientes:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Delivery — Activa los pedidos en línea para entrega. Los clientes ingresan su dirección y pagan en línea. Requiere la función de Delivery para el flujo de pago del cliente.",
+            "Comedor — Activa los pedidos para comer en el restaurante. Los clientes pueden pedir desde su mesa usando la app. Muestra el número de mesa en los tickets de cocina.",
+            "Recogida en la acera — Activa la recogida en la acera. Los clientes se registran cuando llegan y el personal es notificado.",
+            "Lealtad — Activa el programa de puntos de lealtad. Los clientes ganan puntos en sus pedidos y pueden canjear recompensas."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Información del Restaurante"
+        },
+        {
+          "type": "paragraph",
+          "body": "Establece el nombre de tu restaurante, teléfono, dirección, ciudad y porcentaje de propina predeterminado. El porcentaje de propina solo aplica a pedidos de Comedor — se añade al total general automáticamente como cargo por servicio. Esta información aparece en tu página de pedidos para clientes y en los recibos impresos."
+        },
+        {
+          "type": "heading",
+          "body": "Acerca de Nosotros"
+        },
+        {
+          "type": "paragraph",
+          "body": "Escribe una breve descripción de tu restaurante que aparece en la página de pedidos del cliente."
+        },
+        {
+          "type": "heading",
+          "body": "Imágenes"
+        },
+        {
+          "type": "paragraph",
+          "body": "Sube fotos de tu restaurante. Las imágenes se muestran en la página de pedidos para clientes."
+        },
+        {
+          "type": "heading",
+          "body": "Colores de la App del Cliente"
+        },
+        {
+          "type": "paragraph",
+          "body": "Elige un tema de color para tus páginas públicas."
+        }
+      ]
+    },
+    {
+      "id": "billing",
+      "title": "Facturación",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Facturación muestra tu saldo disponible y te permite agregar crédito. Cada restaurante tiene una tarifa diaria que se descuenta automáticamente de tu saldo."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Dashboard (web)  |  Bottom nav → Dashboard (móvil)",
+          "devices": {
+            "web": "Side menu → Dashboard",
+            "mobile": "Bottom nav → Dashboard"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona la Facturación"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tu restaurante tiene un costo fijo de {{dayPrice}} por día activo. En lugar de facturas mensuales, agregas crédito a tu cuenta y el costo diario se descuenta automáticamente. El panel muestra tu saldo restante para que siempre sepas cuánto tienes."
+        },
+        {
+          "type": "heading",
+          "body": "Agregar Crédito"
+        },
+        {
+          "type": "paragraph",
+          "body": "Ve a la sección de Facturación y elige un método de pago:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "PayPal — Selecciona un monto y paga al instante a través de PayPal. El crédito se agrega a tu cuenta inmediatamente.",
+            "Transferencia bancaria — Transfiere el monto a la cuenta bancaria proporcionada, luego ingresa el monto y un código de confirmación en la app. Un miembro del personal de DirectEatz verificará la transferencia y agregará el crédito a tu cuenta."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Facturas"
+        },
+        {
+          "type": "paragraph",
+          "body": "Puedes ver e imprimir facturas actuales y anteriores desde la sección de Facturación. Cada factura muestra tu uso y cargos para ese período."
+        }
+      ]
+    },
+    {
+      "id": "tvDisplay",
+      "title": "Pantalla de TV para Menú",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Pantalla de TV te da un enlace que puedes abrir en cualquier televisor o monitor de tu restaurante para mostrar tu menú a los clientes."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Dashboard → TV Display (web)  |  Bottom nav → TV Display (móvil)",
+          "devices": {
+            "web": "Side menu → Dashboard → TV Display",
+            "mobile": "Bottom nav → TV Display"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Configuración"
+        },
+        {
+          "type": "paragraph",
+          "body": "Ve a la sección de Pantalla de TV y abre el enlace en un televisor o monitor conectado a internet. La página muestra tu menú en formato de pantalla completa que se actualiza automáticamente cuando haces cambios."
+        }
+      ]
+    },
+    {
+      "id": "qrCodes",
+      "title": "Códigos QR",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La sección de Códigos QR proporciona códigos QR para tu página de pedidos, panel de administración y enlaces de descarga de la app. Imprímelos y colócalos para que los clientes accedan fácilmente a tu pedido en línea."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Dashboard → QR Codes (web)  |  Bottom nav → QR Code (móvil)",
+          "devices": {
+            "web": "Side menu → Dashboard → QR Codes",
+            "mobile": "Bottom nav → QR Code"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Códigos QR Disponibles"
+        },
+        {
+          "type": "list",
+          "items": [
+            "App del Cliente — Enlace a la página de pedidos de tu restaurante. Los clientes escanean para ver el menú y hacer pedidos.",
+            "Admin — Enlace a tu panel de administración. Útil para acceso rápido en un segundo dispositivo.",
+            "Google Play — Enlace a la app de DirectEatz en Google Play Store para dispositivos Android.",
+            "App Store — Enlace a la app de DirectEatz en Apple App Store para dispositivos iOS."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Cada código QR se puede descargar como imagen PNG para imprimir en mesas, menús o letreros."
+        }
+      ]
+    },
+    {
+      "id": "sync",
+      "title": "Sincronización y Modo Offline",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz está diseñado para funcionar incluso cuando tu conexión a internet no es confiable. Los pedidos, cambios en el menú y configuraciones se almacenan localmente en tu dispositivo y se sincronizan con el servidor cuando hay conectividad."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona la Sincronización"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cada acción que realizas (crear un pedido, actualizar el menú, aplicar una promoción) se registra como una entrada de registro. Estos registros se almacenan localmente y se envían al servidor en lotes. El servidor reproduce los registros en orden para reconstruir el estado actual. Esto garantiza que no se pierdan datos y que todos los dispositivos vean el mismo estado después de la sincronización."
+        },
+        {
+          "type": "heading",
+          "body": "Operación Offline"
+        },
+        {
+          "type": "paragraph",
+          "body": "Si tu conexión a internet se cae, puedes continuar trabajando normalmente. Los pedidos se pueden crear, modificar y completar offline. Cuando se restablece la conexión, todos los cambios se sincronizan automáticamente. El indicador de sincronización en el encabezado muestra tu estado actual: conectado, sincronizando u offline."
+        },
+        {
+          "type": "heading",
+          "body": "Mejores Prácticas"
+        },
+        {
+          "type": "paragraph",
+          "body": "Mantén tu dispositivo conectado a internet cuando sea posible para garantizar una sincronización oportuna. Si notas que el indicador de sincronización muestra offline por un período prolongado, verifica tu conexión de red. Los cambios realizados en un dispositivo pueden tardar unos segundos en aparecer en otro dispositivo después de la sincronización."
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Seguridad y Roles",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Tus datos están cifrados en tránsito y protegidos por autenticación segura."
+        },
+        {
+          "type": "heading",
+          "body": "Autenticación"
+        },
+        {
+          "type": "paragraph",
+          "body": "Todos los administradores inician sesión con un nombre de usuario y contraseña. Las sesiones se gestionan con tokens seguros que se renuevan automáticamente. Las contraseñas se almacenan de forma segura y nunca se exponen."
+        },
+        {
+          "type": "heading",
+          "body": "Privacidad de Datos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los datos del cliente se almacenan de forma segura y se utilizan solo para el procesamiento de pedidos y programas de lealtad. Cada ubicación del restaurante solo tiene acceso a sus propios datos. La información del huésped nunca se comparte entre diferentes restaurantes."
+        }
+      ]
+    },
+    {
+      "id": "colors",
+      "title": "Colores de la App del Cliente",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Elige un esquema de colores que mejor se adapte a tu restaurante. Este color se mostrará a tus clientes cuando abran la app del restaurante escaneando el código QR en la mesa."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Customer App Colors (web)  |  Bottom nav → Settings → Colors (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Customer App Colors",
+            "mobile": "Bottom nav → Settings → Colors"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando descargues la imagen del código QR de la mesa, usará este color para que toda la experiencia de tus clientes esté codificada por colores. La vista previa a continuación muestra cómo se verá tu selección para los clientes."
+        }
+      ]
+    },
+    {
+      "id": "functions",
+      "title": "Funciones del Restaurante",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Activa o desactiva funciones para tu restaurante. Alterna cada función para habilitarla o deshabilitarla para tu ubicación."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Functions (web)  |  Bottom nav → Settings → Functions (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Functions",
+            "mobile": "Bottom nav → Settings → Functions"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Qué Controla Cada Función"
+        },
+        {
+          "type": "paragraph",
+          "body": "Las funciones controlan qué capacidades están disponibles para tu personal y clientes. Por ejemplo, habilitar pedidos en línea permite a los clientes hacer pedidos a través de la app, mientras que los programas de lealtad permiten a los clientes acumular recompensas."
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "title": "Reportes de Ventas",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Visualiza reportes detallados de ventas y historial de pedidos. Analiza el rendimiento de tu restaurante con filtros por rangos de fechas y períodos de tiempo."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Reporting (web)  |  Bottom nav → Informes (móvil)",
+          "devices": {
+            "web": "Side menu → Reporting",
+            "mobile": "Bottom nav → Informes"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Filtrar Reportes"
+        },
+        {
+          "type": "paragraph",
+          "body": "Usa los selectores de fecha y los chips de rango de tiempo para filtrar tu reporte. Puedes ver hoy, ayer, esta semana, la semana pasada, este mes o el mes pasado. El reporte se actualiza automáticamente cuando cambias el rango de fechas."
+        },
+        {
+          "type": "heading",
+          "body": "Exportar Datos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Haz clic en el botón de descargar para exportar tu reporte como archivo CSV. Este archivo se puede abrir en Excel u otras aplicaciones de hojas de cálculo para un análisis más detallado."
+        }
+      ]
+    },
+    {
+      "id": "analytics",
+      "title": "Panel de Analíticas",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Una vista completa del rendimiento de tu restaurante. Analiza ingresos, pedidos, clientes y más con gráficos interactivos y tablas detalladas."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Analytics (web)  |  Bottom nav → Analytics (móvil)",
+          "devices": {
+            "web": "Side menu → Analytics",
+            "mobile": "Bottom nav → Analytics"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Filtrado por Fechas"
+        },
+        {
+          "type": "paragraph",
+          "body": "Usa los selectores de fecha y los chips de rango rápido para filtrar tus analíticas. Puedes ver hoy, ayer, esta semana, la semana pasada, este mes o el mes pasado. El panel se actualiza automáticamente cuando cambias el rango de fechas. Puedes seleccionar hasta 93 días de datos."
+        },
+        {
+          "type": "heading",
+          "body": "Indicadores Clave de Rendimiento (KPIs)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Las tarjetas KPI en la parte superior muestran tus métricas más importantes de un vistazo:"
+        },
+        {
+          "type": "list",
+          "body": "Ingresos Totales - El monto total de ventas para el período seleccionado\\nPedidos - El número total de pedidos realizados\\nValor Promedio del Pedido - El monto promedio gastado por pedido\\nArtículos Vendidos - El número total de artículos del menú vendidos\\nClientes Únicos - El número de diferentes clientes que realizaron pedidos"
+        },
+        {
+          "type": "heading",
+          "body": "Tendencia de Ingresos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un gráfico de barras que muestra tus ingresos diarios durante el período de tiempo seleccionado. Esto te ayuda a identificar tendencias y patrones en tu rendimiento de ventas."
+        },
+        {
+          "type": "heading",
+          "body": "Artículos Principales"
+        },
+        {
+          "type": "paragraph",
+          "body": "Muestra tus artículos del menú más vendidos clasificados por cantidad vendida. El gráfico de barras horizontal visualiza qué artículos son más populares, mientras que la tabla a continuación proporciona datos detallados de ingresos y cantidad para cada artículo."
+        },
+        {
+          "type": "heading",
+          "body": "Desglose de Cumplimiento"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un gráfico circular y tabla que muestra cómo se están cumpliendo los pedidos (ej: comida para llevar, entrega, en el restaurante). Esto te ayuda a entender qué tipos de pedido son más comunes en tu restaurante."
+        },
+        {
+          "type": "heading",
+          "body": "Pedidos en el Tiempo"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un gráfico de barras que muestra el número de pedidos realizados cada día. Esto es útil para identificar días ocupados y planificar el personal correspondientemente."
+        },
+        {
+          "type": "heading",
+          "body": "Analíticas de Clientes"
+        },
+        {
+          "type": "paragraph",
+          "body": "Una tabla que muestra el comportamiento de pedidos de tus clientes incluyendo su nombre, correo electrónico, número de pedidos, monto total gastado y puntos de lealtad ganados. Esto te ayuda a identificar tus clientes más valiosos."
+        },
+        {
+          "type": "heading",
+          "body": "Rendimiento de Promociones"
+        },
+        {
+          "type": "paragraph",
+          "body": "Una tabla que muestra cómo están funcionando tus promociones. Incluye el nombre de la promoción, tipo, número de canjes y puntos canjeados. Esto te ayuda a evaluar cuáles promociones generan más compromiso."
+        },
+        {
+          "type": "heading",
+          "body": "Exportar Datos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Haz clic en el botón de descargar en la parte inferior para guardar una captura de pantalla de tu panel de analíticas como archivo de imagen. Esto es útil para compartir reportes o mantener registros."
+        }
+      ]
+    },
+    {
+      "id": "updateMenu",
+      "title": "Actualizar Menú",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Administra el menú de tu restaurante. Crea y edita menús, categorías, subcategorías, artículos y combos."
+        },
+        {
+          "type": "breadcrumb",
+          "body": "Cómo encontrar esta función: Side menu → Settings → Update menu (web)  |  Bottom nav → Settings → Update Menu (móvil)",
+          "devices": {
+            "web": "Side menu → Settings → Update menu",
+            "mobile": "Bottom nav → Settings → Update Menu"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Gestión de Menús"
+        },
+        {
+          "type": "paragraph",
+          "body": "Selecciona un menú desde los botones superiores para verlo y editarlo. Puedes crear múltiples menús para diferentes propósitos (ej: comida para llevar, catering, servicio en el restaurante)."
+        },
+        {
+          "type": "heading",
+          "body": "Agregar Contenido"
+        },
+        {
+          "type": "list",
+          "body": "Categorías — Agrupa artículos relacionados (ej: Aperitivos, Platos Fuertes, Postres)\\nSubcategorías — Organiza aún más los artículos dentro de una categoría\\nArtículos — Artículos individuales del menú con nombre, precio, descripción e imagen\\nCombos — Agrupa múltiples artículos juntos a un precio especial"
+        },
+        {
+          "type": "heading",
+          "body": "Editar Artículos"
+        },
+        {
+          "type": "paragraph",
+          "body": "Toca en cualquier artículo para editar sus detalles. Puedes actualizar el nombre, precio, descripción e imagen. Los cambios se guardan automáticamente y aparecen en tu app de huéspedes en tiempo real."
+        }
+      ]
+    }
+  ]
+}

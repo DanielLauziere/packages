@@ -21,3 +21,5 @@ export { rowFromDb, rowsFromDb, dbColumnName, dbTableName } from './rowMapping.j
 export type * from './types.js'
 export * from './escpos.js'
 export { ticketIdFromUUID } from './ticketId.js'
+export { helpData, getHelpData } from './help/index.js'
+export type { HelpBlock, HelpBlockType, HelpSection, HelpData } from './help/index.js'
