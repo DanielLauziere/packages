@@ -19,10 +19,10 @@ import {
 
 function makeAdapter(db: DatabaseSync): DbAdapter {
   return {
-    run(sql: string, params: unknown[] = []) {
+    async run(sql: string, params: unknown[] = []) {
       db.prepare(sql).run(...(params as any[]))
     },
-    query(sql: string, params: unknown[] = []): any[] {
+    async query(sql: string, params: unknown[] = []): Promise<any[]> {
       return db.prepare(sql).all(...(params as any[])) as any[]
     },
   }
@@ -89,8 +89,8 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(tables).not.toContain('mock_schema_sync_probe')
   })
 
-  it('seedGroupDatabase maps snake_case wire keys to snake columns per-row', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('seedGroupDatabase maps snake_case wire keys to snake columns per-row', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
     expect((row(db, 'SELECT COUNT(*) AS c FROM location_group')).c).toBe(1)
     expect((row(db, 'SELECT COUNT(*) AS c FROM menu_item')).c).toBe(1)
     // FK join tables populated
@@ -99,9 +99,9 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect((row(db, 'SELECT COUNT(*) AS c FROM modifier_group_modifier')).c).toBe(1)
   })
 
-  it('applyLogsBatch applies a full ticket lifecycle', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
-    const res = applyLogsBatch(makeAdapter(db), logs as any)
+  it('applyLogsBatch applies a full ticket lifecycle', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    const res = await applyLogsBatch(makeAdapter(db), logs as any)
     expect(res.applied).toBe(10)
     expect(res.skipped).toBe(0)
     expect(res.errors).toEqual([])
@@ -130,9 +130,9 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(promos[0].promotion_uuid).toBe('promo1')
   })
 
-  it('implicit ticket creation applies rule-4 defaults on real SQLite', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
-    const res = applyLogsBatch(makeAdapter(db), [
+  it('implicit ticket creation applies rule-4 defaults on real SQLite', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    const res = await applyLogsBatch(makeAdapter(db), [
       { uuid: 'l-single', ticket_uuid: 'fresh-t1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'SET_GUEST', payload: { guest_user_name: 'NewGuest' }, time_stamp: 500 },
     ] as any)
     expect(res.applied).toBe(1)
@@ -147,14 +147,14 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(t.admin_uuid).toBe('admin1')
   })
 
-  it('replaying the same batch twice converges to identical state', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
-    const first = applyLogsBatch(makeAdapter(db), logs as any)
+  it('replaying the same batch twice converges to identical state', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    const first = await applyLogsBatch(makeAdapter(db), logs as any)
     expect(first.applied).toBe(10)
 
     const stateAfterFirst = all(db, 'SELECT * FROM ticket WHERE uuid=?', 't1')
     // Replay the exact same logs — nothing may change and nothing re-applies.
-    const second = applyLogsBatch(makeAdapter(db), logs as any)
+    const second = await applyLogsBatch(makeAdapter(db), logs as any)
     expect(second.applied).toBe(0)
     expect(second.skipped).toBe(10)
     expect(second.errors).toEqual([])
@@ -169,12 +169,12 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     }
   })
 
-  it('ticket_log_applied: claim row stays un-applied (retry) when deps missing, then applies', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('ticket_log_applied: claim row stays un-applied (retry) when deps missing, then applies', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
     // REMOVE_ITEM for a ticket_menu_item that does not exist yet — rule 5:
     // throw MISSING_DEPENDENCY → skip (keep claim time_stamp NULL) → retry later.
     const remove = { uuid: 'l-remove', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'REMOVE_ITEM', payload: { ticket_menu_item_uuid: 'tmi1' }, time_stamp: 4000 }
-    const res = applyLogsBatch(makeAdapter(db), [remove] as any)
+    const res = await applyLogsBatch(makeAdapter(db), [remove] as any)
     expect(res.applied).toBe(0)
     expect(res.skipped).toBe(1)
     const claim = row(db, 'SELECT time_stamp FROM ticket_log_applied WHERE uuid=?', 'l-remove')
@@ -182,17 +182,17 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
 
     // Now the ADD_ITEM arrives on the next cycle, then the remove applies.
     const add: any = { uuid: 'tmi1', ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 3000 }
-    const res2 = applyLogsBatch(makeAdapter(db), [add] as any)
+    const res2 = await applyLogsBatch(makeAdapter(db), [add] as any)
     expect(res2.applied).toBe(1)
-    const res3 = applyLogsBatch(makeAdapter(db), [remove] as any)
+    const res3 = await applyLogsBatch(makeAdapter(db), [remove] as any)
     expect(res3.applied).toBe(1)
     expect(res3.skipped).toBe(0)
     expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_menu_item WHERE uuid=?', 'tmi1').c).toBe(0) // removed
   })
 
-  it('T2 cross-ticket never wedge: a MISSING_DEPENDENCY on ticket A never blocks ticket B', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
-    const res = applyLogsBatch(makeAdapter(db), [
+  it('T2 cross-ticket never wedge: a MISSING_DEPENDENCY on ticket A never blocks ticket B', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    const res = await applyLogsBatch(makeAdapter(db), [
       // ticket A: first item can't apply (menu_item doesn't exist anywhere)...
       { uuid: 'a-bad-1', ticket_uuid: 'A', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'missing-xyz' }, time_stamp: 1000 },
       // ...but A's second item and ALL of ticket B must still apply.
@@ -221,11 +221,11 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(claim.time_stamp).toBeNull()
   })
 
-  it('the 5 rarely-integration-tested actions run against real SQLite', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('the 5 rarely-integration-tested actions run against real SQLite', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
     // tmi-extra is added first so the follow-up remove/note/modifier actions have
     // their FK dependencies present.
-    const setup = applyLogsBatch(makeAdapter(db), [
+    const setup = await applyLogsBatch(makeAdapter(db), [
       { uuid: 'tmi-extra', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 },
     ] as any)
     expect(setup.applied).toBe(1)
@@ -237,7 +237,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
       { uuid: 'l-rem-promo', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'REMOVE_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 5000 },
       { uuid: 'l-mod2', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'ADD_MODIFIER', payload: { ticket_menu_item_uuid: 'tmi-extra', modifier_uuid: 'mod1' }, time_stamp: 6000 },
     ]
-    const res = applyLogsBatch(makeAdapter(db), idiom)
+    const res = await applyLogsBatch(makeAdapter(db), idiom)
     expect(res.applied).toBe(idiom.length)
     expect(res.errors).toEqual([])
 
@@ -249,15 +249,15 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_promotion WHERE ticket_uuid=?', 't2').c).toBe(0)
 
     // REMOVE_MODIFIER with its FK present applies.
-    const rm = applyLogsBatch(makeAdapter(db), [
+    const rm = await applyLogsBatch(makeAdapter(db), [
       { uuid: 'l-mod3', ticket_uuid: 't2', location_group_uuid: LG, admin_uuid: 'admin1', action: 'REMOVE_MODIFIER', payload: { ticket_menu_item_modifier_uuid: 'l-mod2' }, time_stamp: 7000 },
     ] as any)
     expect(rm.applied).toBe(1)
     expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_menu_item_modifier WHERE uuid=?', 'l-mod2').c).toBe(0)
   })
 
-  it('SEED_ORDER is a valid FK-topological order that executes cleanly', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any, SEED_ORDER)
+  it('SEED_ORDER is a valid FK-topological order that executes cleanly', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any, SEED_ORDER)
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
     // The exported order must name every seedable table and know the schema.
     expect(SEED_ORDER.length).toBeGreaterThan(0)
@@ -266,43 +266,43 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('migrateSchema persists the applied uuid and is idempotent', async () => {
-    expect(getSchemaUuid(makeAdapter(db))).toBe('')
+    expect(await getSchemaUuid(makeAdapter(db))).toBe('')
     const first = await migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
     expect(first.needsReseed).toBe(true)
     const second = await migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
     expect(second.needsReseed).toBe(false)
-    expect(getSchemaUuid(makeAdapter(db))).toBe(SCHEMA_UUID)
+    expect(await getSchemaUuid(makeAdapter(db))).toBe(SCHEMA_UUID)
   })
 
   it('migrateSchema requests a reseed when the stored uuid differs', async () => {
     await applyDdl(makeAdapter(db), FULL_DDL)
-    setSchemaUuid(makeAdapter(db), 'some-old-schema-uuid')
+    await setSchemaUuid(makeAdapter(db), 'some-old-schema-uuid')
     const res = await migrateSchema(makeAdapter(db), { schemaUuid: SCHEMA_UUID, fullDdl: FULL_DDL })
     expect(res.needsReseed).toBe(true)
-    expect(getSchemaUuid(makeAdapter(db))).toBe(SCHEMA_UUID)
+    expect(await getSchemaUuid(makeAdapter(db))).toBe(SCHEMA_UUID)
   })
 
-  it('dropAllTables protects print_record and key_value', () => {
+  it('dropAllTables protects print_record and key_value', async () => {
     db.prepare(`INSERT INTO print_record (ticket_uuid, decision, printed_at, synced) VALUES ('t1','printed',1,0)`).run()
     db.prepare(`INSERT INTO key_value (key, value) VALUES ('schema_uuid','abc')`).run()
-    dropAllTables(makeAdapter(db), ['print_record', 'key_value'])
+    await dropAllTables(makeAdapter(db), ['print_record', 'key_value'])
     expect((row(db, 'SELECT COUNT(*) AS c FROM print_record')).c).toBe(1)
     expect((row(db, 'SELECT COUNT(*) AS c FROM key_value')).c).toBe(1)
     expect((row(db, `SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='ticket'`)).c).toBe(0)
   })
 
-  it('dropAllTables without key_value protection drops it (wipe contract)', () => {
+  it('dropAllTables without key_value protection drops it (wipe contract)', async () => {
     db.prepare(`INSERT INTO key_value (key, value) VALUES ('schema_uuid','abc')`).run()
-    dropAllTables(makeAdapter(db), ['print_record'])
+    await dropAllTables(makeAdapter(db), ['print_record'])
     expect((row(db, `SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='key_value'`)).c).toBe(0)
   })
 
-  it('SEED_ORDER guarantees FK parents precede children (base seed must run before menu-sync)', () => {
+  it('SEED_ORDER guarantees FK parents precede children (base seed must run before menu-sync)', async () => {
     // This mirrors the runtime bug: the menu-sync path seeded menu_item while
     // location_group was empty, causing "FOREIGN KEY constraint failed".
     // Seeding the full base snapshot (with locationGroup + menu parents)
     // in engine SEED_ORDER must never violate FKs.
-    seedGroupDatabase(makeAdapter(db), seed as any)
+    await seedGroupDatabase(makeAdapter(db), seed as any)
     // All FK ancestors exist and point at parents that were inserted earlier.
     expect((row(db, 'SELECT COUNT(*) AS c FROM location_group')).c).toBeGreaterThan(0)
     expect((row(db, 'SELECT COUNT(*) AS c FROM menu')).c).toBeGreaterThan(0)
@@ -313,22 +313,22 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(violations).toEqual([])
   })
 
-  it('menu-only snapshot with out-of-order parent must survive applyLogs FK references', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('menu-only snapshot with out-of-order parent must survive applyLogs FK references', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
     // The symptom surfaced as a SECONDARY FK error when applying a
     // SET_STATUS_COMPLETE log, because the parent rows the ticket referenced
     // (table, guest, fulfillment, menu item) were absent. After a correct
     // base seed they exist, so the full lifecycle applies without error.
-    const res = applyLogsBatch(makeAdapter(db), logs as any)
+    const res = await applyLogsBatch(makeAdapter(db), logs as any)
     expect(res.errors).toEqual([])
     expect(res.applied).toBe(10)
   })
 
-  it('seedGroupDatabase upserts the menu subtree from a /sync/menu payload', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('seedGroupDatabase upserts the menu subtree from a /sync/menu payload', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
     const menuSeed: any = { location_group: seed.location_group, menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
 
-    seedGroupDatabase(makeAdapter(db), menuSeed)
+    await seedGroupDatabase(makeAdapter(db), menuSeed)
 
     expect(row(db, 'SELECT COUNT(*) AS c FROM menu_item').c).toBe(1)
     expect(row(db, 'SELECT COUNT(*) AS c FROM menu').c).toBe(1)
@@ -338,17 +338,17 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
 
-  it('seedGroupDatabase rerun (second menu payload) is idempotent and FK-clean', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('seedGroupDatabase rerun (second menu payload) is idempotent and FK-clean', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
     const menuSeed: any = { location_group: seed.location_group, menu: seed.menu, menu_category: seed.menu_category, menu_item: seed.menu_item, modifier_group: seed.modifier_group, modifier: seed.modifier, menu_menu_category: seed.menu_menu_category, menu_item_menu_category: seed.menu_item_menu_category, menu_item_modifier_group: seed.menu_item_modifier_group, modifier_group_modifier: seed.modifier_group_modifier, sub_category: [], combo: [] }
 
-    seedGroupDatabase(makeAdapter(db), menuSeed)
-    seedGroupDatabase(makeAdapter(db), menuSeed)
+    await seedGroupDatabase(makeAdapter(db), menuSeed)
+    await seedGroupDatabase(makeAdapter(db), menuSeed)
     expect(row(db, 'SELECT COUNT(*) AS c FROM menu_item').c).toBe(1)
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
 
-  it('seedGroupDatabase survives a hostile seed: empty strings, nulls, missing keys, unknown keys', () => {
+  it('seedGroupDatabase survives a hostile seed: empty strings, nulls, missing keys, unknown keys', async () => {
     const hostile: any = {
       country: [
         { uuid: 'ct-1', name: '', nombre: 'El Salvador', iso2: 'SV', iso3: 'SLV', this_key_does_not_exist: 'ignored' },
@@ -367,7 +367,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
       ],
     }
 
-    seedGroupDatabase(makeAdapter(db), hostile)
+    await seedGroupDatabase(makeAdapter(db), hostile)
 
     // Unknown keys are dropped against the live schema (PRAGMA table_info), no
     // extra columns, no crash. Empty string name is preserved as '' — never
@@ -384,7 +384,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
   })
 
-  it('rowsFromDb passes snake_case rows through (identity wire contract)', () => {
+  it('rowsFromDb passes snake_case rows through (identity wire contract)', async () => {
     db.prepare(`INSERT INTO print_record (ticket_uuid, decision, printed_at, synced) VALUES ('t1','printed',123,0)`).run()
     const raw = all(db, 'SELECT ticket_uuid, decision, printed_at, synced FROM print_record WHERE ticket_uuid=?', 't1')
     const snake = rowsFromDb(raw)
@@ -396,7 +396,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     // on an unmodified engine. No SEED_COLUMNS entry, no playback code — the
     // column set is derived from the live schema by PRAGMA introspection.
     await applyDdl(makeAdapter(db), `CREATE TABLE IF NOT EXISTS "taste_preference" ("uuid" TEXT NOT NULL, "guest_uuid" TEXT, "note" TEXT, PRIMARY KEY ("uuid"))`)
-    seedGroupDatabase(makeAdapter(db), {
+    await seedGroupDatabase(makeAdapter(db), {
       taste_preference: [
         { uuid: 'tp-1', guest_uuid: 'guest1', note: '' },
         { uuid: 'tp-2', guest_uuid: 'guest1', unknown_key: 'dropped' },
@@ -406,15 +406,15 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(row(db, `SELECT COUNT(*) AS c FROM taste_preference WHERE note = ''`).c).toBe(1)
   })
 
-  it('heal re-seed over live data upserts ref rows without cascading into tickets', () => {
+  it('heal re-seed over live data upserts ref rows without cascading into tickets', async () => {
     // HIGH-1 regression: reconcileData heal re-seeds a NON-empty DB with a
     // fresh server snapshot. INSERT OR REPLACE on the ref tables fires ON
     // DELETE CASCADE (ticket→dining_table, ticket_promotion→promotion,
     // ticket_menu_item→menu_item, ticket_payment→payment), silently wiping
     // live orders. The seeder must UPSERT on the PK so ref rows update in
     // place and tickets survive. Regression: this test FAILS on OR REPLACE.
-    seedGroupDatabase(makeAdapter(db), seed as any)
-    applyLogsBatch(makeAdapter(db), logs as any)
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    await applyLogsBatch(makeAdapter(db), logs as any)
 
     // Heal snapshot built from the LIVE rows (complete, default-filled) with
     // the server's renames applied — the exact shape /sync returns.
@@ -430,7 +430,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     const payment = snap('payment')[0]
     const locationGroup = snap('location_group')[0]
 
-    seedGroupDatabase(makeAdapter(db), {
+    await seedGroupDatabase(makeAdapter(db), {
       location_group: [locationGroup],
       promotion: [promotion],
       dining_table: [table],
@@ -476,11 +476,11 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
     return { uuid, ticket_uuid: 't1', location_group_uuid: LG, admin_uuid: 'admin1', action, payload: {}, time_stamp: 1 }
   }
 
-  it('T14: failLog writes next_retry_at = now + (retry_count+1) × 10s — exact value', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('T14: failLog writes next_retry_at = now + (retry_count+1) × 10s — exact value', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
 
     const log = badLog('BOGUS_ACTION', 'bogus-1')
-    const first = applyLogsBatch(makeAdapter(db), [log] as any)
+    const first = await applyLogsBatch(makeAdapter(db), [log] as any)
     expect(first.applied).toBe(0)
     expect(first.errors).toHaveLength(1)
 
@@ -491,19 +491,19 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
     expect(tla.time_stamp).toBeNull() // still unapplied → retried next cycle
 
     // Second failure of the same log: count 1 → backoff grows to +20s.
-    const second = applyLogsBatch(makeAdapter(db), [log] as any)
+    const second = await applyLogsBatch(makeAdapter(db), [log] as any)
     expect(second.applied).toBe(0)
     tla = row(db, 'SELECT retry_count, next_retry_at FROM ticket_log_applied WHERE uuid=?', 'bogus-1')
     expect(tla.retry_count).toBe(2)
     expect(tla.next_retry_at).toBe(FIXED_NOW + 20_000)
   })
 
-  it('T17: last_error is truncated to exactly 255 chars like the Go/RN clients', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
+  it('T17: last_error is truncated to exactly 255 chars like the Go/RN clients', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
 
     // UNKNOWN_ACTION message = "UNKNOWN_ACTION: " + a 300-char action name.
     const long = 'X'.repeat(300)
-    applyLogsBatch(makeAdapter(db), [badLog(long, 'bogus-2')] as any)
+    await applyLogsBatch(makeAdapter(db), [badLog(long, 'bogus-2')] as any)
 
     const tla = row(db, 'SELECT retry_count, last_error FROM ticket_log_applied WHERE uuid=?', 'bogus-2')
     expect(tla.retry_count).toBe(1)
@@ -514,9 +514,9 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
     expect(tla.last_error.endsWith('X'.repeat(239))).toBe(true)
   })
 
-  it('T17: short errors are stored verbatim (no padding, no mangling)', () => {
-    seedGroupDatabase(makeAdapter(db), seed as any)
-    applyLogsBatch(makeAdapter(db), [badLog('BOGUS_ACTION', 'bogus-3')] as any)
+  it('T17: short errors are stored verbatim (no padding, no mangling)', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    await applyLogsBatch(makeAdapter(db), [badLog('BOGUS_ACTION', 'bogus-3')] as any)
     const tla = row(db, 'SELECT last_error FROM ticket_log_applied WHERE uuid=?', 'bogus-3')
     expect(tla.last_error).toBe('UNKNOWN_ACTION: BOGUS_ACTION')
   })

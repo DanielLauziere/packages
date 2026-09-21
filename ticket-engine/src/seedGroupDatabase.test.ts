@@ -4,8 +4,8 @@ import { applyDdl, FULL_DDL, seedGroupDatabase, validateSeedPayload, applyLogsBa
 
 function adapter(db: DatabaseSync) {
   return {
-    run: (s: string, p: unknown[] = []) => db.prepare(s).run(...(p as any)),
-    query: (s: string, p: unknown[] = []) => db.prepare(s).all(...(p as any)),
+    run: async (s: string, p: unknown[] = []) => db.prepare(s).run(...(p as any)),
+    query: async (s: string, p: unknown[] = []) => db.prepare(s).all(...(p as any)),
   }
 }
 
@@ -34,17 +34,17 @@ it('mid-seed failure rolls back everything; the next seed completes (§4.2)', as
   // persists the new version — old version stays (SEED-REFACTOR §2.3/§4.2).
   const failAtCommit = (() => {
     return {
-      run: (s: string, p: unknown[] = []) => {
+      run: async (s: string, p: unknown[] = []) => {
         if (s.trim().toUpperCase().startsWith('COMMIT')) {
           throw new Error('simulated kill mid-seed')
         }
         return db.prepare(s).run(...(p as any))
       },
-      query: (s: string, p: unknown[] = []) => db.prepare(s).all(...(p as any)),
+      query: async (s: string, p: unknown[] = []) => db.prepare(s).all(...(p as any)),
     }
   })()
 
-  expect(() => seedGroupDatabase(failAtCommit, seed)).toThrow('simulated kill mid-seed')
+  await expect(seedGroupDatabase(failAtCommit, seed)).rejects.toThrow('simulated kill mid-seed')
 
   // Rolled back atomically: nothing from the aborted seed persisted.
   const count = (t: string) => (db.prepare(`SELECT COUNT(*) c FROM "${t}"`).get() as any).c
@@ -55,7 +55,7 @@ it('mid-seed failure rolls back everything; the next seed completes (§4.2)', as
   expect((db.prepare('PRAGMA foreign_keys').get() as any).foreign_keys).toBe(1)
 
   // Relaunch: the same seed against the healthy DB completes and lands.
-  seedGroupDatabase(adapter(db), seed)
+  await seedGroupDatabase(adapter(db), seed)
   expect(count('country')).toBe(1)
   expect(count('location_group')).toBe(1)
   expect(count('dining_table')).toBe(1)
@@ -101,12 +101,12 @@ describe('seedGroupDatabase (unified seeder)', () => {
       // untouched.
     }
 
-    seedGroupDatabase(adapter(db), seed as any)
+    await seedGroupDatabase(adapter(db), seed as any)
 
     // Create a live ticket + ticket_promotion through the apply pipeline (the
     // only sanctioned writer of the ticket family), so the heal reseed below
     // has rows it must not clobber.
-    applyLogsBatch(adapter(db), [
+    await applyLogsBatch(adapter(db), [
       { uuid: 'l-guest', ticket_uuid: 'tkt-1', location_group_uuid: 'lgg', admin_uuid: 'admin-1', action: 'SET_GUEST', payload: { guest_user_name: 'guest@x.com' }, time_stamp: 1000 },
       { uuid: 'l-table', ticket_uuid: 'tkt-1', location_group_uuid: 'lgg', admin_uuid: 'admin-1', action: 'SET_TABLE', payload: { table_uuid: 'dt1' }, time_stamp: 1100 },
       { uuid: 'l-ful', ticket_uuid: 'tkt-1', location_group_uuid: 'lgg', admin_uuid: 'admin-1', action: 'SET_FULFILLMENT', payload: { fulfillment_uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e' }, time_stamp: 1200 },
@@ -137,7 +137,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
       // either not in the payload (untouched) or trusted NEVER_TOUCH tables.
     }
 
-    seedGroupDatabase(adapter(db), refSeed as any)
+    await seedGroupDatabase(adapter(db), refSeed as any)
 
     const all = (s: string) => db.prepare(s).all() as any[]
 
@@ -182,7 +182,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
         { uuid: 'dt2', name: 'T2', active: 1, location_group_uuid: 'lgg' },
       ],
     }
-    seedGroupDatabase(adapter(db), seed as any)
+    await seedGroupDatabase(adapter(db), seed as any)
 
     // Re-seed with dt2 removed from the payload. Entity (dining_table) rows are
     // never deleted — the server instead sets active=0 — so dt2 must survive.
@@ -191,7 +191,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
       location_group: [LG()],
       dining_table: [{ uuid: 'dt1', name: 'T1', active: 1, location_group_uuid: 'lgg' }],
     }
-    seedGroupDatabase(adapter(db), reseed as any)
+    await seedGroupDatabase(adapter(db), reseed as any)
 
     const all = (s: string) => db.prepare(s).all() as any[]
     expect(all(`SELECT COUNT(*) c FROM dining_table`)[0].c).toBe(2)
@@ -221,7 +221,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
         { uuid: 'mimc2', menu_item_uuid: 'mi2', menu_category_uuid: 'cat1' },
       ],
     }
-    seedGroupDatabase(adapter(db), base as any)
+    await seedGroupDatabase(adapter(db), base as any)
 
     // Server removed mi2 from the category: its join row disappears, mi2 stays.
     const reseed = {
@@ -240,7 +240,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
         { uuid: 'mimc1', menu_item_uuid: 'mi1', menu_category_uuid: 'cat1' },
       ],
     }
-    seedGroupDatabase(adapter(db), reseed as any)
+    await seedGroupDatabase(adapter(db), reseed as any)
 
     const all = (s: string) => db.prepare(s).all() as any[]
     expect(all(`SELECT COUNT(*) c FROM menu_item_menu_category`)[0].c).toBe(1)
@@ -273,8 +273,8 @@ describe('seedGroupDatabase (unified seeder)', () => {
       combo: [],
     }
 
-    seedGroupDatabase(adapter(db), menuSeed)
-    seedGroupDatabase(adapter(db), menuSeed)
+    await seedGroupDatabase(adapter(db), menuSeed)
+    await seedGroupDatabase(adapter(db), menuSeed)
 
     const row = (s: string) => db.prepare(s).get() as any
     expect(row(`SELECT COUNT(*) c FROM menu_item`).c).toBe(1)
@@ -299,7 +299,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
       ticket_log: [{ uuid: 'tl1', location_group_uuid: 'lgg', ticket_uuid: 't1', action: 'ADD_ITEM', payload: '{}', time_stamp: 1 }],
       guest_location_group: [{ uuid: 'glg1', guest_uuid: 'g1', location_group_uuid: 'lgg', points: 999 }],
     }
-    seedGroupDatabase(adapter(db), seed)
+    await seedGroupDatabase(adapter(db), seed)
 
     const all = (s: string) => db.prepare(s).all() as any[]
     // The seeder still refuses to touch local device/auth + ticket state:
@@ -329,7 +329,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
       not_a_table: [{ uuid: 'x' }],
       session: 'scalar',
     }
-    const problems = validateSeedPayload(adapter(db), seed)
+    const problems = await validateSeedPayload(adapter(db), seed)
 
     const issue = (table: string, i: string) => problems.some((p) => p.table === table && p.issue === i)
     expect(issue('seed_version', 'nonTable')).toBe(true)
@@ -346,7 +346,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
       location_group: [LG()],
       menu_item: [{ uuid: 'mi1', name: 'ok' }],
     }
-    expect(validateSeedPayload(adapter(db), good)).toEqual([])
+    expect(await validateSeedPayload(adapter(db), good)).toEqual([])
   })
 
   it('admin_location_permission diff-delete removes stale permission rows on re-seed', async () => {
@@ -374,7 +374,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
         { uuid: 'alp-3', admin_location_uuid: 'al-1', permission_uuid: 'perm-3' },
       ],
     }
-    seedGroupDatabase(adapter(db), seed as any)
+    await seedGroupDatabase(adapter(db), seed as any)
 
     const all = (s: string) => db.prepare(s).all() as any[]
     expect(all(`SELECT COUNT(*) c FROM admin_location_permission`)[0].c).toBe(3)
@@ -399,7 +399,7 @@ describe('seedGroupDatabase (unified seeder)', () => {
         { uuid: 'alp-2', admin_location_uuid: 'al-1', permission_uuid: 'perm-2' },
       ],
     }
-    seedGroupDatabase(adapter(db), reseed as any)
+    await seedGroupDatabase(adapter(db), reseed as any)
 
     expect(all(`SELECT COUNT(*) c FROM admin_location_permission`)[0].c).toBe(2)
     const perms = all(`SELECT permission_uuid FROM admin_location_permission ORDER BY permission_uuid`)

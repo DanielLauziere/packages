@@ -11,8 +11,8 @@ import {
 
 function adapter(db: DatabaseSync) {
   return {
-    run: (s: string, p: unknown[] = []) => db.prepare(s).run(...(p as any)),
-    query: (s: string, p: unknown[] = []) => db.prepare(s).all(...(p as any)),
+    run: async (s: string, p: unknown[] = []) => db.prepare(s).run(...(p as any)),
+    query: async (s: string, p: unknown[] = []) => db.prepare(s).all(...(p as any)),
   }
 }
 
@@ -44,7 +44,7 @@ it('T19: dropAllTables keeps key_value + print_record rows, drops everything els
   expect(before).toContain('print_record')
   expect(before).toContain('admin') // a normal table that must go
 
-  dropAllTables(adapter(db), ['key_value', 'print_record'])
+  await dropAllTables(adapter(db), ['key_value', 'print_record'])
 
   const after = userTables(db)
   expect(after).toEqual(['key_value', 'print_record'])
@@ -75,7 +75,7 @@ describe('T20: resetDatabase round-trip preserves/clears protected tables', () =
     ).run('tkt-2', 'printed', 0)
 
     // The real resetDatabase body: dropAllTables(protected) + applyDdl(FULL_DDL).
-    dropAllTables(adapter(db), ['key_value', 'print_record'])
+    await dropAllTables(adapter(db), ['key_value', 'print_record'])
     await applyDdl(adapter(db), FULL_DDL)
 
     expect(
@@ -96,7 +96,7 @@ describe('T20: resetDatabase round-trip preserves/clears protected tables', () =
       `INSERT INTO print_record (ticket_uuid, decision, synced) VALUES (?, ?, ?)`,
     ).run('tkt-2', 'printed', 0)
 
-    dropAllTables(adapter(db), [])
+    await dropAllTables(adapter(db), [])
     await applyDdl(adapter(db), FULL_DDL)
 
     // FULL_DDL recreates the skeleton, but a 'none' wipe must have cleared the
@@ -143,7 +143,7 @@ it('T23: applying A → B → A converges to a consistent DB with the final uuid
   await migrateSchema(adapter(db), { schemaUuid: 'B', fullDdl: FULL_DDL + probe })
   await migrateSchema(adapter(db), { schemaUuid: 'A', fullDdl: FULL_DDL })
 
-  expect(getSchemaUuid(adapter(db))).toBe('A')
+  expect(await getSchemaUuid(adapter(db))).toBe('A')
   // The newer schema's table is tolerated leftover (additive-only), not a failure.
   expect(userTables(db)).toContain('schema_sync_probe')
   expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
@@ -185,6 +185,6 @@ it('setSchemaUuid/getSchemaUuid round-trip', async () => {
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   await applyDdl(adapter(db), FULL_DDL)
-  setSchemaUuid(adapter(db), 'zzz')
-  expect(getSchemaUuid(adapter(db))).toBe('zzz')
+  await setSchemaUuid(adapter(db), 'zzz')
+  expect(await getSchemaUuid(adapter(db))).toBe('zzz')
 })

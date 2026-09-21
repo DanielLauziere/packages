@@ -41,10 +41,10 @@ const corpus = JSON.parse(
 
 function makeAdapter(db: DatabaseSync): DbAdapter {
   return {
-    run(sql: string, params: unknown[] = []) {
+    async run(sql: string, params: unknown[] = []) {
       db.prepare(sql).run(...(params as any[]))
     },
-    query(sql: string, params: unknown[] = []): any[] {
+    async query(sql: string, params: unknown[] = []): Promise<any[]> {
       return db.prepare(sql).all(...(params as any[])) as any[]
     },
   }
@@ -54,7 +54,7 @@ function all(db: DatabaseSync, sql: string, ...p: any[]): any[] {
   return db.prepare(sql).all(...p)
 }
 
-// Builds the exact shape `expect.tickets[uuid]` promises, keyed only by the
+// Builds the exact shape `expect.tickets` promises, keyed only by the
 // fields the corpus asserts, so adding fields to either side stays explicit.
 function serializeTicket(db: DatabaseSync, ticketUuid: string, wanted: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -101,10 +101,10 @@ describe('T4 parity corpus → TS engine on real SQLite', () => {
   afterEach(() => db.close())
 
   for (const scenario of corpus.scenarios) {
-    it(`TS matches corpus "expect" for ${scenario.name}`, () => {
-      seedGroupDatabase(makeAdapter(db), scenario.refs as any)
+    it(`TS matches corpus "expect" for ${scenario.name}`, async () => {
+      await seedGroupDatabase(makeAdapter(db), scenario.refs as any)
 
-      const res = applyLogsBatch(makeAdapter(db), scenario.logs as any)
+      const res = await applyLogsBatch(makeAdapter(db), scenario.logs as any)
 
       expect(res.applied).toBe(scenario.expect.applied)
       expect(res.skipped).toBe(scenario.expect.skipped)
