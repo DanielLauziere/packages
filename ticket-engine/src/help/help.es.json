@@ -479,58 +479,89 @@
         },
         {
           "type": "heading",
-          "body": "Lo Que Necesitas"
+          "body": "Paso 1 — Configuración del Emisor"
         },
         {
           "type": "paragraph",
-          "body": "Para usar DTE necesitas un certificado de firma digital en formato PKCS#12 (.p12 o .pfx) emitido por una Autoridad de Certificación reconocida (ej. Autoescuela, Icaro, u otro proveedor autorizado por Hacienda). También necesitas tu nombre de usuario y contraseña del portal de Hacienda."
-        },
-        {
-          "type": "paragraph",
-          "body": "Si aún no tienes un certificado, contacta a tu asesor fiscal o al proveedor del certificado para solicitar uno. El certificado está vinculado a tu RNC (Registro Nacional de Contribuyentes)."
+          "body": "Completa los datos de tu negocio exactamente como aparecen en tu registro ante Hacienda. Estos valores se imprimen en cada factura electrónica."
         },
         {
           "type": "heading",
-          "body": "Cómo Configurar DTE"
-        },
-        {
-          "type": "paragraph",
-          "body": "1. Ve a la sección de Configuración DTE (ver ruta de navegación arriba)."
-        },
-        {
-          "type": "paragraph",
-          "body": "2. Sube tu archivo de certificado PKCS#12 (.p12 o .pfx)."
-        },
-        {
-          "type": "paragraph",
-          "body": "3. Ingresa la contraseña del certificado, nombre de usuario del portal de Hacienda y contraseña del portal de Hacienda."
-        },
-        {
-          "type": "paragraph",
-          "body": "4. Haz clic en Guardar Credenciales."
-        },
-        {
-          "type": "paragraph",
-          "body": "5. Haz clic en Emisión de Prueba para verificar que tus credenciales funcionan enviando un DTE de prueba a Hacienda."
-        },
-        {
-          "type": "paragraph",
-          "body": "6. Una vez que la prueba tenga éxito, activa DTE. Los tickets pagados se emitirán a Hacienda automáticamente."
-        },
-        {
-          "type": "note",
-          "body": "DTE solo está disponible para restaurantes con el permiso apropiado. Las credenciales se almacenan encriptadas en tu dispositivo y nunca se envían al servidor de DirectEatz."
-        },
-        {
-          "type": "heading",
-          "body": "Dónde Encontrar Configuración DTE"
+          "body": "Referencia de Campos"
         },
         {
           "type": "list",
           "items": [
-            "Web (panel de administración) — Menú lateral → Ajustes → Facturación Electrónica (DTE)",
-            "Mobile (app nativa) — Navegación inferior → Grupo de Ajustes → Facturación electrónica"
+            "Ambiente — Usa \"Pruebas (00)\" mientras configuras, luego cambia a \"Producción (01)\" cuando estés listo para emitir facturas reales.",
+            "NIT — Tu identificador tributario de 14 dígitos (NÚMERO DE IDENTIFICACIÓN TRIBUTARIA). Ejemplo: 94500201851069.",
+            "NRC — Tu número de Registro Nacional de Contribuyentes. Ejemplo: 3899028.",
+            "Razón Social (nombre emisor) — El nombre legal completo de tu empresa registrado ante Hacienda.",
+            "Nombre Comercial — El nombre comercial que ven los clientes (puede ser igual a la razón social).",
+            "Código de Actividad — El código de actividad económica de tu registro. Ejemplo: 58200 (Edición de software).",
+            "Descripción de Actividad — Una descripción breve del código de actividad. Ejemplo: Edición de programas informáticos.",
+            "Tipo de Establecimiento — \"01\" para General, a menos que Hacienda te haya asignado un código diferente.",
+            "Dirección — Calle, colonia u otro detalle de dirección del establecimiento.",
+            "Teléfono — Número de teléfono del negocio.",
+            "Correo — Correo electrónico del negocio.",
+            "Código de Departamento — Código de 2 dígitos del catálogo de Hacienda. Ejemplo: 02 para Santa Ana.",
+            "Código de Municipio — Código de 2 dígitos del municipio dentro del departamento. Ejemplo: 17 para Santa Ana Oeste."
           ]
+        },
+        {
+          "type": "note",
+          "body": "Puedes encontrar los códigos de departamento y municipio en el catálogo de Hacienda en catalogos.dte.gob.sv. El código de departamento siempre tiene 2 dígitos y el código de municipio siempre tiene 2 dígitos."
+        },
+        {
+          "type": "heading",
+          "body": "Paso 2 — Sube Tu Certificado de Hacienda"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando descargas tu certificado del sitio web de Hacienda (portal.dte.gob.sv), recibes un archivo XML. Este archivo contiene tu llave de firma digital y la información de tu negocio."
+        },
+        {
+          "type": "list",
+          "items": [
+            "En la tarjeta de Credenciales de Firma, haz clic en \"Elegir archivo\" y selecciona el archivo XML que descargaste de Hacienda.",
+            "Ingresa tu usuario y contraseña del portal de Hacienda.",
+            "Haz clic en \"Guardar Credenciales\"."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "El sistema extraerá automáticamente tu NIT, NRC y nombre del negocio del certificado y completará los campos de Configuración del Emisor por ti."
+        },
+        {
+          "type": "warning",
+          "body": "No compartas tu archivo XML de certificado de Hacienda con nadie. Si alguien obtiene acceso a él, puede emitir facturas a nombre de tu negocio."
+        },
+        {
+          "type": "heading",
+          "body": "Paso 3 — Probar y Activar"
+        },
+        {
+          "type": "paragraph",
+          "body": "1. Después de guardar tus credenciales, haz clic en \"Emitir Prueba\" para enviar un DTE de prueba a Hacienda. Esto verifica que tu certificado y credenciales del portal funcionan correctamente."
+        },
+        {
+          "type": "paragraph",
+          "body": "2. Si la prueba es exitosa, verás un mensaje de éxito. Si falla, verifica tu inicio de sesión del portal de Hacienda y asegúrate de que el archivo XML sea válido."
+        },
+        {
+          "type": "paragraph",
+          "body": "3. Una vez que la prueba pase, activa DTE en la parte superior de la página. A partir de este momento, cada ticket pagado se emitirá automáticamente a Hacienda como factura electrónica."
+        },
+        {
+          "type": "note",
+          "body": "Comienza con el Ambiente en \"Pruebas (00)\" mientras verificas que todo funcione. Cambia a \"Producción (01)\" solo cuando estés listo para emitir facturas reales."
+        },
+        {
+          "type": "heading",
+          "body": "Qué Se Completó Automáticamente"
+        },
+        {
+          "type": "paragraph",
+          "body": "Después de subir tu certificado XML de Hacienda, el sistema completa automáticamente tu NIT, NRC y Nombre del Negocio desde el certificado. Aún necesitas completar: Código de Actividad, Descripción de Actividad, Código de Departamento, Código de Municipio, Teléfono, Correo y Dirección."
         },
         {
           "type": "heading",

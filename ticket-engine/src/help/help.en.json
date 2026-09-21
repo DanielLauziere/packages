@@ -479,58 +479,89 @@
         },
         {
           "type": "heading",
-          "body": "What You Need"
+          "body": "Step 1 — Emisor Configuration"
         },
         {
           "type": "paragraph",
-          "body": "To use DTE you need a digital signature certificate in PKCS#12 format (.p12 or .pfx) issued by a recognized Certificate Authority (e.g. Autoescuela, Icaro, or another provider authorized by Hacienda). You also need your Hacienda portal username and password."
-        },
-        {
-          "type": "paragraph",
-          "body": "If you do not yet have a certificate, contact your tax advisor or the certificate provider to request one. The certificate is tied to your RNC (Registro Nacional de Contribuyentes)."
+          "body": "Fill in your business details exactly as they appear on your Hacienda registration. These values are printed on every electronic invoice."
         },
         {
           "type": "heading",
-          "body": "Setting Up DTE"
-        },
-        {
-          "type": "paragraph",
-          "body": "1. Go to the DTE Setup section (see breadcrumb above)."
-        },
-        {
-          "type": "paragraph",
-          "body": "2. Upload your PKCS#12 certificate file (.p12 or .pfx)."
-        },
-        {
-          "type": "paragraph",
-          "body": "3. Enter the certificate password, Hacienda portal username, and Hacienda portal password."
-        },
-        {
-          "type": "paragraph",
-          "body": "4. Click Save Credentials."
-        },
-        {
-          "type": "paragraph",
-          "body": "5. Click Test Emission to verify your credentials work by sending a test DTE to Hacienda."
-        },
-        {
-          "type": "paragraph",
-          "body": "6. Once the test succeeds, toggle DTE to enabled. Paid tickets will now be emitted to Hacienda automatically."
-        },
-        {
-          "type": "note",
-          "body": "DTE is only available for restaurants with the appropriate permission. Credentials are stored encrypted on your device and are never sent to the DirectEatz server."
-        },
-        {
-          "type": "heading",
-          "body": "Where to Find DTE Setup"
+          "body": "Field Reference"
         },
         {
           "type": "list",
           "items": [
-            "Web (admin dashboard) — Side menu → Settings → Electronic Invoice (DTE)",
-            "Mobile (native app) — Bottom nav → Settings group → Facturación electrónica"
+            "Ambiente — Use \"Pruebas (00)\" while setting up, then switch to \"Producción (01)\" when ready to go live.",
+            "NIT — Your 14-digit taxpayer ID (NÚMERO DE IDENTIFICACIÓN TRIBUTARIA). Example: 94500201851069.",
+            "NRC — Your Registro Nacional de Contribuyentes number. Example: 3899028.",
+            "Business Name (nombre emisor) — The full legal name of your company as registered with Hacienda.",
+            "Commercial Name (nombre comercial) — The trade name shown to customers (can be the same as business name).",
+            "Activity Code (código de actividad) — The economic activity code from your registration. Example: 58200 (Software publishing).",
+            "Activity Description — A short description of the activity code. Example: Edición de programas informáticos.",
+            "Establishment Type — \"01\" for General, unless Hacienda assigned you a different code.",
+            "Address — Street, colonia, or other address detail for the establishment.",
+            "Phone — Business phone number.",
+            "Email — Business email address.",
+            "Department Code — 2-digit department code from the Hacienda catalog. Example: 02 for Santa Ana.",
+            "Municipality Code — 2-digit municipality code within the department. Example: 17 for Santa Ana Oeste."
           ]
+        },
+        {
+          "type": "note",
+          "body": "You can find your department and municipality codes in the Hacienda catalog at catalogos.dte.gob.sv. The department code is always 2 digits and the municipality code is always 2 digits."
+        },
+        {
+          "type": "heading",
+          "body": "Step 2 — Upload Your Hacienda Certificate"
+        },
+        {
+          "type": "paragraph",
+          "body": "When you download your certificate from the Hacienda website (portal.dte.gob.sv), you receive an XML file. This file contains your digital signature key and business information."
+        },
+        {
+          "type": "list",
+          "items": [
+            "In the Signing Credentials card, click \"Choose file\" and select the XML file you downloaded from Hacienda.",
+            "Enter your Hacienda portal username and password.",
+            "Click \"Save Credentials\"."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "The system will automatically extract your NIT, NRC, and business name from the certificate and fill in the Emisor Configuration fields for you."
+        },
+        {
+          "type": "warning",
+          "body": "Do not share your Hacienda XML certificate file with anyone. If someone gains access to it, they can issue invoices under your business name."
+        },
+        {
+          "type": "heading",
+          "body": "Step 3 — Test and Enable"
+        },
+        {
+          "type": "paragraph",
+          "body": "1. After saving your credentials, click \"Test Emit\" to send a test DTE to Hacienda. This verifies that your certificate and portal credentials all work correctly."
+        },
+        {
+          "type": "paragraph",
+          "body": "2. If the test succeeds, you will see a success message. If it fails, double-check your Hacienda portal login and make sure the XML file is valid."
+        },
+        {
+          "type": "paragraph",
+          "body": "3. Once the test passes, toggle DTE to enabled at the top of the page. From this point on, every paid ticket will be automatically emitted to Hacienda as a electronic invoice."
+        },
+        {
+          "type": "note",
+          "body": "Start with Ambiente set to \"Pruebas (00)\" while you verify everything works. Switch to \"Producción (01)\" only when you are ready to issue real invoices."
+        },
+        {
+          "type": "heading",
+          "body": "What Was Auto-Filled"
+        },
+        {
+          "type": "paragraph",
+          "body": "After uploading your Hacienda XML certificate, the system automatically fills in your NIT, NRC, and Business Name from the certificate. You still need to fill in: Activity Code, Activity Description, Department Code, Municipality Code, Phone, Email, and Address."
         },
         {
           "type": "heading",
