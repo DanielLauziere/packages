@@ -922,7 +922,7 @@
       "blocks": [
         {
           "type": "summary",
-          "body": "La sección de Facturación muestra tu saldo disponible y te permite agregar crédito. Cada restaurante tiene una tarifa diaria que se descuenta automáticamente de tu saldo."
+          "body": "La sección de Facturación muestra tu plan actual, saldo y un historial cronológico de cambios de plan, facturas y pagos."
         },
         {
           "type": "breadcrumb",
@@ -938,30 +938,39 @@
         },
         {
           "type": "paragraph",
-          "body": "Tu restaurante tiene un costo fijo de {{dayPrice}} por día activo. En lugar de facturas mensuales, agregas crédito a tu cuenta y el costo diario se descuenta automáticamente. El panel muestra tu saldo restante para que siempre sepas cuánto tienes."
-        },
-        {
-          "type": "heading",
-          "body": "Agregar Crédito"
-        },
-        {
-          "type": "paragraph",
-          "body": "Ve a la sección de Facturación y elige un método de pago:"
+          "body": "DirectEatz utiliza planes de suscripción mensuales. Se factura el día 1 de cada mes por el uso del mes anterior. El primer mes se calcula de forma proporcional desde tu fecha de activación. Hay tres planes disponibles:"
         },
         {
           "type": "list",
           "items": [
-            "PayPal — Selecciona un monto y paga al instante a través de PayPal. El crédito se agrega a tu cuenta inmediatamente.",
-            "Transferencia bancaria — Transfiere el monto a la cuenta bancaria proporcionada, luego ingresa el monto y un código de confirmación en la app. Un miembro del personal de DirectEatz verificará la transferencia y agregará el crédito a tu cuenta."
+            "Básico ($14.99/mes) — Para restaurantes pequeños",
+            "Restaurante ($39.99/mes) — Para restaurantes en crecimiento",
+            "Empresarial ($99.99/mes) — Para cadenas de restaurantes"
           ]
         },
         {
           "type": "heading",
-          "body": "Facturas"
+          "body": "Actualizar Tu Plan"
         },
         {
           "type": "paragraph",
-          "body": "Puedes ver e imprimir facturas actuales y anteriores desde la sección de Facturación. Cada factura muestra tu uso y cargos para ese período."
+          "body": "Puedes actualizar a un plan superior en cualquier momento. Cuando actualizas a mitad de mes, se cobra un monto proporcional por los días restantes: los días al precio de tu plan actual más los días al precio del nuevo plan. Selecciona una tarjeta de plan superior a tu plan actual para ver una vista previa del costo de actualización."
+        },
+        {
+          "type": "heading",
+          "body": "Resumen de Facturación"
+        },
+        {
+          "type": "paragraph",
+          "body": "La tarjeta de resumen en la parte superior muestra tu plan actual (con precio mensual) y tu saldo actual. El saldo se calcula a partir de la factura más reciente y refleja cualquier monto no pagado pendiente."
+        },
+        {
+          "type": "heading",
+          "body": "Historial de Facturación"
+        },
+        {
+          "type": "paragraph",
+          "body": "La línea de tiempo muestra todos los eventos de facturación en orden cronológico: activaciones de plan (azul), facturas mensuales (naranja), pagos recibidos (verde) y otros cargos (rojo). Cada factura muestra el mes de servicio, el plan que estaba activo y el monto acumulado adeudado."
         }
       ]
     },

@@ -922,7 +922,7 @@
       "blocks": [
         {
           "type": "summary",
-          "body": "The Billing section shows your account balance and lets you add credit. Each restaurant has a daily rate that is automatically deducted from your balance."
+          "body": "The Billing section shows your current plan, balance, and a chronological history of plan changes, invoices, and payments."
         },
         {
           "type": "breadcrumb",
@@ -938,30 +938,39 @@
         },
         {
           "type": "paragraph",
-          "body": "Your restaurant has a fixed cost of {{dayPrice}} per active day. Instead of monthly invoices, you add credit to your account and the daily cost is deducted automatically. The dashboard shows your remaining balance so you always know where you stand."
-        },
-        {
-          "type": "heading",
-          "body": "Adding Credit"
-        },
-        {
-          "type": "paragraph",
-          "body": "Go to the Billing section and choose a payment method:"
+          "body": "DirectEatz uses monthly subscription plans. You are billed on the 1st of each month for the previous month's usage. The first month is pro-rated from your activation date. There are three plans available:"
         },
         {
           "type": "list",
           "items": [
-            "PayPal — Select a reload amount and pay instantly through PayPal. The credit is added to your account immediately.",
-            "Bank transfer — Transfer the amount to the provided bank account, then enter the amount and a confirmation code in the app. A DirectEatz staff member will verify the transfer and add the credit to your account."
+            "Starter ($14.99/mo) — For small restaurants",
+            "Restaurant ($39.99/mo) — For growing restaurants",
+            "Enterprise ($99.99/mo) — For restaurant chains"
           ]
         },
         {
           "type": "heading",
-          "body": "Invoices"
+          "body": "Upgrading Your Plan"
         },
         {
           "type": "paragraph",
-          "body": "You can view and print current and past invoices from the Billing section. Each invoice shows your usage and charges for that period."
+          "body": "You can upgrade to a higher plan at any time. When you upgrade mid-month, you are charged a pro-rated amount for the remaining days: the days at your current plan price plus the days at the new plan price. Select a plan card above your current plan to see a preview of the upgrade cost."
+        },
+        {
+          "type": "heading",
+          "body": "Billing Summary"
+        },
+        {
+          "type": "paragraph",
+          "body": "The summary card at the top shows your current plan (with monthly price) and your current balance. The balance is calculated from the most recent invoice and reflects any unpaid amounts carried forward."
+        },
+        {
+          "type": "heading",
+          "body": "Billing History"
+        },
+        {
+          "type": "paragraph",
+          "body": "The timeline shows all billing events in chronological order: plan activations (blue), monthly invoices (orange), payments received (green), and other charges (red). Each invoice shows the service month, the plan that was active, and the cumulative amount owed."
         }
       ]
     },

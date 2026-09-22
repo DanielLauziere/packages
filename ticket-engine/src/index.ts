@@ -23,3 +23,20 @@ export * from './escpos.js'
 export { ticketIdFromUUID } from './ticketId.js'
 export { helpData, getHelpData } from './help/index.js'
 export type { HelpBlock, HelpBlockType, HelpSection, HelpData } from './help/index.js'
+export {
+  PLAN_NAMES,
+  PLANS,
+  centsToDollar,
+  getPlanLabel,
+  getActivePriceOnDate,
+  generateMonthlyInvoices,
+  buildTimeline,
+  formatDate,
+} from './billing.js'
+export type {
+  PlanChange,
+  Balance,
+  BillingResponse,
+  PlanChangePreview,
+  TimelineEvent,
+} from './billing.js'
