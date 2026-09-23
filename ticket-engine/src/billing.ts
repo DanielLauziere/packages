@@ -155,7 +155,7 @@ export function buildTimeline(
 ): TimelineEvent[] {
   const events: TimelineEvent[] = []
 
-  billing.plan_changes.forEach((pc) => {
+  ;(billing.plan_changes ?? []).forEach((pc) => {
     const priceCents = pc.new_monthly_price_cents
     const planLabel = getPlanLabel(priceCents, lang)
     events.push({
@@ -167,7 +167,7 @@ export function buildTimeline(
   })
 
   const invoiceEvents = generateMonthlyInvoices(
-    billing.plan_changes,
+    billing.plan_changes ?? [],
     billing.balances ?? [],
     lang,
     labels.invoiceFor,
