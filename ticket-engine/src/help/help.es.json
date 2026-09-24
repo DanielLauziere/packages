@@ -468,7 +468,7 @@
       "blocks": [
         {
           "type": "summary",
-          "body": "DirectEatz admite facturación electrónica (DTE) para El Salvador. Cuando está habilitada, los tickets pagados se emiten a Hacienda (la autoridad tributaria salvadoreña) como facturas electrónicas. Esta sección cubre cómo configurar DTE, ver documentos enviados y gestionar tus credenciales de firma."
+          "body": "DirectEatz admite facturación electrónica (DTE) para El Salvador. Cuando está habilitada, los tickets pagados se emiten al Ministerio de Hacienda como documentos electrónicos. Esta sección explica cada campo de la página de configuración de DTE para que puedas configurarlo correctamente la primera vez."
         },
         {
           "type": "breadcrumb",
@@ -479,73 +479,247 @@
         },
         {
           "type": "heading",
-          "body": "Paso 1 — Configuración del Emisor"
+          "body": "Interruptor DTE"
         },
         {
           "type": "paragraph",
-          "body": "Completa los datos de tu negocio exactamente como aparecen en tu registro ante Hacienda. Estos valores se imprimen en cada factura electrónica."
+          "body": "El interruptor en la parte superior de la página activa o desactiva la facturación electrónica. Cuando está APAGADO, los tickets pagados son recibos normales. Cuando está ENCENDIDO, cada ticket pagado se emite automáticamente a Hacienda como un DTE. El interruptor está deshabilitado hasta que hayas guardado una configuración válida del emisor y subido tu certificado."
         },
         {
           "type": "heading",
-          "body": "Referencia de Campos"
-        },
-        {
-          "type": "list",
-          "items": [
-            "Ambiente — Usa \"Pruebas (00)\" mientras configuras, luego cambia a \"Producción (01)\" cuando estés listo para emitir facturas reales.",
-            "NIT — Tu identificador tributario de 14 dígitos (NÚMERO DE IDENTIFICACIÓN TRIBUTARIA). Ejemplo: 94500201851069.",
-            "NRC — Tu número de Registro Nacional de Contribuyentes. Ejemplo: 3899028.",
-            "Razón Social (nombre emisor) — El nombre legal completo de tu empresa registrado ante Hacienda.",
-            "Nombre Comercial — El nombre comercial que ven los clientes (puede ser igual a la razón social).",
-            "Código de Actividad — El código de actividad económica de tu registro. Ejemplo: 58200 (Edición de software).",
-            "Descripción de Actividad — Una descripción breve del código de actividad. Ejemplo: Edición de programas informáticos.",
-            "Tipo de Establecimiento — \"01\" para General, a menos que Hacienda te haya asignado un código diferente.",
-            "Dirección — Calle, colonia u otro detalle de dirección del establecimiento.",
-            "Teléfono — Número de teléfono del negocio.",
-            "Correo — Correo electrónico del negocio.",
-            "Código de Departamento — Código de 2 dígitos del catálogo de Hacienda. Ejemplo: 02 para Santa Ana.",
-            "Código de Municipio — Código de 2 dígitos del municipio dentro del departamento. Ejemplo: 17 para Santa Ana Oeste."
-          ]
-        },
-        {
-          "type": "note",
-          "body": "Puedes encontrar los códigos de departamento y municipio en el catálogo de Hacienda en catalogos.dte.gob.sv. El código de departamento siempre tiene 2 dígitos y el código de municipio siempre tiene 2 dígitos."
-        },
-        {
-          "type": "heading",
-          "body": "Paso 2 — Sube Tu Certificado de Hacienda"
+          "body": "Paso 1 — Sube Tu Certificado de Hacienda"
         },
         {
           "type": "paragraph",
-          "body": "Cuando descargas tu certificado del sitio web de Hacienda (portal.dte.gob.sv), recibes un archivo XML. Este archivo contiene tu llave de firma digital y la información de tu negocio."
-        },
-        {
-          "type": "list",
-          "items": [
-            "En la tarjeta de Credenciales de Firma, haz clic en \"Elegir archivo\" y selecciona el archivo XML que descargaste de Hacienda.",
-            "Ingresa tu usuario y contraseña del portal de Hacienda.",
-            "Haz clic en \"Guardar Credenciales\"."
-          ]
-        },
-        {
-          "type": "paragraph",
-          "body": "El sistema extraerá automáticamente tu NIT, NRC y nombre del negocio del certificado y completará los campos de Configuración del Emisor por ti."
+          "body": "Antes de llenar los campos del emisor, sube tu certificado primero. Ve a la tarjeta de Certificado, haz clic en \"Elegir archivo\" y selecciona el archivo XML que descargaste del portal de Hacienda (portal.dte.gob.sv). Luego haz clic en \"Subir Certificado\". El sistema analizará el XML y llenará automáticamente tu NIT, NRC y Nombre del Negocio. Todos los demás campos debes llenarlos manualmente."
         },
         {
           "type": "warning",
-          "body": "No compartas tu archivo XML de certificado de Hacienda con nadie. Si alguien obtiene acceso a él, puede emitir facturas a nombre de tu negocio."
+          "body": "No compartas tu archivo XML de certificado de Hacienda con nadie. Cualquier persona que tenga este archivo puede emitir facturas a nombre de tu negocio."
         },
         {
           "type": "heading",
-          "body": "Paso 3 — Probar y Activar"
+          "body": "Paso 2 — Configuración del Emisor"
         },
         {
           "type": "paragraph",
-          "body": "1. Después de guardar tus credenciales, haz clic en \"Emitir Prueba\" para enviar un DTE de prueba a Hacienda. Esto verifica que tu certificado y credenciales del portal funcionan correctamente."
+          "body": "El emisor es el negocio que emite la factura. Llena cada campo exactamente como aparece registrado ante Hacienda. Todos los valores aquí se imprimen en cada factura electrónica que reciben tus clientes."
+        },
+        {
+          "type": "heading",
+          "body": "Ambiente"
         },
         {
           "type": "paragraph",
-          "body": "2. Si la prueba es exitosa, verás un mensaje de éxito. Si falla, verifica tu inicio de sesión del portal de Hacienda y asegúrate de que el archivo XML sea válido."
+          "body": "Selecciona el entorno de Hacienda a usar. Usa \"Pruebas (00)\" mientras configuras y pruebas — las facturas enviadas en este modo son documentos de prueba y no cuentan como facturas fiscales reales. Cambia a \"Producción (01)\" solo cuando estés listo para emitir facturas con validez legal. Puedes volver a Pruebas en cualquier momento para pruebas."
+        },
+        {
+          "type": "heading",
+          "body": "NIT"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tu Número de Identificación Tributaria — un número de 14 dígitos asignado por Hacienda. Es el ID fiscal de tu negocio. Ejemplo: 94500201851069. Si subiste tu certificado, este campo se llena automáticamente. No lo modifiques a menos que sepas que es incorrecto."
+        },
+        {
+          "type": "heading",
+          "body": "NRC"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tu número de Registro Nacional de Contribuyentes. Es el número de registro de contribuyente de tu negocio ante Hacienda. Ejemplo: 3899028. Se llena automáticamente desde el certificado si lo subiste."
+        },
+        {
+          "type": "heading",
+          "body": "Nombre del Negocio (Razón Social)"
+        },
+        {
+          "type": "paragraph",
+          "body": "El nombre legal completo de tu empresa exactamente como aparece en tu registro ante Hacienda. Es el nombre que aparece como emisor en cada factura. Ejemplo: \"Restaurante El Buen Sabor, S.A. de C.V.\". Se llena automáticamente desde el certificado si lo subiste."
+        },
+        {
+          "type": "heading",
+          "body": "Nombre Comercial"
+        },
+        {
+          "type": "paragraph",
+          "body": "El nombre comercial con el que te conocen tus clientes. Puede ser igual al Nombre del Negocio o un nombre más corto. Ejemplo: \"El Buen Sabor\". Este nombre también aparece en la factura."
+        },
+        {
+          "type": "heading",
+          "body": "Código de Actividad"
+        },
+        {
+          "type": "paragraph",
+          "body": "El código de actividad económica de tu registro ante Hacienda. Es un código de 4 o 5 dígitos que describe a qué se dedica tu negocio. Códigos comunes para restaurantes: 56110 (Servicios de restaurante), 56120 (Cafeterías), 56200 (Servicios de catering). Puedes buscar tu código en el portal de Hacienda o en tus documentos de registro."
+        },
+        {
+          "type": "heading",
+          "body": "Descripción de Actividad"
+        },
+        {
+          "type": "paragraph",
+          "body": "Una descripción breve del código de actividad. Ejemplo: \"Prestación de servicios de restaurante\" o \"Servicios de preparación de alimentos\". Debe coincidir con la descripción oficial de tu código de actividad en el catálogo de Hacienda."
+        },
+        {
+          "type": "heading",
+          "body": "Tipo de Establecimiento"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un código de 2 dígitos que describe el tipo de establecimiento. Los valores más comunes son: \"01\" para General (una ubicación comercial estándar), \"02\" para Casa Matriz (oficina central/sede principal), y \"09\" para Depósito Fiscal (almacén fiscal). Usa \"01\" a menos que Hacienda te haya asignado un código diferente."
+        },
+        {
+          "type": "heading",
+          "body": "Código de Establecimiento (MH)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un código asignado por Hacienda para identificar tu establecimiento específico (ubicación física). No es lo mismo que el Tipo de Establecimiento. Si Hacienda no te ha asignado un código específico, deja este campo en blanco. Puedes encontrar este código en tu portal de Hacienda bajo tus establecimientos registrados."
+        },
+        {
+          "type": "heading",
+          "body": "Código de Punto de Venta"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un código que identifica tu punto de venta (caja/registro) dentro del establecimiento. Es tu código interno — lo defines tú mismo. Por ejemplo, si tienes una sola caja, usa \"001\". Si tienes varias, usa \"001\", \"002\", etc. Esto ayuda a Hacienda a rastrear qué caja emitió cada factura."
+        },
+        {
+          "type": "heading",
+          "body": "Código de Punto de Venta (MH)"
+        },
+        {
+          "type": "paragraph",
+          "body": "El código de punto de venta asignado por Hacienda (no tu código interno). Si Hacienda no te ha asignado un código de punto de venta específico, deja este campo en blanco. Puedes encontrarlo en el portal de Hacienda bajo tus puntos de venta registrados."
+        },
+        {
+          "type": "heading",
+          "body": "Dirección"
+        },
+        {
+          "type": "paragraph",
+          "body": "La dirección o complemento de tu establecimiento. Es la línea de dirección detallada — por ejemplo: \"Calle Principal #123, Colonia San Benito\". Aparece en la factura como la dirección del emisor."
+        },
+        {
+          "type": "heading",
+          "body": "Teléfono"
+        },
+        {
+          "type": "paragraph",
+          "body": "El número de teléfono de tu negocio. Usa el formato con código de país si es necesario, por ejemplo: 2222-1234 o +503 2222-1234. Aparece en la factura."
+        },
+        {
+          "type": "heading",
+          "body": "Correo"
+        },
+        {
+          "type": "paragraph",
+          "body": "El correo electrónico de tu negocio. Hacienda usa este correo para enviarte notificaciones sobre tus envíos de DTE. También aparece en las facturas para que los clientes puedan contactarte."
+        },
+        {
+          "type": "heading",
+          "body": "Departamento"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un código de 2 dígitos para el departamento donde está tu establecimiento. Ejemplo: 01 para San Salvador, 02 para Santa Ana, 06 para La Libertad, 10 para Usulután. Puedes encontrar la lista completa en el catálogo de Hacienda en catalogos.dte.gob.sv."
+        },
+        {
+          "type": "heading",
+          "body": "Municipio"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un código de 2 dígitos para el municipio dentro del departamento. Ejemplo: para el departamento 02 (Santa Ana), usa 17 para Santa Ana Oeste, 01 para Santa Ana Centro. Los códigos de municipio válidos dependen del departamento que seleccionaste. Encuentra el tuyo en el catálogo de Hacienda en catalogos.dte.gob.sv."
+        },
+        {
+          "type": "heading",
+          "body": "Distrito"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un código de 2 dígitos para el distrito dentro del municipio. Solo se requiere en algunos departamentos. Si tu departamento no usa distritos, deja este campo en blanco. Consulta el catálogo de Hacienda para ver si tu municipio requiere un código de distrito."
+        },
+        {
+          "type": "note",
+          "body": "Los códigos de Departamento, Municipio y Distrito siempre tienen 2 dígitos y se pueden encontrar en el catálogo de Hacienda en catalogos.dte.gob.sv. Cada departamento tiene su propio conjunto de municipios, y cada municipio puede tener su propio conjunto de distritos."
+        },
+        {
+          "type": "heading",
+          "body": "Paso 3 — Credenciales API de Hacienda"
+        },
+        {
+          "type": "paragraph",
+          "body": "Estas credenciales son tu inicio de sesión para el portal de DTE de Hacienda (portal.dte.gob.sv). DirectEatz las usa para autenticarse al enviar facturas a Hacienda en tu nombre."
+        },
+        {
+          "type": "heading",
+          "body": "Usuario API"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tu usuario del portal de Hacienda. Es el mismo usuario que usas para iniciar sesión en portal.dte.gob.sv para descargar tu certificado y gestionar tu configuración de DTE."
+        },
+        {
+          "type": "heading",
+          "body": "Clave API"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tu contraseña del portal de Hacienda. Se almacena de forma segura y se usa solo para autenticar solicitudes API a Hacienda."
+        },
+        {
+          "type": "heading",
+          "body": "Paso 4 — SMTP / Envío por Correo (Opcional)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Si quieres que DirectEatz envíe automáticamente las facturas DTE por correo a tus clientes, configura tu SMTP aquí. Esto es opcional — las facturas siempre se guardan en el Historial DTE independientemente de la configuración SMTP."
+        },
+        {
+          "type": "heading",
+          "body": "Host SMTP"
+        },
+        {
+          "type": "paragraph",
+          "body": "El hostname de tu servidor de correo. Ejemplos: smtp.gmail.com (Gmail), smtp.office365.com (Microsoft 365), smtp-relay.gmail.com (Google Workspace). Si usas un proveedor de hosting, consulta su documentación para el host SMTP."
+        },
+        {
+          "type": "heading",
+          "body": "Puerto SMTP"
+        },
+        {
+          "type": "paragraph",
+          "body": "El número de puerto de tu servidor de correo. Valores comunes: 587 para TLS (recomendado), 465 para SSL, 25 sin cifrado (no recomendado). El valor predeterminado es 587."
+        },
+        {
+          "type": "heading",
+          "body": "Usuario SMTP"
+        },
+        {
+          "type": "paragraph",
+          "body": "El nombre de usuario o dirección de correo de tu cuenta SMTP. Para Gmail, es tu dirección de correo completa (ej. restaurante@gmail.com)."
+        },
+        {
+          "type": "heading",
+          "body": "Contraseña SMTP"
+        },
+        {
+          "type": "paragraph",
+          "body": "La contraseña de tu cuenta SMTP. Si usas Gmail o Microsoft 365, es posible que necesites crear una Contraseña de Aplicación en lugar de usar tu contraseña regular. Consulta la documentación de tu proveedor de correo para más detalles."
+        },
+        {
+          "type": "heading",
+          "body": "Paso 5 — Probar y Activar"
+        },
+        {
+          "type": "paragraph",
+          "body": "1. Después de guardar tu configuración del emisor, haz clic en \"Emitir Prueba\" para enviar un DTE de prueba a Hacienda. Esto verifica que tu certificado, datos del emisor y credenciales API funcionen juntos."
+        },
+        {
+          "type": "paragraph",
+          "body": "2. Si la prueba es exitosa, verás un mensaje de confirmación. Si falla, revisa cada campo en busca de errores — especialmente NIT, NRC, códigos de departamento/municipio y tu inicio de sesión del portal de Hacienda."
         },
         {
           "type": "paragraph",
@@ -553,15 +727,15 @@
         },
         {
           "type": "note",
-          "body": "Comienza con el Ambiente en \"Pruebas (00)\" mientras verificas que todo funcione. Cambia a \"Producción (01)\" solo cuando estés listo para emitir facturas reales."
+          "body": "Mantén el Ambiente en \"Pruebas (00)\" hasta que tu emisión de prueba sea exitosa. Solo cambia a \"Producción (01)\" cuando estés listo para emitir facturas reales con validez legal."
         },
         {
           "type": "heading",
-          "body": "Qué Se Completó Automáticamente"
+          "body": "Qué Se Llena Automáticamente"
         },
         {
           "type": "paragraph",
-          "body": "Después de subir tu certificado XML de Hacienda, el sistema completa automáticamente tu NIT, NRC y Nombre del Negocio desde el certificado. Aún necesitas completar: Código de Actividad, Descripción de Actividad, Código de Departamento, Código de Municipio, Teléfono, Correo y Dirección."
+          "body": "Cuando subes tu certificado de Hacienda, el sistema extrae y llena tu NIT, NRC y Nombre del Negocio automáticamente. Todos los demás campos — Código de Actividad, Descripción de Actividad, Tipo de Establecimiento, Código de Establecimiento, Códigos de Punto de Venta, Dirección, Teléfono, Correo, Departamento, Municipio y Distrito — debes llenarlos manualmente."
         },
         {
           "type": "heading",
@@ -570,10 +744,10 @@
         {
           "type": "list",
           "items": [
-            "Pendiente — El DTE ha sido puesto en cola pero no enviado a Hacienda.",
-            "Enviado — El DTE se envió exitosamente a Hacienda.",
-            "Fallido — El DTE no se pudo enviar. Verifica tus credenciales y red, luego reintentar.",
-            "Anulado — El DTE fue anulado después de ser enviado."
+            "Pendiente — El DTE ha sido creado y puesto en cola pero no enviado a Hacienda. Esto generalmente significa que tu conexión está caída o la API de Hacienda no está disponible temporalmente.",
+            "Enviado — El DTE fue recibido y aceptado exitosamente por Hacienda. La factura ahora es un documento fiscal válido.",
+            "Fallido — El DTE no se pudo enviar. Causas comunes: certificado vencido, credenciales API incorrectas, datos inválidos en los campos del emisor, o el sistema de Hacienda está caído. Corrige el problema y reintenta.",
+            "Anulado — El DTE fue anulado después de ser enviado. Las facturas anuladas no se pueden revertir — debes emitir una nueva factura si es necesario."
           ]
         },
         {

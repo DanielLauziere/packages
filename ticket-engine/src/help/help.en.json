@@ -468,7 +468,7 @@
       "blocks": [
         {
           "type": "summary",
-          "body": "DirectEatz supports electronic invoicing (DTE) for El Salvador. When enabled, paid tickets are emitted to Hacienda (the Salvadoran tax authority) as electronic invoices. This section covers how to set up DTE, view sent documents, and manage your signing credentials."
+          "body": "DirectEatz supports electronic invoicing (DTE) for El Salvador. When enabled, paid tickets are emitted to Hacienda (the Ministerio de Hacienda) as electronic documents. This section explains every field on the DTE setup page so you can configure it correctly the first time."
         },
         {
           "type": "breadcrumb",
@@ -479,89 +479,263 @@
         },
         {
           "type": "heading",
-          "body": "Step 1 — Emisor Configuration"
+          "body": "DTE Toggle"
         },
         {
           "type": "paragraph",
-          "body": "Fill in your business details exactly as they appear on your Hacienda registration. These values are printed on every electronic invoice."
+          "body": "The toggle at the top of the page enables or disables electronic invoicing. When OFF, paid tickets are normal receipts. When ON, every paid ticket is automatically emitted to Hacienda as a DTE. The toggle is disabled until you have saved a valid emisor configuration and uploaded your certificate."
         },
         {
           "type": "heading",
-          "body": "Field Reference"
-        },
-        {
-          "type": "list",
-          "items": [
-            "Ambiente — Use \"Pruebas (00)\" while setting up, then switch to \"Producción (01)\" when ready to go live.",
-            "NIT — Your 14-digit taxpayer ID (NÚMERO DE IDENTIFICACIÓN TRIBUTARIA). Example: 94500201851069.",
-            "NRC — Your Registro Nacional de Contribuyentes number. Example: 3899028.",
-            "Business Name (nombre emisor) — The full legal name of your company as registered with Hacienda.",
-            "Commercial Name (nombre comercial) — The trade name shown to customers (can be the same as business name).",
-            "Activity Code (código de actividad) — The economic activity code from your registration. Example: 58200 (Software publishing).",
-            "Activity Description — A short description of the activity code. Example: Edición de programas informáticos.",
-            "Establishment Type — \"01\" for General, unless Hacienda assigned you a different code.",
-            "Address — Street, colonia, or other address detail for the establishment.",
-            "Phone — Business phone number.",
-            "Email — Business email address.",
-            "Department Code — 2-digit department code from the Hacienda catalog. Example: 02 for Santa Ana.",
-            "Municipality Code — 2-digit municipality code within the department. Example: 17 for Santa Ana Oeste."
-          ]
-        },
-        {
-          "type": "note",
-          "body": "You can find your department and municipality codes in the Hacienda catalog at catalogos.dte.gob.sv. The department code is always 2 digits and the municipality code is always 2 digits."
-        },
-        {
-          "type": "heading",
-          "body": "Step 2 — Upload Your Hacienda Certificate"
+          "body": "Step 1 — Upload Your Hacienda Certificate"
         },
         {
           "type": "paragraph",
-          "body": "When you download your certificate from the Hacienda website (portal.dte.gob.sv), you receive an XML file. This file contains your digital signature key and business information."
-        },
-        {
-          "type": "list",
-          "items": [
-            "In the Signing Credentials card, click \"Choose file\" and select the XML file you downloaded from Hacienda.",
-            "Enter your Hacienda portal username and password.",
-            "Click \"Save Credentials\"."
-          ]
-        },
-        {
-          "type": "paragraph",
-          "body": "The system will automatically extract your NIT, NRC, and business name from the certificate and fill in the Emisor Configuration fields for you."
+          "body": "Before filling in the emisor fields, upload your certificate first. Go to the Certificate card, click \"Choose file\", and select the XML file you downloaded from the Hacienda portal (portal.dte.gob.sv). Then click \"Upload Certificate\". The system will parse the XML and automatically fill in your NIT, NRC, and Business Name. You still need to fill in all other fields manually."
         },
         {
           "type": "warning",
-          "body": "Do not share your Hacienda XML certificate file with anyone. If someone gains access to it, they can issue invoices under your business name."
+          "body": "Do not share your Hacienda certificate XML file with anyone. Anyone who has this file can issue invoices under your business name."
         },
         {
           "type": "heading",
-          "body": "Step 3 — Test and Enable"
+          "body": "Step 2 — Emisor Configuration"
         },
         {
           "type": "paragraph",
-          "body": "1. After saving your credentials, click \"Test Emit\" to send a test DTE to Hacienda. This verifies that your certificate and portal credentials all work correctly."
+          "body": "The emisor is the business issuing the invoice. Fill in every field exactly as registered with Hacienda. All values here are printed on every electronic invoice your customers receive."
+        },
+        {
+          "type": "heading",
+          "body": "Ambiente"
         },
         {
           "type": "paragraph",
-          "body": "2. If the test succeeds, you will see a success message. If it fails, double-check your Hacienda portal login and make sure the XML file is valid."
+          "body": "Select which Hacienda environment to use. Use \"Pruebas (00)\" while setting up and testing — invoices sent in this mode are test documents and do not count as real tax invoices. Switch to \"Producción (01)\" only when you are ready to issue legally binding invoices. You can switch back to Pruebas at any time for testing."
+        },
+        {
+          "type": "heading",
+          "body": "NIT"
         },
         {
           "type": "paragraph",
-          "body": "3. Once the test passes, toggle DTE to enabled at the top of the page. From this point on, every paid ticket will be automatically emitted to Hacienda as a electronic invoice."
+          "body": "Your Número de Identificación Tributaria — a 14-digit number assigned by Hacienda. This is your business's tax ID. Example: 94500201851069. If you uploaded your certificate, this field is filled automatically. Do not modify it unless you know it is incorrect."
+        },
+        {
+          "type": "heading",
+          "body": "NRC"
+        },
+        {
+          "type": "paragraph",
+          "body": "Your Registro Nacional de Contribuyentes number. This is your business's taxpayer registration number with Hacienda. Example: 3899028. Auto-filled from the certificate if uploaded."
+        },
+        {
+          "type": "heading",
+          "body": "Business Name (Razón Social)"
+        },
+        {
+          "type": "paragraph",
+          "body": "The full legal name of your company exactly as it appears on your Hacienda registration. This is the name that appears as the issuer on every invoice. Example: \"Restaurante El Buen Sabor, S.A. de C.V.\" Auto-filled from the certificate if uploaded."
+        },
+        {
+          "type": "heading",
+          "body": "Commercial Name (Nombre Comercial)"
+        },
+        {
+          "type": "paragraph",
+          "body": "The trade name your customers know you by. This can be the same as your Business Name or a shorter name. Example: \"El Buen Sabor\". This name also appears on the invoice."
+        },
+        {
+          "type": "heading",
+          "body": "Activity Code (Código de Actividad)"
+        },
+        {
+          "type": "paragraph",
+          "body": "The economic activity code from your Hacienda registration. This is a 4 or 5-digit code that describes what your business does. Common codes for restaurants: 56110 (Restaurant services), 56120 (Cafeterías), 56200 (Catering). You can look up your code on the Hacienda portal or in your registration documents."
+        },
+        {
+          "type": "heading",
+          "body": "Activity Description (Descripción de Actividad)"
+        },
+        {
+          "type": "paragraph",
+          "body": "A short text description of the activity code above. Example: \"Prestación de servicios de restaurante\" or \"Servicios de preparación de alimentos\". This must match the official description for your activity code in the Hacienda catalog."
+        },
+        {
+          "type": "heading",
+          "body": "Establishment Type (Tipo de Establecimiento)"
+        },
+        {
+          "type": "paragraph",
+          "body": "A 2-digit code describing the type of establishment. The most common values are: \"01\" for General (a standard business location), \"02\" for Casa Matriz (headquarters/main office), and \"09\" for Depósito Fiscal (bonded warehouse). Use \"01\" unless Hacienda has assigned you a different code."
+        },
+        {
+          "type": "heading",
+          "body": "Establishment Code (Código de Establecimiento MH)"
+        },
+        {
+          "type": "paragraph",
+          "body": "A code assigned by Hacienda to identify your specific establishment (physical location). This is not the same as the Establishment Type. If Hacienda has not assigned you a specific code, leave this field blank. You can find this code on your Hacienda portal under your registered establishments."
+        },
+        {
+          "type": "heading",
+          "body": "Point of Sale Code (Código de Punto de Venta)"
+        },
+        {
+          "type": "paragraph",
+          "body": "A code that identifies your point of sale (caja/register) within the establishment. This is your internal code — you define it yourself. For example, if you have one register, use \"001\". If you have multiple, use \"001\", \"002\", etc. This helps Hacienda track which register issued each invoice."
+        },
+        {
+          "type": "heading",
+          "body": "Point of Sale Code MH (Código de Punto de Venta MH)"
+        },
+        {
+          "type": "paragraph",
+          "body": "The point of sale code as assigned by Hacienda (not your internal code). If Hacienda has not assigned you a specific point of sale code, leave this field blank. You can find this on the Hacienda portal under your registered points of sale."
+        },
+        {
+          "type": "heading",
+          "body": "Address (Dirección)"
+        },
+        {
+          "type": "paragraph",
+          "body": "The street address or complement of your establishment. This is the detailed address line — for example: \"Calle Principal #123, Colonia San Benito\". This appears on the invoice as the issuer's address."
+        },
+        {
+          "type": "heading",
+          "body": "Phone (Teléfono)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Your business phone number. Use the format with country code if needed, for example: 2222-1234 or +503 2222-1234. This appears on the invoice."
+        },
+        {
+          "type": "heading",
+          "body": "Email (Correo)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Your business email address. Hacienda uses this to send you notifications about your DTE submissions. It also appears on invoices so customers can contact you."
+        },
+        {
+          "type": "heading",
+          "body": "Department (Departamento)"
+        },
+        {
+          "type": "paragraph",
+          "body": "A 2-digit code for the department (state) where your establishment is located. Example: 01 for San Salvador, 02 for Santa Ana, 06 for La Libertad, 10 for Usulután. You can find the full list in the Hacienda catalog at catalogos.dte.gob.sv."
+        },
+        {
+          "type": "heading",
+          "body": "Municipality (Municipio)"
+        },
+        {
+          "type": "paragraph",
+          "body": "A 2-digit code for the municipality within the department. Example: for department 02 (Santa Ana), use 17 for Santa Ana Oeste, 01 for Santa Ana Centro. The valid municipality codes depend on the department you selected. Find yours in the Hacienda catalog at catalogos.dte.gob.sv."
+        },
+        {
+          "type": "heading",
+          "body": "District (Distrito)"
+        },
+        {
+          "type": "paragraph",
+          "body": "A 2-digit code for the district within the municipality. This is only required in some departments. If your department does not use districts, leave this field blank. Check the Hacienda catalog to see if your municipality requires a district code."
         },
         {
           "type": "note",
-          "body": "Start with Ambiente set to \"Pruebas (00)\" while you verify everything works. Switch to \"Producción (01)\" only when you are ready to issue real invoices."
+          "body": "Department, Municipality, and District codes are all 2 digits and can be found in the Hacienda catalog at catalogos.dte.gob.sv. Each department has its own set of municipalities, and each municipality may have its own set of districts."
         },
         {
           "type": "heading",
-          "body": "What Was Auto-Filled"
+          "body": "Step 3 — Hacienda API Credentials"
         },
         {
           "type": "paragraph",
-          "body": "After uploading your Hacienda XML certificate, the system automatically fills in your NIT, NRC, and Business Name from the certificate. You still need to fill in: Activity Code, Activity Description, Department Code, Municipality Code, Phone, Email, and Address."
+          "body": "These credentials are your login for the Hacienda DTE portal (portal.dte.gob.sv). DirectEatz uses them to authenticate when sending invoices to Hacienda on your behalf."
+        },
+        {
+          "type": "heading",
+          "body": "API Username (Usuario API)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Your Hacienda portal username. This is the same username you use to log in to portal.dte.gob.sv to download your certificate and manage your DTE settings."
+        },
+        {
+          "type": "heading",
+          "body": "API Password (Clave API)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Your Hacienda portal password. This is stored securely and used only to authenticate API requests to Hacienda."
+        },
+        {
+          "type": "heading",
+          "body": "Step 4 — SMTP / Email Delivery (Optional)"
+        },
+        {
+          "type": "paragraph",
+          "body": "If you want DirectEatz to automatically email DTE invoices to your customers, configure your SMTP settings here. This is optional — invoices are always saved in the DTE History regardless of SMTP settings."
+        },
+        {
+          "type": "heading",
+          "body": "SMTP Host"
+        },
+        {
+          "type": "paragraph",
+          "body": "The hostname of your email server. Examples: smtp.gmail.com (Gmail), smtp.office365.com (Microsoft 365), smtp-relay.gmail.com (Google Workspace). If you use a hosting provider, check their documentation for the SMTP host."
+        },
+        {
+          "type": "heading",
+          "body": "SMTP Port"
+        },
+        {
+          "type": "paragraph",
+          "body": "The port number for your email server. Common values: 587 for TLS (recommended), 465 for SSL, 25 for unencrypted (not recommended). Default is 587."
+        },
+        {
+          "type": "heading",
+          "body": "SMTP Username"
+        },
+        {
+          "type": "paragraph",
+          "body": "The username or email address for your SMTP account. For Gmail, this is your full email address (e.g., restaurant@gmail.com)."
+        },
+        {
+          "type": "heading",
+          "body": "SMTP Password"
+        },
+        {
+          "type": "paragraph",
+          "body": "The password for your SMTP account. If you use Gmail or Microsoft 365, you may need to create an App Password instead of using your regular login password. Check your email provider's documentation for details."
+        },
+        {
+          "type": "heading",
+          "body": "Step 5 — Test and Enable"
+        },
+        {
+          "type": "paragraph",
+          "body": "1. After saving your emisor configuration, click \"Test Emit\" to send a test DTE to Hacienda. This verifies that your certificate, emisor details, and API credentials all work together."
+        },
+        {
+          "type": "paragraph",
+          "body": "2. If the test succeeds, you will see a confirmation message. If it fails, check each field for typos — especially NIT, NRC, department/municipality codes, and your Hacienda portal login."
+        },
+        {
+          "type": "paragraph",
+          "body": "3. Once the test passes, toggle DTE to enabled at the top of the page. From this point on, every paid ticket will be automatically emitted to Hacienda as an electronic invoice."
+        },
+        {
+          "type": "note",
+          "body": "Keep Ambiente on \"Pruebas (00)\" until your test emission succeeds. Only switch to \"Producción (01)\" when you are ready to issue real, legally binding invoices."
+        },
+        {
+          "type": "heading",
+          "body": "What Gets Auto-Filled"
+        },
+        {
+          "type": "paragraph",
+          "body": "When you upload your Hacienda certificate, the system extracts and fills in your NIT, NRC, and Business Name automatically. All other fields — Activity Code, Activity Description, Establishment Type, Establishment Code, Point of Sale Codes, Address, Phone, Email, Department, Municipality, and District — must be filled in manually."
         },
         {
           "type": "heading",
@@ -570,10 +744,10 @@
         {
           "type": "list",
           "items": [
-            "Pending — The DTE has been queued but not yet sent to Hacienda.",
-            "Sent — The DTE was successfully sent to Hacienda.",
-            "Failed — The DTE could not be sent. Check your credentials and network, then retry.",
-            "Anulled — The DTE was annulled (cancelled) after being sent."
+            "Pending — The DTE has been created and queued but not yet sent to Hacienda. This usually means your connection is down or Hacienda's API is temporarily unavailable.",
+            "Sent — The DTE was successfully received and accepted by Hacienda. The invoice is now a valid tax document.",
+            "Failed — The DTE could not be sent. Common causes: expired certificate, wrong API credentials, invalid data in the emisor fields, or Hacienda's system is down. Fix the issue and retry.",
+            "Anulled — The DTE was annulled (cancelled) after being sent. Annulled invoices cannot be reversed — you must issue a new invoice if needed."
           ]
         },
         {

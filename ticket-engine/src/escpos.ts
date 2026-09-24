@@ -241,6 +241,44 @@ export function generateExact170pxQr(text: string) {
   }
 }
 
+export function generateAutoSizedQr(text: string) {
+  const errorCorrection: 'L' = 'L'
+
+  const qr = qrcode(0, errorCorrection)
+  qr.addData(text)
+  qr.make()
+
+  const modules = qr.getModuleCount()
+  const targetPx = 170
+  const scale = Math.max(2, Math.floor(targetPx / modules))
+  const size = modules * scale
+
+  const bytesPerRow = Math.ceil(size / 8)
+  const pixels = new Uint8Array(bytesPerRow * size)
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const moduleX = Math.floor(x / scale)
+      const moduleY = Math.floor(y / scale)
+
+      const dark = qr.isDark(moduleY, moduleX)
+
+      const byteIndex = y * bytesPerRow + (x >> 3)
+      const bitIndex = 7 - (x & 7)
+
+      if (dark) {
+        pixels[byteIndex]! |= 1 << bitIndex
+      }
+    }
+  }
+
+  return {
+    width: size,
+    height: size,
+    pixels,
+  }
+}
+
 export function addQrToReceipt(
   builder: EscPosBuilder,
   options?: { qrUrl?: string }
@@ -449,6 +487,7 @@ export async function ticketToEscPos(
     lang?: 'es' | 'en'
     wrapMode?: 'wrap' | 'truncate'
     qrUrl?: string
+    dteQrUrl?: string
     receiptPrinterWidthMm?: number
     openDrawer?: boolean
     receiptPrinterHeightMm?: number
@@ -821,6 +860,18 @@ export async function ticketToEscPos(
       builder.feed(1)
       builder.alignCenter()
       builder.addRasterImage(qr.width, qr.height, qr.pixels)
+      builder.feed(1)
+      builder.alignLeft()
+    }
+
+    // DTE QR (below restaurant QR)
+    if (options?.dteQrUrl) {
+      const dteQr = generateAutoSizedQr(options.dteQrUrl)
+      builder.feed(1)
+      builder.alignCenter()
+      builder.text('--- DTE ---')
+      builder.feed(1)
+      builder.addRasterImage(dteQr.width, dteQr.height, dteQr.pixels)
       builder.feed(1)
       builder.alignLeft()
     }

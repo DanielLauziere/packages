@@ -48,3 +48,9 @@ cd packages/ticket-engine && yarn test
 # Go
 cd ../omni && go test ./src/services/...
 ```
+
+
+
+
+cd packages && yarn build — recompiles the ticket-engine
+cd frontend && rm -rf .next && yarn dev — clears Next.js cache so it re-resolves the file: dependency
