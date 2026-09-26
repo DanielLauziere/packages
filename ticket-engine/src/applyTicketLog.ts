@@ -42,6 +42,40 @@ export const ACTION_PRIORITY: Record<string, number> = {
   SET_STATUS_PAID: 11,
 }
 
+/**
+ * Conflict families for the order-guard: actions that write the SAME ticket
+ * field. The guard may only compare an entry against applied siblings in its
+ * family — a log writing a different field can never supersede it (a
+ * from-scratch sorted replay applies both, so skipping either side would
+ * diverge). Non-LWW child-row actions (ADD_* and REMOVE_* of child rows) are
+ * set-like, need no guard, and must never supersede an LWW write: an
+ * already-applied ADD_ITEM must not cancel a late SET_FULFILLMENT. Mirrors Go
+ * guardConflictActions (omni/src/domain/apply_engine.go).
+ */
+export const GUARD_CONFLICT_ACTIONS: Record<string, string[]> = {
+  SET_STATUS_COMPLETE: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_PAID'],
+  SET_STATUS_ACCEPTED: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_PAID'],
+  SET_STATUS_PAID: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_PAID'],
+  APPLY_PROMOTION: ['APPLY_PROMOTION', 'REMOVE_PROMOTION'],
+  REMOVE_PROMOTION: ['APPLY_PROMOTION', 'REMOVE_PROMOTION'],
+  SET_ITEM_NOTE: ['SET_ITEM_NOTE'],
+  SET_TABLE: ['SET_TABLE'],
+  SET_GUEST: ['SET_GUEST'],
+  SET_FULFILLMENT: ['SET_FULFILLMENT'],
+  SET_ANONYMOUS_ADDRESS: ['SET_ANONYMOUS_ADDRESS'],
+}
+
+/**
+ * Payload key scoping for per-row fields: a note belongs to one
+ * ticket_menu_item, a promotion log to one promotion_uuid. Fixed literals,
+ * never user input. Mirrors Go guardPayloadKey.
+ */
+function guardPayloadKey(action: string): string | null {
+  if (action === 'SET_ITEM_NOTE') return 'ticket_menu_item_uuid'
+  if (action === 'APPLY_PROMOTION' || action === 'REMOVE_PROMOTION') return 'promotion_uuid'
+  return null
+}
+
 async function exists(
   adapter: DbAdapter,
   sql: string,
@@ -55,13 +89,67 @@ async function ensureTicketExists(
   adapter: DbAdapter,
   entry: TicketLogEntry,
 ): Promise<void> {
-  if (await exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticket_uuid])) return
+  if (!(await exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticket_uuid]))) {
+    await adapter.run(
+      `INSERT INTO "ticket" (uuid, id, time_stamp, location_group_uuid, admin_uuid, status, price_whole, price_hundredths, is_dirty, is_local)
+       VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 0, 0, 1, 1)`,
+      [entry.ticket_uuid, ticketIdFromUUID(entry.ticket_uuid), entry.time_stamp, entry.location_group_uuid, entry.admin_uuid ?? null],
+    )
+    return
+  }
 
   await adapter.run(
-    `INSERT INTO "ticket" (uuid, id, time_stamp, location_group_uuid, admin_uuid, status, price_whole, price_hundredths, is_dirty, is_local)
-     VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 0, 0, 1, 1)`,
-    [entry.ticket_uuid, ticketIdFromUUID(entry.ticket_uuid), entry.time_stamp, entry.location_group_uuid, entry.admin_uuid ?? null],
+    `UPDATE "ticket" SET time_stamp = ? WHERE uuid = ? AND ? < time_stamp`,
+    [entry.time_stamp, entry.ticket_uuid, entry.time_stamp],
   )
+}
+
+function priorityCaseSql(actionCol: string): string {
+  const whens = Object.entries(ACTION_PRIORITY)
+    .map(([action, prio]) => `WHEN '${action}' THEN ${prio}`)
+    .join(' ')
+  return `CASE ${actionCol} ${whens} ELSE 999 END`
+}
+
+async function isSupersededByAppliedLog(
+  adapter: DbAdapter,
+  entry: TicketLogEntry,
+): Promise<boolean> {
+  const family = GUARD_CONFLICT_ACTIONS[entry.action]
+  if (!family) return false
+  const prio = ACTION_PRIORITY[entry.action] ?? 999
+  const siblingPrio = priorityCaseSql('tl.action')
+  const familyPlaceholders = family.map(() => '?').join(', ')
+  const params: unknown[] = [
+    entry.ticket_uuid,
+    entry.uuid,
+    ...family,
+    prio,
+    prio,
+    entry.time_stamp,
+    entry.time_stamp,
+    entry.uuid,
+  ]
+  let sql = `SELECT 1 FROM ticket_log tl
+     INNER JOIN ticket_log_applied tla ON tla.uuid = tl.uuid
+     WHERE tl.ticket_uuid = ?
+       AND tl.uuid <> ?
+       AND tla."time_stamp" IS NOT NULL
+       AND tl.action IN (${familyPlaceholders})
+       AND (
+         ${siblingPrio} > ?
+         OR (${siblingPrio} = ? AND (tl.time_stamp > ? OR (tl.time_stamp = ? AND tl.uuid > ?)))
+       )`
+  const key = guardPayloadKey(entry.action)
+  if (key) {
+    sql += `
+       AND json_extract(tl.payload, '$.${key}') = ?`
+    params.push(entry.payload?.[key] ?? null)
+  }
+  sql += `
+     LIMIT 1`
+  const rows = await adapter.query(sql, params)
+  return (rows?.length ?? 0) > 0
 }
 
 async function upsertGuest(
@@ -103,6 +191,7 @@ export async function applyTicketLog(
       case 'SET_TABLE': {
         const p = payload as { table_uuid: string }
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
         if (p.table_uuid && !await exists(adapter, `SELECT 1 FROM dining_table WHERE uuid = ?`, [p.table_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
@@ -115,6 +204,7 @@ export async function applyTicketLog(
         if (!p.guest_user_name) break
 
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
 
         const raw = p.guest_user_name.trim()
         let userName = raw
@@ -151,6 +241,7 @@ export async function applyTicketLog(
       case 'SET_FULFILLMENT': {
         const p = payload as { fulfillment_uuid: string }
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
         if (p.fulfillment_uuid && !await exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillment_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
@@ -161,6 +252,7 @@ export async function applyTicketLog(
       case 'SET_ANONYMOUS_ADDRESS': {
         const p = payload as SetAnonymousAddressPayload
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
         await adapter.run(`UPDATE "ticket" SET anonymous_address = ?, is_dirty = 1, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.address, entry.admin_uuid ?? null, ticketUuid])
         break
       }
@@ -200,6 +292,7 @@ export async function applyTicketLog(
         const p = payload as SetItemNotePayload
 
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
 
         if (!await exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [p.ticket_menu_item_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
@@ -245,6 +338,7 @@ export async function applyTicketLog(
       case 'APPLY_PROMOTION': {
         const p = payload as ApplyPromotionPayload
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
 
         if (p.ticket_menu_item_uuid && !await exists(adapter, `SELECT 1 FROM ticket_menu_item WHERE uuid = ? LIMIT 1`, [p.ticket_menu_item_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
@@ -293,18 +387,21 @@ export async function applyTicketLog(
 
       case 'SET_STATUS_COMPLETE': {
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
         await adapter.run(`UPDATE ticket SET status = 'COMPLETE', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_ACCEPTED': {
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
         await adapter.run(`UPDATE ticket SET status = 'ACCEPTED', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
       case 'SET_STATUS_PAID': {
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
         await adapter.run(`UPDATE ticket SET status = 'PAID', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
         break
       }

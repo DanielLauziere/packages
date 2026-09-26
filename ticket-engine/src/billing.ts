@@ -58,6 +58,7 @@ export function centsToDollar(cents: number): string {
 }
 
 export function getPlanLabel(priceCents: number, lang: string): string {
+  if (priceCents <= 0) return lang === 'es' ? 'Sin plan' : 'No plan'
   if (priceCents <= 1499) return PLAN_NAMES.starter[lang as 'en' | 'es'] ?? 'Starter'
   if (priceCents <= 3999) return PLAN_NAMES.restaurant[lang as 'en' | 'es'] ?? 'Restaurant'
   return PLAN_NAMES.enterprise[lang as 'en' | 'es'] ?? 'Enterprise'
@@ -157,11 +158,14 @@ export function buildTimeline(
 
   ;(billing.plan_changes ?? []).forEach((pc) => {
     const priceCents = pc.new_monthly_price_cents
-    const planLabel = getPlanLabel(priceCents, lang)
+    const stoppedLabel = lang === 'es' ? 'Facturación detenida' : 'Billing stopped'
+    const description = priceCents <= 0
+      ? `${stoppedLabel} (${centsToDollar(priceCents)}/${labels.mo})`
+      : `${getPlanLabel(priceCents, lang)} ${labels.planActivated} (${centsToDollar(priceCents)}/${labels.mo})`
     events.push({
       date: new Date(pc.effective_at),
       type: 'plan_change',
-      description: `${planLabel} ${labels.planActivated} (${centsToDollar(priceCents)}/${labels.mo})`,
+      description,
       amountCents: priceCents,
     })
   })
