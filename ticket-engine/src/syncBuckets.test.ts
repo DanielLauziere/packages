@@ -5,6 +5,7 @@ import {
   bucketForTicket,
   buildBuckets,
   buildBucketHashes,
+  chunkBucketsForUpload,
   getDirtyBuckets,
   type BucketMap,
   type BucketHashes,
@@ -155,5 +156,60 @@ describe('getDirtyBuckets', () => {
   it('reports nothing when identical', () => {
     const a: BucketHashes = { 0: 1, 1: 2 }
     expect(getDirtyBuckets(a, a)).toEqual(new Set())
+  })
+})
+
+describe('chunkBucketsForUpload', () => {
+  it('returns [] for an empty map (caller sends one buckets:{} request)', () => {
+    expect(chunkBucketsForUpload({})).toEqual([])
+  })
+
+  it('returns a single chunk equal to the input when under maxBytes', () => {
+    const buckets: BucketMap<Log> = { 0: { t1: [{ uuid: 'a' }, { uuid: 'b' }] } }
+    const chunks = chunkBucketsForUpload(buckets, 8 * 1024 * 1024)
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toEqual(buckets)
+  })
+
+  it('splits oversized maps into chunks that each fit maxBytes', () => {
+    const logs = Array.from({ length: 200 }, (_, i) => ({
+      uuid: `uuid-${String(i).padStart(6, '0')}-${'x'.repeat(60)}`,
+    }))
+    const buckets: BucketMap<Log> = { 3: { 'ticket-0001': logs } }
+
+    const maxBytes = 2048
+    const chunks = chunkBucketsForUpload(buckets, maxBytes)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(JSON.stringify(chunk).length).toBeLessThanOrEqual(maxBytes)
+    }
+  })
+
+  it('preserves every log exactly once across chunks', () => {
+    const buckets: BucketMap<Log> = {
+      1: { t1: [{ uuid: 'a' }, { uuid: 'b' }] },
+      7: { t2: [{ uuid: 'c' }], t3: [{ uuid: 'd' }, { uuid: 'e' }] },
+    }
+
+    const chunks = chunkBucketsForUpload(buckets, 60)
+    const seen = chunks
+      .flatMap((c) => Object.values(c))
+      .flatMap((ticketMap) => Object.values(ticketMap))
+      .flatMap((logs) => logs)
+      .map((l) => l.uuid)
+      .sort()
+
+    expect(seen).toEqual(['a', 'b', 'c', 'd', 'e'])
+  })
+
+  it('is deterministic — same input produces identical chunks', () => {
+    const buckets: BucketMap<Log> = {
+      2: { t1: [{ uuid: 'x' }] },
+      5: { t2: [{ uuid: 'y' }] },
+    }
+    expect(chunkBucketsForUpload(buckets, 40)).toEqual(
+      chunkBucketsForUpload(buckets, 40),
+    )
   })
 })

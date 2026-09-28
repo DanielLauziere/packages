@@ -9,10 +9,12 @@ export type { DbAdapter } from './dbAdapter.js'
 export { applyTicketLog, applyLogsBatch, hasLogBeenApplied, handleAddPaymentLog, normalizePhone, ACTION_PRIORITY } from './applyTicketLog.js'
 export {
   NUM_BUCKETS,
+  MAX_UPLOAD_BYTES,
   fastHashUuid,
   bucketForTicket,
   buildBuckets,
   buildBucketHashes,
+  chunkBucketsForUpload,
   getDirtyBuckets,
 } from './syncBuckets.js'
 export type { BucketHashes, BucketMap } from './syncBuckets.js'

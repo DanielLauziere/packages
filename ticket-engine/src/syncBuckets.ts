@@ -93,6 +93,69 @@ export const buildBucketHashes = (buckets: BucketMap<any>): BucketHashes => {
   return result
 }
 
+/**
+ * Default max serialized size of a `ticket-log/sync-buckets` request body.
+ * The server truncates bodies over 20MB and rejects them with 400 and no
+ * partial accept (omni `bucketHandler.go`), which would loop forever while the
+ * bucket stays dirty. Clients split oversized uploads into multiple requests,
+ * each carrying the FULL `bucket_hashes` map — ingest is idempotent per log
+ * uuid, so overlapping/repeated sends are safe.
+ */
+export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+/**
+ * Split an outgoing bucket map into request-sized chunks.
+ *
+ * Returns `[]` for an empty map — callers should send a single request with
+ * `buckets: {}` so they still receive server hashes/timestamps. Every log is
+ * preserved exactly once across chunks; chunk order is deterministic
+ * (bucket asc, ticket asc). The per-unit size estimate over-counts structural
+ * overhead so a chunk's real JSON never exceeds `maxBytes` in practice (the
+ * 8MB default leaves ~12MB of slack against the server's 20MB cap).
+ */
+export const chunkBucketsForUpload = <T extends { uuid: string }>(
+  buckets: BucketMap<T>,
+  maxBytes: number = MAX_UPLOAD_BYTES,
+): BucketMap<T>[] => {
+  const chunks: BucketMap<T>[] = []
+  let current: BucketMap<T> = {}
+  // Running estimate of JSON.stringify(current).length; the outer {} pair.
+  let size = 2
+
+  const flush = () => {
+    if (Object.keys(current).length > 0) {
+      chunks.push(current)
+      current = {}
+      size = 2
+    }
+  }
+
+  const bucketKeys = Object.keys(buckets)
+    .map(Number)
+    .sort((a, b) => a - b)
+
+  for (const b of bucketKeys) {
+    const tickets = buckets[b]!
+    for (const t of Object.keys(tickets).sort()) {
+      for (const log of tickets[t]!) {
+        // "ticket-uuid":[  +  log json  +  comma/bracket slack
+        const unit = JSON.stringify(log).length + t.length + 6
+        if (size > 2 && size + unit > maxBytes) flush()
+        if (!current[b]) {
+          current[b] = {}
+          size += 8 // "0":{}
+        }
+        if (!current[b]![t]) current[b]![t] = []
+        current[b]![t]!.push(log)
+        size += unit
+      }
+    }
+  }
+
+  flush()
+  return chunks
+}
+
 /** Buckets whose hash changed, appeared, or disappeared between two snapshots. */
 export const getDirtyBuckets = (
   current: BucketHashes,

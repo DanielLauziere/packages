@@ -20,8 +20,9 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --root .. && yarn check:drift",
+    "test:watch": "vitest",
+    "check:drift": "bash scripts/check-consumer-drift.sh"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4",
