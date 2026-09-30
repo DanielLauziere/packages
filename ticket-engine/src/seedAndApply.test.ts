@@ -80,9 +80,9 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
 
   afterEach(() => db.close())
 
-  it('creates all 52 tables including print_record', () => {
+  it('creates all 51 tables including print_record', () => {
     const tables = all(db, `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).map((r) => r.name)
-    expect(tables.length).toBe(52)
+    expect(tables.length).toBe(51)
     expect(tables).toContain('print_record')
     expect(tables).toContain('ticket_log_applied')
     expect(tables).toContain('location_group_schema_version')
@@ -261,7 +261,7 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
     // The exported order must name every seedable table and know the schema.
     expect(SEED_ORDER.length).toBeGreaterThan(0)
-    // Probe table is gone from the restored 52-table schema.
+    // Probe table is gone from the restored 51-table schema.
     expect(SEED_ORDER).not.toContain('mock_schema_sync_probe')
   })
 

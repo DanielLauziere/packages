@@ -24,6 +24,20 @@ export type * from './types.js'
 export * from './escpos.js'
 export { ticketIdFromUUID } from './ticketId.js'
 export { helpData, getHelpData } from './help/index.js'
+export {
+  DTE_DEPARTAMENTOS,
+  DTE_MUNICIPIOS,
+  DTE_DISTRITOS,
+  dteMunicipiosFor,
+  dteDistritosFor,
+  dteOptionLabel,
+  dteOptionsWithCurrent,
+} from './dteAddressCatalog.js'
+export type {
+  DteAddressOption,
+  DteMunicipioOption,
+  DteDistritoOption,
+} from './dteAddressCatalog.js'
 export type { HelpBlock, HelpBlockType, HelpSection, HelpData } from './help/index.js'
 export {
   PLAN_NAMES,

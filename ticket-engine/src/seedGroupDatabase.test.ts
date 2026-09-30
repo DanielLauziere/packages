@@ -87,9 +87,6 @@ describe('seedGroupDatabase (unified seeder)', () => {
         { uuid: 'lgf-1', location_group_uuid: 'lgg', feature_uuid: 'ft-1' },
         { uuid: 'lgf-2', location_group_uuid: 'lgg', feature_uuid: 'ft-2' },
       ],
-      location_group_activation_history: [
-        { uuid: 'ah-1', location_group_uuid: 'lgg', active: 1, day_price_cents: 17 },
-      ],
       guest: [{ uuid: 'guest-1', user_name: 'guest@x.com' }],
       guest_address: [{ uuid: 'ga-1', address: '123 Main', guest_uuid: 'guest-1' }],
       fulfillment: [{ uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e', name: 'Dine-In' }],
@@ -125,9 +122,6 @@ describe('seedGroupDatabase (unified seeder)', () => {
         { uuid: 'dt1', name: 'T1-renamed', active: 1, location_group_uuid: 'lgg' },
       ],
       location_group_feature: [],
-      location_group_activation_history: [
-        { uuid: 'ah-2', location_group_uuid: 'lgg', active: 1, day_price_cents: 17 },
-      ],
       guest: [{ uuid: 'guest-1', user_name: 'guest@x.com', first_name: 'New' }],
       guest_address: [{ uuid: 'ga-1', address: '456 New', guest_uuid: 'guest-1' }],
       fulfillment: [{ uuid: 'ed345e57-4fb1-4111-8603-9c820417ed3e', name: 'Dine-In' }],
@@ -163,8 +157,6 @@ describe('seedGroupDatabase (unified seeder)', () => {
     // The feature entities themselves stay.
     expect(all(`SELECT COUNT(*) c FROM location_group_feature`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM feature`)[0].c).toBe(2)
-    expect(all(`SELECT COUNT(*) c FROM location_group_activation_history`)[0].c).toBe(1)
-    expect(all(`SELECT uuid FROM location_group_activation_history`)[0].uuid).toBe('ah-2')
 
     expect(all('PRAGMA foreign_key_check')).toHaveLength(0)
   })

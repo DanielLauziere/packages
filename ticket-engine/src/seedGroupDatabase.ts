@@ -48,8 +48,7 @@ const NEVER_TOUCH = new Set<string>([
   'location_group_schema_version',
   'environment',
   'lets_encrypt',
-  'log',
-  'admin_balance_history',
+  'location_group_balance_history',
   'admin_push_creds',
   'ticket',
   'ticket_log',
@@ -67,7 +66,6 @@ const NEVER_TOUCH = new Set<string>([
 const JOIN_OVERRIDE = new Set<string>([
   'bogo_menu_item',
   'location_group_feature',
-  'location_group_activation_history',
   // admin_location_permission is a many-to-many join (admin_location ↔ permission)
   // with no UNIQUE constraint on its FK columns. Without this entry, classify()
   // treats it as an ENTITY table (upsert by uuid only, no diff-delete), so
