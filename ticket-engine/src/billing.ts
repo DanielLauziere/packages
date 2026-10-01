@@ -48,9 +48,9 @@ export const PLAN_NAMES: Record<'starter' | 'restaurant' | 'enterprise', { en: s
 }
 
 export const PLANS = [
-  { key: 'starter', price: 1499, descriptionEn: 'For small restaurants', descriptionEs: 'Para restaurantes pequeños' },
-  { key: 'restaurant', price: 3999, descriptionEn: 'For growing restaurants', descriptionEs: 'Para restaurantes en crecimiento' },
-  { key: 'enterprise', price: 9999, descriptionEn: 'For restaurant chains', descriptionEs: 'Para cadenas de restaurantes' },
+  { key: 'starter', price: 1499, descriptionEn: 'For small restaurants — up to 2 devices', descriptionEs: 'Para restaurantes pequeños — hasta 2 dispositivos' },
+  { key: 'restaurant', price: 3999, descriptionEn: 'For growing restaurants — unlimited devices, 1 location', descriptionEs: 'Para restaurantes en crecimiento — dispositivos ilimitados, 1 ubicación' },
+  { key: 'enterprise', price: 9999, descriptionEn: 'For restaurant chains — unlimited devices & locations', descriptionEs: 'Para cadenas de restaurantes — dispositivos y ubicaciones ilimitados' },
 ] as const
 
 export function centsToDollar(cents: number): string {

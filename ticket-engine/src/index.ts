@@ -24,6 +24,7 @@ export type * from './types.js'
 export * from './escpos.js'
 export { ticketIdFromUUID } from './ticketId.js'
 export { helpData, getHelpData } from './help/index.js'
+export { terminosData, getTerminosData } from './terminos/index.js'
 export {
   DTE_DEPARTAMENTOS,
   DTE_MUNICIPIOS,
@@ -39,6 +40,12 @@ export type {
   DteDistritoOption,
 } from './dteAddressCatalog.js'
 export type { HelpBlock, HelpBlockType, HelpSection, HelpData } from './help/index.js'
+export type {
+  TerminosBlock,
+  TerminosBlockType,
+  TerminosSection,
+  TerminosData,
+} from './terminos/index.js'
 export {
   PLAN_NAMES,
   PLANS,

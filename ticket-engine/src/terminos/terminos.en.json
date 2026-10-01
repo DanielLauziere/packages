@@ -1,0 +1,1335 @@
+{
+  "title": "PEDILO TERMS OF SERVICE",
+  "lastUpdated": "Last updated: 1/10/2026",
+  "versionLabel": "Version",
+  "version": "1.0",
+  "sections": [
+    {
+      "heading": "1. PROVIDER IDENTIFICATION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "These Terms of Service (the “Terms”) govern access to and use of the Pedilo technology platform (hereinafter “Pedilo”, the “Platform”, the “Service” or the “Software”)."
+        },
+        {
+          "type": "p",
+          "text": "The Service provider is:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Trade name: Pedilo",
+            "Legal name: Daniel Ryan Lauziere",
+            "NIT: 94500201851069",
+            "NRC: 3899028",
+            "Registered address: Residencial las palmas lote 20 poligono d lotificacion horeb 2",
+            "Email: danielryanlauziere@gmail.com",
+            "Phone: 70531117",
+            "Website: https://directeatz.com"
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For the purposes of these Terms, “Pedilo” includes the provider identified above and, where applicable, its employees, contractors, technology providers and subcontractors involved in delivering the Service."
+        }
+      ]
+    },
+    {
+      "heading": "2. ACCEPTANCE OF THE TERMS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Access to or use of the Service requires acceptance of these Terms."
+        },
+        {
+          "type": "p",
+          "text": "When the User checks the corresponding box and selects “Accept and continue”, “I accept” or an equivalent option, that action constitutes electronic acceptance of these Terms."
+        },
+        {
+          "type": "p",
+          "text": "The User represents that:"
+        },
+        {
+          "type": "ol",
+          "items": [
+            "they have had access to these Terms before using the Service;",
+            "they have had a reasonable opportunity to read them;",
+            "they understand that they constitute a contractual agreement;",
+            "they have the capacity and authority to bind the business or entity they represent; and",
+            "they agree to comply with them."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo may record electronic acceptance, including, where applicable, the date and time of acceptance, the account identification, the version of the Terms accepted, the version of the Software and other technical data reasonably necessary to evidence acceptance."
+        },
+        {
+          "type": "p",
+          "text": "If the person accepting these Terms acts on behalf of a restaurant, corporation, merchant or business, they represent that they have sufficient authority to do so."
+        }
+      ]
+    },
+    {
+      "heading": "3. DEFINITIONS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For the purposes of these Terms:"
+        },
+        {
+          "type": "p",
+          "text": "“Customer” means the natural or legal person who contracts or uses Pedilo to operate their business."
+        },
+        {
+          "type": "p",
+          "text": "“Restaurant” means the commercial establishment or business that uses Pedilo."
+        },
+        {
+          "type": "p",
+          "text": "“User” means any person authorized by the Customer to use a Pedilo account."
+        },
+        {
+          "type": "p",
+          "text": "“Account” means the electronic account used to access the Service."
+        },
+        {
+          "type": "p",
+          "text": "“POS” means the point-of-sale functionality provided by Pedilo."
+        },
+        {
+          "type": "p",
+          "text": "“Offline Mode” means the operation of certain Software features without an active Internet connection."
+        },
+        {
+          "type": "p",
+          "text": "“Online Order” means an order placed by a consumer through the online ordering tools provided by Pedilo."
+        },
+        {
+          "type": "p",
+          "text": "“DTE” means an Electronic Tax Document issued in accordance with the applicable tax regulations of El Salvador."
+        },
+        {
+          "type": "p",
+          "text": "“Hacienda” means the Ministry of Finance of the Republic of El Salvador and its dependencies, systems and electronic services related to DTE."
+        },
+        {
+          "type": "p",
+          "text": "“Third-Party Services” means services, platforms, networks, APIs, systems, Internet providers, cloud services, government systems, payment processors, application stores and other services that are not directly controlled by Pedilo."
+        }
+      ]
+    },
+    {
+      "heading": "4. DESCRIPTION OF THE SERVICE",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo provides technology tools intended to help restaurants and other food businesses manage certain business operations."
+        },
+        {
+          "type": "p",
+          "text": "Depending on the contracted plan and the available features, the Service may include:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "point of sale;",
+            "product management;",
+            "categories, modifiers and combos;",
+            "orders and tickets;",
+            "receipt printing;",
+            "reports;",
+            "promotions;",
+            "loyalty programs;",
+            "online ordering;",
+            "QR codes;",
+            "offline operation of certain features;",
+            "information synchronization;",
+            "integration with DTE services;",
+            "generation and transmission of DTE-related information;",
+            "information storage;",
+            "backups;",
+            "Software updates; and",
+            "other features Pedilo may introduce."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo may add, modify, replace or remove Service features when reasonably necessary to maintain, improve, protect or develop the Platform, subject to the rights granted to the Customer under applicable legislation and the contracted commercial terms."
+        }
+      ]
+    },
+    {
+      "heading": "5. THE SERVICE IS A TECHNOLOGY TOOL",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer acknowledges that Pedilo is a technology tool intended to assist in the operation of the business and does not replace the Customer’s management, supervision, commercial judgment, internal controls, tax obligations or legal responsibilities."
+        },
+        {
+          "type": "p",
+          "text": "The Customer retains control and responsibility over the decisions of their business at all times."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo does not manage the Customer’s restaurant or determine:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "which products are sold;",
+            "which prices are set;",
+            "which discounts are applied;",
+            "which orders are accepted;",
+            "which orders are prepared;",
+            "which orders are delivered;",
+            "which employees are authorized;",
+            "what information is provided to customers;",
+            "what tax information is filed;",
+            "or what business decisions are made."
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "6. CUSTOMER RESPONSIBILITIES",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer is responsible for using the Service appropriately and for providing correct, complete and up-to-date information."
+        },
+        {
+          "type": "p",
+          "text": "The Customer will be responsible, among other things, for:"
+        },
+        {
+          "type": "ol",
+          "items": [
+            "keeping its products, prices, taxes, promotions, hours and other information up to date;",
+            "verifying the information entered into Pedilo;",
+            "reviewing the transactions carried out;",
+            "supervising its employees and Users;",
+            "protecting its credentials;",
+            "maintaining control over the devices used to access the Service;",
+            "maintaining an Internet connection where certain features require one;",
+            "reviewing transactions carried out during offline periods;",
+            "verifying that offline operations have been synchronized correctly;",
+            "reviewing DTE statuses and responses;",
+            "timely correcting rejected or erroneous documents;",
+            "keeping authorizations, credentials, certificates, keys and other elements required for its tax operations valid;",
+            "complying with its tax obligations;",
+            "complying with the laws applicable to its commercial activity;",
+            "retaining the records it is legally required to retain;",
+            "maintaining internal procedures to detect operational errors;",
+            "performing reasonable checks before delivering products or providing services; and",
+            "maintaining reasonable alternative mechanisms to continue operating in the event of a Service interruption."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Customer acknowledges that no computer system completely eliminates the possibility of errors, interruptions, loss of connectivity, hardware failures, human error or third-party problems."
+        }
+      ]
+    },
+    {
+      "heading": "7. RESTAURANT INFORMATION AND CONFIGURATION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer is responsible for the accuracy of the information it enters or configures in Pedilo."
+        },
+        {
+          "type": "p",
+          "text": "This includes, among others:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "trade name;",
+            "legal name;",
+            "tax identification;",
+            "NRC;",
+            "address;",
+            "contact information;",
+            "products;",
+            "prices;",
+            "taxes;",
+            "discounts;",
+            "promotions;",
+            "modifiers;",
+            "hours;",
+            "availability;",
+            "delivery information;",
+            "customer data;",
+            "information required for DTE; and",
+            "any other information used to process an operation."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo may use the information provided by the Customer to carry out instructions received through the Software."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo is not obligated to independently verify that all information provided by the Customer is correct."
+        }
+      ]
+    },
+    {
+      "heading": "8. DTE AND TAX OBLIGATIONS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may provide technology integration tools with the systems of the Ministry of Finance to facilitate the generation, signing, transmission, query and/or management of Electronic Tax Documents."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo’s technology integration does not make Pedilo the taxpayer, tax issuer or party responsible for the Customer’s tax obligations."
+        },
+        {
+          "type": "p",
+          "text": "The Customer remains responsible for complying with the obligations applicable to it under the Tax Code, DTE regulations, Ministry of Finance provisions and other applicable legislation."
+        },
+        {
+          "type": "p",
+          "text": "In particular, the Customer is responsible for:"
+        },
+        {
+          "type": "ol",
+          "items": [
+            "being duly registered and authorized where required;",
+            "keeping its credentials, certificates, keys and authorizations valid;",
+            "providing correct tax information;",
+            "reviewing the information contained in each DTE;",
+            "verifying the status of transmitted DTE;",
+            "timely addressing rejected, observed, pending or erroneous DTE;",
+            "making the corresponding corrections or voids;",
+            "retaining the documents and records it must legally retain;",
+            "complying with the deadlines and procedures established by the Tax Administration; and",
+            "taking the necessary measures when a DTE cannot be transmitted or accepted."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo may provide tools to identify errors, rejections or transmission statuses, but the Customer must not interpret the existence of such tools as a guarantee of tax compliance by Pedilo."
+        },
+        {
+          "type": "p",
+          "text": "A transmission made by Pedilo does not necessarily mean that:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "the information provided by the Customer is correct;",
+            "the document meets all of the Customer’s material tax obligations;",
+            "the underlying transaction is lawful;",
+            "the Customer has met all of its tax obligations; or",
+            "the document has been definitively accepted by the Tax Administration."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "When Pedilo displays a response, status, rejection code, generation code or other information originating from Hacienda, that information may depend on the systems, infrastructure, availability and responses of the Tax Administration."
+        },
+        {
+          "type": "p",
+          "text": "The Customer must review the status of its documents and take the corresponding measures."
+        }
+      ]
+    },
+    {
+      "heading": "9. INTERRUPTIONS OR FAILURES OF HACIENDA SYSTEMS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer acknowledges that DTE transmission may depend on government systems, APIs, networks, technology infrastructure and services outside of Pedilo."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo does not guarantee that the systems of the Ministry of Finance will be continuously available, that they will respond within a given period, or that they will accept a given request."
+        },
+        {
+          "type": "p",
+          "text": "When a transmission cannot be completed due to an external problem, Pedilo may attempt to retransmit it, place it in a pending status, report the error or provide mechanisms for the Customer to take the corresponding measures, depending on the available functionality."
+        },
+        {
+          "type": "p",
+          "text": "The Customer must review pending or rejected documents and act in accordance with its tax obligations."
+        }
+      ]
+    },
+    {
+      "heading": "10. OFFLINE OPERATION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may provide certain features capable of operating without an Internet connection."
+        },
+        {
+          "type": "p",
+          "text": "Offline operation is subject to technical limitations."
+        },
+        {
+          "type": "p",
+          "text": "During a period without connectivity there may be restrictions on:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "DTE transmission;",
+            "synchronization;",
+            "online orders;",
+            "updates;",
+            "server queries;",
+            "certain administrative functions;",
+            "availability of recent information; and",
+            "other functions that require communication with external systems."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Operations carried out offline may remain stored locally until a connection becomes available."
+        },
+        {
+          "type": "p",
+          "text": "The Customer acknowledges that it must verify the synchronization of operations carried out offline when the device reconnects."
+        },
+        {
+          "type": "p",
+          "text": "Offline operation does not guarantee that every operation performed during an Internet interruption can be transmitted immediately, nor does it eliminate the risks associated with:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "loss or damage to the device;",
+            "storage failure;",
+            "data corruption;",
+            "accidental data deletion;",
+            "operating system failure;",
+            "prolonged lack of connectivity;",
+            "synchronization problems;",
+            "human error; or",
+            "any other circumstance that prevents the recovery or synchronization of information."
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "11. ONLINE ORDERS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "When the Customer uses the online ordering features, the Customer remains responsible for the commercial relationship with its consumers."
+        },
+        {
+          "type": "p",
+          "text": "The Customer is responsible for:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "accepting or rejecting orders;",
+            "preparing the products;",
+            "keeping prices correct;",
+            "keeping availability correct;",
+            "meeting reasonable preparation times;",
+            "delivering the products;",
+            "handling cancellations;",
+            "handling refunds;",
+            "addressing complaints from its consumers;",
+            "describing products accurately;",
+            "complying with applicable health and commercial obligations; and",
+            "complying with the tax obligations related to sales."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo provides the technology infrastructure that facilitates order processing and does not assume responsibility for the preparation, quality, quantity, safety, delivery or legality of the products sold by the Customer."
+        }
+      ]
+    },
+    {
+      "heading": "12. PRICES, DISCOUNTS AND TRANSACTIONS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer is responsible for periodically reviewing the prices, discounts, taxes, promotions and other parameters configured in its account."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo processes the instructions provided by the Customer or its authorized Users."
+        },
+        {
+          "type": "p",
+          "text": "If an authorized User incorrectly configures a price, discount, product, tax, quantity or any other parameter, responsibility for that configuration lies with the Customer."
+        },
+        {
+          "type": "p",
+          "text": "The Customer must review its operations and promptly report any error it detects."
+        }
+      ]
+    },
+    {
+      "heading": "13. ACCOUNTS AND USERS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer is responsible for all activities carried out through its accounts and for managing the permissions granted to its employees and Users."
+        },
+        {
+          "type": "p",
+          "text": "The Customer must:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "keep its credentials confidential;",
+            "not share passwords unnecessarily;",
+            "revoke access for employees who no longer need to use the Service;",
+            "promptly report any unauthorized access; and",
+            "take reasonable measures to protect its devices."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Operations carried out with valid credentials may be attributed to the corresponding account, unless the Customer promptly notifies an unauthorized access or there is evidence to the contrary."
+        }
+      ]
+    },
+    {
+      "heading": "14. SERVICE AVAILABILITY",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo strives to keep the Service available and operational, but does not guarantee continuous, uninterrupted or error-free availability."
+        },
+        {
+          "type": "p",
+          "text": "The Service may experience interruptions due, among other causes, to:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "maintenance;",
+            "updates;",
+            "infrastructure failures;",
+            "Internet failures;",
+            "power failures;",
+            "DNS problems;",
+            "cyber attacks;",
+            "software errors;",
+            "human error;",
+            "hardware failures;",
+            "third-party services;",
+            "government systems;",
+            "cloud providers;",
+            "telecommunications operators;",
+            "force majeure events; or",
+            "circumstances beyond Pedilo’s reasonable control."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Where reasonably possible, Pedilo may notify scheduled interruptions or significant incidents."
+        }
+      ]
+    },
+    {
+      "heading": "15. THIRD-PARTY SERVICES",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The operation of certain Pedilo features may depend on Third-Party Services."
+        },
+        {
+          "type": "p",
+          "text": "These may include, among others:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "the Ministry of Finance;",
+            "Internet providers;",
+            "telecommunications operators;",
+            "email services;",
+            "storage services;",
+            "cloud services;",
+            "operating systems;",
+            "application stores;",
+            "payment processors;",
+            "map services;",
+            "messaging services;",
+            "hardware providers; and",
+            "external APIs."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo does not control third-party systems and cannot guarantee their availability, accuracy, security, continuity or behavior."
+        },
+        {
+          "type": "p",
+          "text": "When a feature depends on a third party, the interruption, modification, limitation or discontinuation of that third party’s service may affect the corresponding Pedilo feature."
+        }
+      ]
+    },
+    {
+      "heading": "16. MAINTENANCE, UPDATES AND TECHNICAL CHANGES",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may perform updates, maintenance, security fixes, improvements and technical modifications."
+        },
+        {
+          "type": "p",
+          "text": "Some updates may be necessary to:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "fix errors;",
+            "maintain compatibility;",
+            "meet technical requirements;",
+            "improve security;",
+            "comply with regulatory changes;",
+            "maintain third-party integrations; or",
+            "improve the operation of the Service."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo will seek to avoid unnecessary interruptions and, where reasonably possible, may announce scheduled maintenance."
+        }
+      ]
+    },
+    {
+      "heading": "17. BACKUPS AND INFORMATION RETENTION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may back up information stored on its systems in accordance with the architecture and policies in effect for the Service."
+        },
+        {
+          "type": "p",
+          "text": "However, no backup strategy completely eliminates the risk of information loss."
+        },
+        {
+          "type": "p",
+          "text": "The Customer must keep its own records and copies where the nature of its business or its legal obligations require it."
+        },
+        {
+          "type": "p",
+          "text": "Unless expressly stated otherwise in a specific plan or contract, Pedilo does not guarantee a specific information retention policy for any specific period."
+        },
+        {
+          "type": "p",
+          "text": "The Customer is responsible for downloading, exporting or retaining the information it legally needs to keep when Pedilo makes that information available to it for that purpose."
+        }
+      ]
+    },
+    {
+      "heading": "18. SECURITY",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo will implement reasonable technical and organizational measures intended to protect its systems and the information processed through the Service."
+        },
+        {
+          "type": "p",
+          "text": "However, no system connected to the Internet can guarantee absolute security."
+        },
+        {
+          "type": "p",
+          "text": "The Customer acknowledges that it also has security responsibilities, including:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "protecting its passwords;",
+            "protecting its devices;",
+            "limiting access to authorized personnel;",
+            "keeping its devices updated where applicable;",
+            "reporting security incidents;",
+            "avoiding sharing credentials; and",
+            "using the Service in accordance with these terms."
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "19. INTELLECTUAL PROPERTY",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo and its respective licensors retain all intellectual property rights related to:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "the Software;",
+            "source code;",
+            "object code;",
+            "interfaces;",
+            "designs;",
+            "trademarks;",
+            "logos;",
+            "documentation;",
+            "databases;",
+            "features;",
+            "algorithms;",
+            "processes;",
+            "its own content; and",
+            "other elements developed by Pedilo."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "These Terms do not transfer ownership of the Software to the Customer."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo grants the Customer a limited, non-exclusive, non-transferable and revocable license under these Terms to use the Service during the contracted term and solely for authorized operations."
+        },
+        {
+          "type": "p",
+          "text": "The Customer may not, unless expressly authorized or where applicable legislation permits:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "copy the Software;",
+            "sell it;",
+            "sublicense it;",
+            "redistribute it;",
+            "reverse engineer it;",
+            "attempt to obtain the source code;",
+            "modify it;",
+            "use it to develop a substantially competing product;",
+            "remove intellectual property notices; or",
+            "allow access by unauthorized persons."
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "20. CUSTOMER INFORMATION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer retains its rights in the information and content it enters into Pedilo, subject to the rights necessary for Pedilo to provide the Service."
+        },
+        {
+          "type": "p",
+          "text": "The Customer grants Pedilo a limited authorization to store, process, transmit and use that information to the extent necessary to:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "provide the Service;",
+            "synchronize information;",
+            "generate documents;",
+            "transmit DTE;",
+            "create backups;",
+            "provide support;",
+            "detect errors;",
+            "maintain security;",
+            "prevent fraud or abuse; and",
+            "comply with legal obligations."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Pedilo does not acquire ownership of the Customer’s business data merely by storing or processing it."
+        }
+      ]
+    },
+    {
+      "heading": "21. PRIVACY AND PERSONAL DATA",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The processing of personal data will be carried out in accordance with applicable legislation and Pedilo’s Privacy Policy."
+        },
+        {
+          "type": "p",
+          "text": "When Pedilo processes information about end consumers, employees or other persons at the Customer’s instruction, the Customer is responsible for using that information lawfully and for providing any notifications or consents that are legally required."
+        },
+        {
+          "type": "p",
+          "text": "The Customer must not enter into Pedilo information that it has no right to collect, use or transmit."
+        }
+      ]
+    },
+    {
+      "heading": "22. PROHIBITED USES",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer may not use Pedilo to:"
+        },
+        {
+          "type": "ol",
+          "items": [
+            "carry out unlawful activities;",
+            "carry out fraudulent activities;",
+            "attempt unauthorized access to systems;",
+            "interfere with the operation of the Service;",
+            "introduce malware;",
+            "attack or breach the infrastructure;",
+            "perform prohibited reverse engineering;",
+            "use third-party accounts without authorization;",
+            "use Pedilo to infringe the rights of third parties;",
+            "transmit illegal information; or",
+            "carry out any activity that could compromise the security or availability of the Service."
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "23. SUPPORT",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may provide technical support through the channels it determines."
+        },
+        {
+          "type": "p",
+          "text": "Support is intended to help the Customer use the Software."
+        },
+        {
+          "type": "p",
+          "text": "Technical support does not constitute advice on:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "tax matters;",
+            "accounting;",
+            "legal matters;",
+            "labor matters;",
+            "health matters;",
+            "financial matters; or",
+            "business matters."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "When a question involves tax obligations, the Customer should consult an accountant, lawyer or tax advisor where appropriate."
+        }
+      ]
+    },
+    {
+      "heading": "24. SOFTWARE ERRORS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo will seek to correct identified technical errors in the Software within a reasonable period depending on their nature and severity."
+        },
+        {
+          "type": "p",
+          "text": "However, given the complexity of computer systems, Pedilo does not guarantee that the Software is completely free of errors."
+        },
+        {
+          "type": "p",
+          "text": "When an error is identified, Pedilo may:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "fix it;",
+            "provide an update;",
+            "provide a workaround;",
+            "restore available information;",
+            "investigate the incident; or",
+            "take other technically reasonable measures."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Customer must promptly report any errors it detects and provide the information reasonably necessary to investigate them."
+        }
+      ]
+    },
+    {
+      "heading": "25. CUSTOMER RESPONSIBILITY FOR ITS OPERATIONS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer acknowledges that the operations carried out through Pedilo form part of the Customer’s commercial activity."
+        },
+        {
+          "type": "p",
+          "text": "Therefore, the Customer remains responsible for:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "sales;",
+            "purchases;",
+            "products;",
+            "prices;",
+            "taxes;",
+            "discounts;",
+            "orders;",
+            "customers;",
+            "employees;",
+            "refunds;",
+            "deliveries;",
+            "DTE;",
+            "filings and tax obligations; and",
+            "the other operations of its business."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The use of Pedilo does not transfer those responsibilities to Pedilo."
+        }
+      ]
+    },
+    {
+      "heading": "26. LIMITATION OF LIABILITY",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo will be liable for its contractual obligations to the extent established by applicable legislation."
+        },
+        {
+          "type": "p",
+          "text": "Nothing in these Terms is intended to exclude, limit or waive in advance any liability that cannot legally be excluded or limited."
+        },
+        {
+          "type": "p",
+          "text": "To the maximum extent permitted by applicable legislation, Pedilo will not be liable for losses or damages resulting from circumstances attributable to the Customer, its Users, its employees, its devices, its configurations, its providers, its customers, its Internet services or third-party services."
+        },
+        {
+          "type": "p",
+          "text": "Among other cases, this may include losses arising from:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "incorrectly entered information;",
+            "incorrect prices;",
+            "incorrectly configured products;",
+            "incorrect discounts;",
+            "employee errors;",
+            "compromised credentials;",
+            "lack of supervision;",
+            "lack of review of operations;",
+            "unverified offline operations;",
+            "rejected DTE that were not addressed in time;",
+            "incorrect tax information;",
+            "Internet failures;",
+            "power failures;",
+            "hardware failures;",
+            "unavailable government systems;",
+            "third-party services;",
+            "telecommunications interruptions;",
+            "force majeure; or",
+            "use contrary to these Terms."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "To the maximum extent permitted by applicable legislation, Pedilo will also not be liable for indirect, incidental, special or consequential losses, loss of business opportunities, loss of reputation, loss of future revenue, business interruption or loss of profits, where such limitations are legally applicable."
+        }
+      ]
+    },
+    {
+      "heading": "27. MAXIMUM LIABILITY CAP",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Subject to liabilities that cannot be limited by law, Pedilo’s total accumulated contractual liability to the Customer for claims directly related to the Service will be limited to the amount actually paid by the Customer to Pedilo for the Service during the TWELVE (12) months immediately preceding the event that gave rise to the claim."
+        },
+        {
+          "type": "p",
+          "text": "If the Customer has made no payments during that period, the maximum liability will be USD $50, always subject to the limitations permitted by applicable legislation."
+        },
+        {
+          "type": "p",
+          "text": "This cap is not intended to exclude or limit liabilities that cannot be limited by contract under the law."
+        }
+      ]
+    },
+    {
+      "heading": "28. NO GUARANTEE OF BUSINESS RESULTS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo provides technology tools."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo does not guarantee that use of the Service will:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "increase sales;",
+            "reduce costs;",
+            "prevent losses;",
+            "attract more customers;",
+            "prevent human error;",
+            "prevent interruptions;",
+            "guarantee any level of revenue;",
+            "guarantee profitability;",
+            "prevent a business from closing; or",
+            "produce any specific business result."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Restaurant’s business decisions and financial results depend on numerous factors outside Pedilo’s control."
+        }
+      ]
+    },
+    {
+      "heading": "29. BUSINESS CONTINUITY",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer acknowledges that Pedilo does not constitute a complete business continuity system."
+        },
+        {
+          "type": "p",
+          "text": "The Customer must maintain reasonable procedures to operate during:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Internet failures;",
+            "power failures;",
+            "device failures;",
+            "Pedilo interruptions;",
+            "Hacienda interruptions;",
+            "third-party failures; and",
+            "other emergency situations."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Customer must determine, according to the nature and size of its business, what alternative procedures and records it needs to maintain."
+        }
+      ]
+    },
+    {
+      "heading": "30. INDEMNIFICATION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "To the extent permitted by applicable legislation, the Customer will defend, indemnify and hold harmless Pedilo against third-party claims arising directly from:"
+        },
+        {
+          "type": "ol",
+          "items": [
+            "the Customer’s commercial activities;",
+            "the products or services offered by the Customer;",
+            "information provided by the Customer;",
+            "content provided by the Customer;",
+            "legal violations committed by the Customer;",
+            "the Customer’s breach of its tax obligations;",
+            "unauthorized use of Pedilo by the Customer’s Users; or",
+            "the Customer’s breach of these Terms."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "This provision is not intended to shift to the Customer any responsibilities that legally belong to Pedilo."
+        }
+      ]
+    },
+    {
+      "heading": "31. SERVICE SUSPENSION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may temporarily suspend an Account when reasonably necessary to:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "protect the security of the Platform;",
+            "prevent fraud;",
+            "prevent abuse;",
+            "respond to a security threat;",
+            "comply with a legal obligation;",
+            "investigate potentially unlawful activity;",
+            "protect other users; or",
+            "address a material breach of these Terms."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Where reasonably possible, Pedilo will seek to notify the Customer and allow the issue to be corrected."
+        }
+      ]
+    },
+    {
+      "heading": "32. TERMINATION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The Customer may cancel the Service in accordance with the commercial terms applicable to its plan."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo may terminate or suspend an Account when the Customer:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "materially breaches these Terms;",
+            "uses the Service for unlawful activities;",
+            "poses a significant security risk;",
+            "attempts to compromise the Platform;",
+            "uses the Service fraudulently; or",
+            "fails to pay amounts validly owed."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Where applicable law requires notice, an opportunity to cure or any specific procedure, Pedilo will comply with those requirements."
+        }
+      ]
+    },
+    {
+      "heading": "33. DATA AFTER TERMINATION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "After termination, Pedilo may retain or delete information in accordance with:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "applicable legal obligations;",
+            "its retention policies;",
+            "its legitimate security needs;",
+            "tax or regulatory obligations; and",
+            "the specific terms of the contracted plan."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "When Pedilo provides tools to export information, the Customer is responsible for performing the export within the reasonably available period."
+        }
+      ]
+    },
+    {
+      "heading": "34. FORCE MAJEURE",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo will not be liable for breaches or delays caused by events outside its reasonable control, including, among others:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "natural disasters;",
+            "earthquakes;",
+            "floods;",
+            "fires;",
+            "wars;",
+            "riots;",
+            "government acts;",
+            "regulatory changes;",
+            "widespread Internet failures;",
+            "telecommunications failures;",
+            "power failures;",
+            "widespread cyber attacks;",
+            "critical provider failures;",
+            "government system unavailability; or",
+            "similar events that reasonably prevent the normal delivery of the Service."
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "35. CHANGES TO THESE TERMS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may update these Terms when necessary to reflect changes:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "in the law;",
+            "in regulations;",
+            "in technology;",
+            "in commercial terms;",
+            "in security; or",
+            "in the operation of the Service."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "When a change is material, Pedilo will seek to provide reasonable notice and, where applicable, request a new electronic acceptance."
+        },
+        {
+          "type": "p",
+          "text": "The current version will be available at [TERMS URL]."
+        },
+        {
+          "type": "p",
+          "text": "The new version will indicate its effective date."
+        }
+      ]
+    },
+    {
+      "heading": "36. VERSIONS AND ACCEPTANCE RECORDS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may keep a record of the version of these Terms accepted by each Customer."
+        },
+        {
+          "type": "p",
+          "text": "The record may include:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "the version of the Terms;",
+            "the date and time;",
+            "the Account identification;",
+            "the User who accepted;",
+            "the IP address;",
+            "the application version;",
+            "technical information related to the acceptance process; and",
+            "other data reasonably necessary to evidence acceptance."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Such record may be used as evidence of the electronic acceptance of the Terms."
+        }
+      ]
+    },
+    {
+      "heading": "37. NOTICES",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pedilo may send communications related to the Service through:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "email;",
+            "notifications within the Platform;",
+            "messages within the admin panel;",
+            "notices on the website; or",
+            "other electronic means associated with the Account."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Customer must keep its contact information up to date."
+        }
+      ]
+    },
+    {
+      "heading": "38. APPLICABLE LAW",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "These Terms are governed by the laws of the Republic of El Salvador, without prejudice to the mandatory provisions that may apply and to the rights that legislation recognizes for consumers."
+        },
+        {
+          "type": "p",
+          "text": "No provision of these Terms is intended to deprive the Customer or consumer of rights that cannot legally be excluded or waived."
+        }
+      ]
+    },
+    {
+      "heading": "39. DISPUTE RESOLUTION",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The parties will seek to resolve in good faith any dispute related to the Service through direct communication and negotiation."
+        },
+        {
+          "type": "p",
+          "text": "Before initiating any formal proceeding, the Customer may contact Pedilo through:"
+        },
+        {
+          "type": "p",
+          "text": "Email: danielryanlauziere@gmail.com"
+        },
+        {
+          "type": "p",
+          "text": "Pedilo will seek to respond to claims within a reasonable period."
+        },
+        {
+          "type": "p",
+          "text": "The above does not limit the rights available to the Customer or consumer under Salvadoran legislation, including the administrative or judicial mechanisms available."
+        }
+      ]
+    },
+    {
+      "heading": "40. ENTIRE AGREEMENT",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "These Terms, together with the commercial terms specifically accepted by the Customer and the policies expressly incorporated into them, constitute the agreement applicable to the use of the Service."
+        },
+        {
+          "type": "p",
+          "text": "If any provision of these Terms is declared invalid or unenforceable, the remaining provisions will remain in effect to the extent permitted by law."
+        },
+        {
+          "type": "p",
+          "text": "Pedilo’s failure to exercise a right immediately does not necessarily constitute a waiver of that right."
+        }
+      ]
+    },
+    {
+      "heading": "41. NO WAIVER OF LEGAL RIGHTS",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nothing in these Terms is intended to:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "eliminate rights recognized by applicable legislation;",
+            "prevent a person from exercising legally recognized rights;",
+            "reverse the burden of proof unlawfully;",
+            "exclude liabilities that cannot legally be excluded; or",
+            "turn a contractual limitation into an absolute exemption from liability."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "In the event of a conflict between a provision of these Terms and a mandatory legal rule, the mandatory legal rule will prevail."
+        }
+      ]
+    },
+    {
+      "heading": "42. CONTACT",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For questions, support or claims related to Pedilo:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Legal name: Daniel Ryan Lauziere",
+            "Trade name: Pedilo",
+            "Email: danielryanlauziere@gmail.com",
+            "Phone: 70531117",
+            "Address: Residencial las palmas lote 20 poligono d lotificacion horeb 2, San Sabasitan Salitrillo, SAO",
+            "Website: https://directeatz.com"
+          ]
+        }
+      ]
+    }
+  ],
+  "acceptanceTitle": "ELECTRONIC ACCEPTANCE",
+  "acceptanceIntro": "By selecting “Accept and continue”, the User confirms that:",
+  "acceptanceCheckbox": "I have read and accept the Pedilo Terms of Service, version {{version}}, and I declare that I have the authority to accept these Terms on behalf of the corresponding business or entity.",
+  "acceptButton": "ACCEPT AND CONTINUE"
+}

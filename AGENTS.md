@@ -62,6 +62,7 @@ yarn build         # emit dist/ (required by consumers)
 - `ticket-engine/src/syncBuckets.ts` — anti-entropy bucket hashing (Go parity)
 - `ticket-engine/src/billing.ts` — plans + invoice math (shared by web + RN billing)
 - `ticket-engine/src/help/` — bilingual (en/es) help content
+- `ticket-engine/src/terminos/` — bilingual (en/es) Terms & Conditions content behind the one-time acceptance splash (source of wording: `../omni/docs/terminos/TERMINOS.MD`; regenerate both JSONs and bump `version` when it changes)
 - `vitest.config.ts` (repo root) — runs `ticket-engine/src/**/*.test.ts`
 
 ## Gotchas
