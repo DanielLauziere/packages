@@ -878,7 +878,7 @@ export const SEED_ORDER: string[] = [
 // Wire key == SQLite column name (one naming scheme, §5.5a).
 export interface EngineColumn {
   name: string
-  type: 'TEXT' | 'INTEGER' | 'REAL'
+  type: 'TEXT' | 'INTEGER' | 'REAL' | 'BLOB'
   nullable: boolean
   default?: string
 }
