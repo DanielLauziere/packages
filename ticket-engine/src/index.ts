@@ -5,6 +5,7 @@ export { SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS, SQLITE_MIN_VERSION } f
 export type { Seed } from './seedCommon.js'
 export { seedGroupDatabase, validateSeedPayload } from './seedGroupDatabase.js'
 export { migrateSchema, applyDdl, getSchemaUuid, setSchemaUuid, splitStatements, dropAllTables, type MigrateResult, type SchemaDescriptor } from './migrateSchema.js'
+export { reconcileSchema, type ReconcileDescriptor, type ReconcileResult, type ReconcileOutcome, type ReconcileTable, type ReconcileColumn } from './reconcileSchema.js'
 export type { DbAdapter } from './dbAdapter.js'
 export { applyTicketLog, applyLogsBatch, hasLogBeenApplied, handleAddPaymentLog, normalizePhone, ACTION_PRIORITY } from './applyTicketLog.js'
 export {

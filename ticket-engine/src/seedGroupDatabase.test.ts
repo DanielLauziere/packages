@@ -399,4 +399,35 @@ describe('seedGroupDatabase (unified seeder)', () => {
     expect(all('PRAGMA foreign_key_check')).toHaveLength(0)
   })
 
+  it('NOT NULL DEFAULT columns: an absent key or explicit null lands the row with its default', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
+    await applyDdl(adapter(db), FULL_DDL)
+
+    const all = (q: string) => db.prepare(q).all() as any[]
+
+    // feature.price_whole / price_hundredths are NOT NULL DEFAULT 0. An
+    // absent key must apply the default, and an explicit null (a forward-compat
+    // payload) must NOT fail the row into silent loss.
+    await seedGroupDatabase(adapter(db), {
+      feature: [
+        { uuid: 'ft-1', name: 'absent', self_serve: 0 },
+        { uuid: 'ft-2', name: 'explicit-null', self_serve: 0, price_whole: null, price_hundredths: null },
+      ],
+    } as any)
+
+    const rows = all('SELECT uuid, price_whole, price_hundredths FROM feature ORDER BY uuid')
+    expect(rows).toEqual([
+      { uuid: 'ft-1', price_whole: 0, price_hundredths: 0 },
+      { uuid: 'ft-2', price_whole: 0, price_hundredths: 0 },
+    ])
+
+    // Resending an explicit null on re-seed must not clobber the stored value.
+    await seedGroupDatabase(adapter(db), {
+      feature: [{ uuid: 'ft-1', name: 'absent-2', self_serve: 0, price_whole: null }],
+    } as any)
+    const updated = db.prepare('SELECT uuid, name, price_whole FROM feature WHERE uuid = ?').get('ft-1') as any
+    expect(updated).toEqual({ uuid: 'ft-1', name: 'absent-2', price_whole: 0 })
+  })
+
 })

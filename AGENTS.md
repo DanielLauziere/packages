@@ -15,7 +15,7 @@ The engine is the TS port of the Go apply/seed logic in `../omni`. Its contract:
 | Doc | Owns | Consult it when… |
 |---|---|---|
 | `../omni/docs/CORE-LOGIC-TICKET-LOGS.md` | The apply ruleset: idempotency, ordering, FK gates, retries, buckets | Changing `applyTicketLog.ts`, `syncBuckets.ts`, log actions |
-| `../omni/docs/CORE-LOGIC-SCHEMA-SYNC.md` | Server-driven schema parity, `schemaUuid`, wipe+rebuild | Changing `migrateSchema.ts`, `generatedSchema.ts`, seed flow |
+| `../omni/docs/CORE-LOGIC-SCHEMA-SYNC.md` | Server-driven schema parity, `schemaUuid`, additive reconcile (drain-first rebuild) | Changing `migrateSchema.ts`, `reconcileSchema.ts`, `generatedSchema.ts`, seed flow |
 | `../omni/docs/CRITICAL-RISKS.md` | Catastrophic failure classes + living test checklist (T1–T24) | Before shipping any engine change |
 | `../omni/OPS.md` | Server ops, deploy, `make drift` details | Schema/build-gate questions (human reference — do not edit) |
 | `README.md` | Commands, usage, VSCode vitest setup | Quick command lookup (human reference — do not edit) |

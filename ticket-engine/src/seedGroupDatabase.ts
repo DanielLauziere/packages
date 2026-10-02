@@ -183,14 +183,17 @@ function quote(col: string): string {
   return `"${col}"`
 }
 
-// notNullNoDefault returns the set of columns in a table that are NOT NULL
-// without a DEFAULT — these columns MUST be present in a seed row or the
-// INSERT will fail. Cached per table to avoid repeated PRAGMA calls.
-const notNullNoDefaultCache = new Map<string, Set<string>>()
-async function notNullNoDefault(db: DbAdapter, table: string): Promise<Set<string>> {
-  const cached = notNullNoDefaultCache.get(table)
+// notNullColumns returns the NOT NULL columns of a table split by whether they
+// have a DEFAULT. Cached per table to avoid repeated PRAGMA calls.
+interface NotNullInfo {
+  noDefault: Set<string>
+  withDefault: Set<string>
+}
+const notNullColumnsCache = new Map<string, NotNullInfo>()
+async function notNullColumns(db: DbAdapter, table: string): Promise<NotNullInfo> {
+  const cached = notNullColumnsCache.get(table)
   if (cached) return cached
-  const set = new Set<string>()
+  const info: NotNullInfo = { noDefault: new Set(), withDefault: new Set() }
   try {
     const rows = await db.query(`PRAGMA table_info("${table}")`) as Array<{
       name?: unknown
@@ -198,29 +201,35 @@ async function notNullNoDefault(db: DbAdapter, table: string): Promise<Set<strin
       dflt_value?: unknown
     }>
     for (const r of rows) {
-      if (Number(r.notnull) === 1 && r.dflt_value === null && r.name) {
-        set.add(String(r.name))
-      }
+      if (Number(r.notnull) !== 1 || !r.name) continue
+      if (r.dflt_value === null) info.noDefault.add(String(r.name))
+      else info.withDefault.add(String(r.name))
     }
   } catch {
     // if PRAGMA fails, be permissive — let the INSERT attempt proceed
   }
-  notNullNoDefaultCache.set(table, set)
-  return set
+  notNullColumnsCache.set(table, info)
+  return info
 }
 
-// fillNotNullDefaults ensures every NOT NULL column without a DEFAULT has a
-// value in the row. TEXT → '', INTEGER → 0, other → null. This prevents
-// SQLite rejecting the INSERT while keeping the row present for FK integrity
-// (join tables may reference it). Mutates the row in-place.
+// fillNotNullDefaults normalizes NOT NULL columns before the upsert:
+//   - no DEFAULT: a missing or null value is filled (''), so the INSERT never
+//     trips the constraint and the row stays present for FK integrity.
+//   - HAS a DEFAULT: an explicit null is dropped from the row (treated as
+//     absent), so the column is omitted from the INSERT and SQLite applies the
+//     default instead of rejecting the row — a forward-compat payload that
+//     sends null for a defaulted NOT NULL column must not silently lose the row.
+// Mutates the row in-place.
 async function fillNotNullDefaults(db: DbAdapter, table: string, row: Record<string, unknown>): Promise<void> {
-  const required = await notNullNoDefault(db, table)
-  for (const col of required) {
+  const { noDefault, withDefault } = await notNullColumns(db, table)
+  for (const col of noDefault) {
     if (row[col] === undefined || row[col] === null) {
-      // Peek at column type via PRAGMA table_info — TEXT columns get '', int gets 0.
       // Default to '' for safety since most NOT NULL columns are TEXT.
       row[col] = ''
     }
+  }
+  for (const col of withDefault) {
+    if (row[col] === null) delete row[col]
   }
 }
 
@@ -377,7 +386,7 @@ export async function validateSeedPayload(db: DbAdapter, seed: Seed): Promise<Ar
 // are never touched.
 export async function seedGroupDatabase(db: DbAdapter, seed: Seed, order?: string[]): Promise<void> {
   // Clear cached schema metadata so DDL changes between calls are picked up.
-  notNullNoDefaultCache.clear()
+  notNullColumnsCache.clear()
 
   const tableOrder = order && order.length ? order.filter((t) => t in seed) : Object.keys(seed)
 
