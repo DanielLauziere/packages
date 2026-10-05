@@ -286,7 +286,6 @@ describe('seedGroupDatabase (unified seeder)', () => {
       location_group: [LG()],
       key_value: [{ key: 'device_uuid', value: 'local-device' }],
       session: [{ uuid: 's1', entity_uuid: 'admin-1', entity_type: 'admin', expires_at: '2099-01-01' }],
-      print_record: [{ ticket_uuid: 't1', decision: 'printed', printing: 0, printed: 1 }],
       ticket: [{ uuid: 't1', id: 10001, time_stamp: 'now', status: 'INCOMPLETE', location_group_uuid: 'lgg' }],
       ticket_log: [{ uuid: 'tl1', location_group_uuid: 'lgg', ticket_uuid: 't1', action: 'ADD_ITEM', payload: '{}', time_stamp: 1 }],
       guest_location_group: [{ uuid: 'glg1', guest_uuid: 'g1', location_group_uuid: 'lgg', points: 999 }],
