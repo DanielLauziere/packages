@@ -467,6 +467,18 @@ describe('applyTicketLog', () => {
     })
   })
 
+  describe('PRINT actions', () => {
+    for (const action of ['PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN']) {
+      it(`${action} applies without mutating ticket state or writing a print cache`, async () => {
+        await applyTicketLog(adapter, entry({ action, payload: { to: 'admin-b' } }))
+        expect(adapter.findRun('SET status')).toBeUndefined()
+        expect(adapter.findRun('SET table_uuid')).toBeUndefined()
+        expect(adapter.findRun('UPDATE ticket_menu_item')).toBeUndefined()
+        expect(adapter.findRun('print_record')).toBeUndefined()
+      })
+    }
+  })
+
   describe('unknown action', () => {
     it('throws UNKNOWN_ACTION so the log backs off instead of being stamped applied', async () => {
       await expect(
@@ -530,6 +542,23 @@ describe('applyLogsBatch', () => {
       .filter((r) => r.sql.includes('INSERT OR IGNORE INTO "ticket_log_applied"'))
       .map((r) => r.params![0])
     expect(claims).toEqual(['a-1', 'b-2'])
+  })
+
+  it('PRINT actions sort last (tier 12) after status actions', async () => {
+    adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+    adapter.onQuery('SELECT action, payload', [])
+    adapter.onQuery('SELECT admin_uuid FROM ticket', [{ admin_uuid: 'admin-a' }])
+    const logs: TicketLogEntry[] = [
+      entry({ uuid: 'p-1', action: 'PRINT_PASS', payload: {}, time_stamp: 1 }),
+      entry({ uuid: 's-1', action: 'SET_STATUS_COMPLETE', payload: {}, time_stamp: 2 }),
+    ]
+    const result = await applyLogsBatch(adapter, logs)
+    expect(result.applied).toBe(2)
+    expect(result.errors).toHaveLength(0)
+    const claims = adapter.runs
+      .filter((r) => r.sql.includes('INSERT OR IGNORE INTO "ticket_log_applied"'))
+      .map((r) => r.params![0])
+    expect(claims).toEqual(['s-1', 'p-1'])
   })
 
   it('skips already-applied logs', async () => {

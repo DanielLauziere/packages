@@ -9,6 +9,25 @@ export { reconcileSchema, type ReconcileDescriptor, type ReconcileResult, type R
 export type { DbAdapter } from './dbAdapter.js'
 export { applyTicketLog, applyLogsBatch, hasLogBeenApplied, handleAddPaymentLog, normalizePhone, ACTION_PRIORITY } from './applyTicketLog.js'
 export {
+  PRINT_SUCCESS,
+  PRINT_PASS,
+  PRINT_REQUEST,
+  PRINT_REASSIGN,
+  PRINT_ACTIONS,
+  PRINT_ALERT_MS,
+  foldPrintBaton,
+  decidePrint,
+  manualTakeoverAllowed,
+} from './printProtocol.js'
+export type {
+  PrintAction,
+  PrintFoldState,
+  PrintFold,
+  PrintRow,
+  PrintDeviceContext,
+  PrintDecision,
+} from './printProtocol.js'
+export {
   NUM_BUCKETS,
   MAX_UPLOAD_BYTES,
   fastHashUuid,

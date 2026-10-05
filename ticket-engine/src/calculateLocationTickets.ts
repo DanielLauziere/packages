@@ -79,6 +79,7 @@ export const calculateLocationTickets = ({
       anonymous_address: currentTicket.anonymous_address,
       guests_points: currentTicket.points || 0,
       payment_uuid: currentTicket.payment_uuid,
+      admin_uuid: currentTicket.admin_uuid ?? null,
       menu_items: [],
       combos: [],
       applied_promotions: [],

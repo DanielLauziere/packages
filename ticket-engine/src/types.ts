@@ -41,6 +41,20 @@ export type AddPaymentPayload = {
   complete: boolean
 }
 
+export type PrintSuccessPayload = {
+  manual?: boolean
+}
+
+export type PrintPassPayload = {
+  reason?: string
+}
+
+export type PrintRequestPayload = Record<string, never>
+
+export type PrintReassignPayload = {
+  to: string
+}
+
 export type TicketStatus = string
 
 export type CompleteTicket = {
@@ -64,6 +78,7 @@ export type CompleteTicket = {
   anonymous_address: string
   points: number
   payment_uuid: string
+  admin_uuid?: string | null
 }
 
 export type MenuItemModifierGroupModifierDB = {
@@ -224,6 +239,7 @@ export type ReturnCompleteTicket = {
   anonymous_address: string
   guests_points: number
   payment_uuid: string
+  admin_uuid?: string | null
   menu_items: ReturnMenuItem[]
   combos: ComboDB[]
   applied_promotions: ReturnPromotion[]

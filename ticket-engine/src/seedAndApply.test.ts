@@ -80,10 +80,9 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
 
   afterEach(() => db.close())
 
-  it('creates all 56 tables including print_record', () => {
+  it('creates all 54 tables', () => {
     const tables = all(db, `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).map((r) => r.name)
-    expect(tables.length).toBe(56)
-    expect(tables).toContain('print_record')
+    expect(tables.length).toBe(54)
     expect(tables).toContain('ticket_log_applied')
     expect(tables).toContain('location_group_schema_version')
     expect(tables).not.toContain('mock_schema_sync_probe')
@@ -282,18 +281,16 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
     expect(await getSchemaUuid(makeAdapter(db))).toBe(SCHEMA_UUID)
   })
 
-  it('dropAllTables protects print_record and key_value', async () => {
-    db.prepare(`INSERT INTO print_record (ticket_uuid, decision, printed_at, synced) VALUES ('t1','printed',1,0)`).run()
+  it('dropAllTables protects key_value', async () => {
     db.prepare(`INSERT INTO key_value (key, value) VALUES ('schema_uuid','abc')`).run()
-    await dropAllTables(makeAdapter(db), ['print_record', 'key_value'])
-    expect((row(db, 'SELECT COUNT(*) AS c FROM print_record')).c).toBe(1)
+    await dropAllTables(makeAdapter(db), ['key_value'])
     expect((row(db, 'SELECT COUNT(*) AS c FROM key_value')).c).toBe(1)
     expect((row(db, `SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='ticket'`)).c).toBe(0)
   })
 
   it('dropAllTables without key_value protection drops it (wipe contract)', async () => {
     db.prepare(`INSERT INTO key_value (key, value) VALUES ('schema_uuid','abc')`).run()
-    await dropAllTables(makeAdapter(db), ['print_record'])
+    await dropAllTables(makeAdapter(db), [])
     expect((row(db, `SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='key_value'`)).c).toBe(0)
   })
 
@@ -385,10 +382,10 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
   })
 
   it('rowsFromDb passes snake_case rows through (identity wire contract)', async () => {
-    db.prepare(`INSERT INTO print_record (ticket_uuid, decision, printed_at, synced) VALUES ('t1','printed',123,0)`).run()
-    const raw = all(db, 'SELECT ticket_uuid, decision, printed_at, synced FROM print_record WHERE ticket_uuid=?', 't1')
+    db.prepare(`INSERT INTO country (uuid, name, nombre, iso2, iso3, phonecode) VALUES ('c1','El Salvador','El Salvador','SV','SLV',503)`).run()
+    const raw = all(db, 'SELECT uuid, name, iso2, phonecode FROM country WHERE uuid=?', 'c1')
     const snake = rowsFromDb(raw)
-    expect(snake[0]).toMatchObject({ ticket_uuid: 't1', decision: 'printed', printed_at: 123, synced: 0 })
+    expect(snake[0]).toMatchObject({ uuid: 'c1', name: 'El Salvador', iso2: 'SV', phonecode: 503 })
   })
 
   it('a brand-new server table seeds with zero client release (no bundled metadata)', async () => {

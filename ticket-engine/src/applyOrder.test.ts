@@ -179,6 +179,31 @@ describe('out-of-order apply convergence (order-guard)', () => {
     db2.close()
   })
 
+  it('re-apply after an applied earlier REMOVE_PROMOTION applies (promotion pair is time-LWW)', async () => {
+    const add = log({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 })
+    const removePromo = log({ action: 'REMOVE_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 2000 })
+    const reapply = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 3000 })
+
+    // remove lands first, re-apply arrives later (reward.spec re-apply flow)
+    await arrive(db, [add, removePromo, reapply])
+    expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_promotion WHERE ticket_uuid = ?', 't1').c).toBe(1)
+
+    // reverse arrival converges: the older remove must not delete the applied re-apply
+    const db2 = new DatabaseSync(':memory:')
+    db2.prepare('PRAGMA foreign_keys = ON').run()
+    await applyDdl(makeAdapter(db2), FULL_DDL)
+    await seedGroupDatabase(makeAdapter(db2), seed as any)
+    seq = 0
+    const add2 = log({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 })
+    const removePromo2 = log({ action: 'REMOVE_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 2000 })
+    const reapply2 = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 3000 })
+    await arrive(db2, [add2, reapply2, removePromo2])
+    expect(row(db2, 'SELECT COUNT(*) AS c FROM ticket_promotion WHERE ticket_uuid = ?', 't1').c).toBe(1)
+    expect(await hasLogBeenApplied(makeAdapter(db2), removePromo2.uuid)).toBe(true)
+    expect(row(db2, 'SELECT COUNT(*) AS c FROM ticket_log_applied WHERE "time_stamp" IS NULL').c).toBe(0)
+    db2.close()
+  })
+
   it('late SET_FULFILLMENT after an applied ADD_ITEM still applies (items never supersede checkout)', async () => {
     const add = log({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 })
     const fulfill = log({ action: 'SET_FULFILLMENT', payload: { fulfillment_uuid: 'fu1' }, time_stamp: 2000 })

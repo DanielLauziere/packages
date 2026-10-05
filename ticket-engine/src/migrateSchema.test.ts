@@ -23,10 +23,9 @@ function userTables(db: DatabaseSync): string[] {
 }
 
 // The core "never drop the protected tables" guarantee (Risk 1 cause 5).
-// A schema wipe must DROP everything except key_value + print_record, and those
-// two must keep their rows — otherwise a schema push logs the admin out and
-// re-claims already-printed tickets.
-it('T19: dropAllTables keeps key_value + print_record rows, drops everything else', async () => {
+// A schema wipe must DROP everything except key_value, and it must keep its
+// rows — otherwise a schema push logs the admin out.
+it('T19: dropAllTables keeps key_value rows, drops everything else', async () => {
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   await applyDdl(adapter(db), FULL_DDL)
@@ -35,25 +34,19 @@ it('T19: dropAllTables keeps key_value + print_record rows, drops everything els
     'device_uuid',
     'dev-123',
   )
-  db.prepare(
-    `INSERT INTO print_record (ticket_uuid, decision, synced) VALUES (?, ?, ?)`,
-  ).run('tkt-1', 'printed', 1)
 
   const before = userTables(db)
   expect(before).toContain('key_value')
-  expect(before).toContain('print_record')
   expect(before).toContain('admin') // a normal table that must go
 
-  await dropAllTables(adapter(db), ['key_value', 'print_record'])
+  await dropAllTables(adapter(db), ['key_value'])
 
   const after = userTables(db)
-  expect(after).toEqual(['key_value', 'print_record'])
+  expect(after).toEqual(['key_value'])
 
   // Rows survived the wipe.
   const kv = db.prepare(`SELECT value FROM key_value WHERE key = 'device_uuid'`).get() as any
   expect(kv.value).toBe('dev-123')
-  const pr = db.prepare(`SELECT decision FROM print_record WHERE ticket_uuid = 'tkt-1'`).get() as any
-  expect(pr.decision).toBe('printed')
 
   // And the schema can be rebuilt on top of the survivors (full table set back).
   await applyDdl(adapter(db), FULL_DDL)
@@ -65,44 +58,33 @@ it('T19: dropAllTables keeps key_value + print_record rows, drops everything els
 // exercised on the real engine). 'none' must be far more aggressive and drop the
 // protected tables too.
 describe('T20: resetDatabase round-trip preserves/clears protected tables', () => {
-  it("'session' preserves key_value + print_record rows across drop+rebuild", async () => {
+  it("'session' preserves key_value rows across drop+rebuild", async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
     await applyDdl(adapter(db), FULL_DDL)
     db.prepare(`INSERT INTO key_value (key, value) VALUES (?, ?)`).run('binding', 'lg-9')
-    db.prepare(
-      `INSERT INTO print_record (ticket_uuid, decision, synced) VALUES (?, ?, ?)`,
-    ).run('tkt-2', 'printed', 0)
 
     // The real resetDatabase body: dropAllTables(protected) + applyDdl(FULL_DDL).
-    await dropAllTables(adapter(db), ['key_value', 'print_record'])
+    await dropAllTables(adapter(db), ['key_value'])
     await applyDdl(adapter(db), FULL_DDL)
 
     expect(
       (db.prepare(`SELECT value FROM key_value WHERE key = 'binding'`).get() as any).value,
     ).toBe('lg-9')
-    expect(
-      (db.prepare(`SELECT decision FROM print_record WHERE ticket_uuid = 'tkt-2'`).get() as any)
-        .decision,
-    ).toBe('printed')
   })
 
-  it("'none' drops key_value + print_record ROWS entirely (tables rebuilt empty)", async () => {
+  it("'none' drops key_value ROWS entirely (table rebuilt empty)", async () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
     await applyDdl(adapter(db), FULL_DDL)
     db.prepare(`INSERT INTO key_value (key, value) VALUES (?, ?)`).run('binding', 'lg-9')
-    db.prepare(
-      `INSERT INTO print_record (ticket_uuid, decision, synced) VALUES (?, ?, ?)`,
-    ).run('tkt-2', 'printed', 0)
 
     await dropAllTables(adapter(db), [])
     await applyDdl(adapter(db), FULL_DDL)
 
     // FULL_DDL recreates the skeleton, but a 'none' wipe must have cleared the
-    // rows — no binding, no print state survives a logout.
+    // rows — no binding survives a logout.
     expect((db.prepare(`SELECT COUNT(*) c FROM key_value`).get() as any).c).toBe(0)
-    expect((db.prepare(`SELECT COUNT(*) c FROM print_record`).get() as any).c).toBe(0)
   })
 })
 
@@ -155,7 +137,7 @@ it('T23: applying A → B → A converges to a consistent DB with the final uuid
 describe('T24: FULL_DDL executes fully and builds a consistent schema', () => {
   const expected = [
     'admin', 'location_group', 'ticket', 'ticket_log', 'key_value',
-    'print_record', 'menu', 'menu_item', 'menu_category', 'dining_table',
+    'menu', 'menu_item', 'menu_category', 'dining_table',
     'fulfillment', 'payment', 'guest', 'modifier', 'promotion',
     'session', 'location_group_feature',
   ]

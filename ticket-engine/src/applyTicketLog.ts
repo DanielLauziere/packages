@@ -33,13 +33,17 @@ export const ACTION_PRIORITY: Record<string, number> = {
   SET_ITEM_NOTE: 2,
   ADD_MODIFIER: 3,
   APPLY_PROMOTION: 4,
-  REMOVE_PROMOTION: 5,
+  REMOVE_PROMOTION: 4,
   REMOVE_MODIFIER: 6,
   REMOVE_ITEM: 7,
   ADD_PAYMENT: 8,
   SET_STATUS_COMPLETE: 9,
   SET_STATUS_ACCEPTED: 10,
   SET_STATUS_PAID: 11,
+  PRINT_SUCCESS: 12,
+  PRINT_PASS: 12,
+  PRINT_REQUEST: 12,
+  PRINT_REASSIGN: 12,
 }
 
 /**
@@ -47,10 +51,10 @@ export const ACTION_PRIORITY: Record<string, number> = {
  * field. The guard may only compare an entry against applied siblings in its
  * family — a log writing a different field can never supersede it (a
  * from-scratch sorted replay applies both, so skipping either side would
- * diverge). Non-LWW child-row actions (ADD_* and REMOVE_* of child rows) are
- * set-like, need no guard, and must never supersede an LWW write: an
- * already-applied ADD_ITEM must not cancel a late SET_FULFILLMENT. Mirrors Go
- * guardConflictActions (omni/src/domain/apply_engine.go).
+ * diverge). Non-LWW child-row actions (ADD_* and the child-row REMOVE_* other
+ * than REMOVE_PROMOTION) are set-like, need no guard, and must never
+ * supersede an LWW write: an already-applied ADD_ITEM must not cancel a late
+ * SET_FULFILLMENT. Mirrors Go guardConflictActions (omni/src/domain/apply_engine.go).
  */
 export const GUARD_CONFLICT_ACTIONS: Record<string, string[]> = {
   SET_STATUS_COMPLETE: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_PAID'],
@@ -372,6 +376,7 @@ export async function applyTicketLog(
       case 'REMOVE_PROMOTION': {
         const p = payload as RemovePromotionPayload
         await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
         if (!await exists(adapter, `SELECT 1 FROM promotion WHERE uuid = ? LIMIT 1`, [p.promotion_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
@@ -403,6 +408,14 @@ export async function applyTicketLog(
         await ensureTicketExists(adapter, entry)
         if (await isSupersededByAppliedLog(adapter, entry)) break
         await adapter.run(`UPDATE ticket SET status = 'PAID', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
+        break
+      }
+
+      case 'PRINT_SUCCESS':
+      case 'PRINT_PASS':
+      case 'PRINT_REQUEST':
+      case 'PRINT_REASSIGN': {
+        await ensureTicketExists(adapter, entry)
         break
       }
 

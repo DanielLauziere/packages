@@ -26,8 +26,8 @@ import { normalizeValue, type Seed } from './seedCommon.js'
 // entirely — nothing is deleted for data that was not part of the snapshot.
 
 // Tables that must survive any seed/reseed and are owned by other subsystems:
-// local device/auth state (key_value, session), print claims (print_record),
-// per-location schema versioning, and the whole ticket family. The seed engine
+// local device/auth state (key_value, session), per-location schema versioning,
+// and the whole ticket family. The seed engine
 // must never write to them; a stray key in the payload is skipped, not applied.
 //
 // `admin_location` / `admin_location_permission` are intentionally NOT here: the
@@ -44,7 +44,6 @@ import { normalizeValue, type Seed } from './seedCommon.js'
 const NEVER_TOUCH = new Set<string>([
   'key_value',
   'session',
-  'print_record',
   'location_group_schema_version',
   'environment',
   'lets_encrypt',
@@ -56,7 +55,6 @@ const NEVER_TOUCH = new Set<string>([
   'ticket_menu_item',
   'ticket_menu_item_modifier',
   'ticket_payment',
-  'ticket_print',
   'ticket_promotion',
 ])
 

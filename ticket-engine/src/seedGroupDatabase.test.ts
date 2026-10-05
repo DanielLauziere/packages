@@ -297,7 +297,6 @@ describe('seedGroupDatabase (unified seeder)', () => {
     // The seeder still refuses to touch local device/auth + ticket state:
     expect(all(`SELECT COUNT(*) c FROM key_value`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM session`)[0].c).toBe(0)
-    expect(all(`SELECT COUNT(*) c FROM print_record`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM ticket`)[0].c).toBe(0)
     expect(all(`SELECT COUNT(*) c FROM ticket_log`)[0].c).toBe(0)
     // guest_location_group IS a legit ref table (server-authoritative points, §9)
