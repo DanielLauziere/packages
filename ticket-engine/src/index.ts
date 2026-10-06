@@ -1,7 +1,7 @@
 export { calculateCombos } from './calculateCombos.js'
 export { calculateLocationTickets } from './calculateLocationTickets.js'
 export { sanitizePayload } from './sanitizePayload.js'
-export { SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS, SQLITE_MIN_VERSION } from './schema.js'
+export { SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS, SQLITE_MIN_VERSION, bundledDescriptor } from './schema.js'
 export type { Seed } from './seedCommon.js'
 export { seedGroupDatabase, validateSeedPayload } from './seedGroupDatabase.js'
 export { migrateSchema, applyDdl, getSchemaUuid, setSchemaUuid, splitStatements, dropAllTables, type MigrateResult, type SchemaDescriptor } from './migrateSchema.js'

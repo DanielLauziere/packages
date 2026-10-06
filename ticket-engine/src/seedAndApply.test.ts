@@ -80,9 +80,9 @@ describe('integration: FULL_DDL + seed + applyLogs against real SQLite', () => {
 
   afterEach(() => db.close())
 
-  it('creates all 54 tables', () => {
+  it('creates every table in SEED_ORDER', () => {
     const tables = all(db, `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).map((r) => r.name)
-    expect(tables.length).toBe(54)
+    expect(tables.length).toBe(SEED_ORDER.length)
     expect(tables).toContain('ticket_log_applied')
     expect(tables).toContain('location_group_schema_version')
     expect(tables).not.toContain('mock_schema_sync_probe')
