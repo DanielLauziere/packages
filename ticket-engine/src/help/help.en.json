@@ -1490,6 +1490,30 @@
           "body": "Tap on any item to edit its details. You can update the name, price, description, and image. Changes are saved automatically and appear on your guest app in real-time."
         }
       ]
+    },
+    {
+      "id": "windowsSetup",
+      "title": "Windows Setup",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "On Windows laptops the network adapter can enter a low-power state after a few minutes without user activity. When that happens, peer-to-peer discovery and sync between your devices stops until you move the mouse or press a key. Apply these power settings once on every Windows machine that runs DirectEatz."
+        },
+        {
+          "type": "heading",
+          "body": "Power Settings"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Device Manager → Wi-Fi adapter → Power Management → uncheck \"Allow the computer to turn off this device to save power\"",
+            "Power Options → Advanced → Wireless Adapter Settings → Power Saving Mode → Maximum Performance (both on battery and plugged in)",
+            "Adapter Advanced tab → disable the driver-specific power save (Intel \"Power Saving Mode\", Realtek \"Advanced Power Save\") and EEE",
+            "PCI Express → Link State Power Management → Off",
+            "Sleep → Never (when plugged in)"
+          ]
+        }
+      ]
     }
   ]
 }

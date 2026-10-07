@@ -1490,6 +1490,30 @@
           "body": "Toca en cualquier artículo para editar sus detalles. Puedes actualizar el nombre, precio, descripción e imagen. Los cambios se guardan automáticamente y aparecen en tu app de huéspedes en tiempo real."
         }
       ]
+    },
+    {
+      "id": "windowsSetup",
+      "title": "Configuración de Windows",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "En las laptops con Windows, el adaptador de red puede entrar en un estado de bajo consumo después de unos minutos sin actividad del usuario. Cuando eso ocurre, el descubrimiento y la sincronización entre tus dispositivos se detienen hasta que mueves el ratón o presionas una tecla. Aplica estos ajustes de energía una vez en cada equipo Windows que ejecute DirectEatz."
+        },
+        {
+          "type": "heading",
+          "body": "Ajustes de Energía"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Administrador de dispositivos → adaptador de Wi-Fi → Administración de energía → desmarca \"Permitir que el equipo apague este dispositivo para ahorrar energía\"",
+            "Opciones de energía → Cambiar configuración avanzada → Configuración del adaptador inalámbrico → Modo de ahorro de energía → Rendimiento máximo (tanto con batería como con corriente)",
+            "Pestaña Avanzadas del adaptador → desactiva el ahorro de energía del controlador (\"Power Saving Mode\" en Intel, \"Advanced Power Save\" en Realtek) y EEE",
+            "PCI Express → Administración del estado de enlace → Desactivado",
+            "Suspensión → Nunca (con corriente conectada)"
+          ]
+        }
+      ]
     }
   ]
 }
