@@ -2,12 +2,12 @@
 // baseline.sql by the translator (omni/cmd/translate). The generated module
 // owns SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS, TABLES.
 //
-// Since LOCAL-MIGRATION-AND-SEED.md §C the bundled descriptor below is the
-// schema source for a client on local migration (web today; RN when its boot
-// switches over): reconcileSchema receives it directly and the schema is
-// versioned with the client build. /v1/schema/snapshot stays on the server for
-// clients still on the server handshake, and FULL_DDL remains their offline
-// fallback.
+// Since LOCAL-MIGRATION-AND-SEED.md §C the bundled descriptor below is THE
+// schema source for a client: reconcileSchema receives it directly and the
+// schema is versioned with the client build. Both clients do this as of
+// 2026-10-06 (web first, RN Phase 4 the same day) — no /v1/schema/* request
+// leaves either boot path. Those endpoints stay on the server only for builds
+// shipped before the switch.
 export { SCHEMA_UUID, FULL_DDL, SEED_ORDER, SEED_COLUMNS, TABLES } from './generatedSchema.js'
 export type { EngineColumn } from './generatedSchema.js'
 import type { ReconcileDescriptor } from './reconcileSchema.js'

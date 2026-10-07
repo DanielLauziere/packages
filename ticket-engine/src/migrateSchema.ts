@@ -1,8 +1,9 @@
 import type { DbAdapter } from './dbAdapter.js'
 
-// SchemaDescriptor is the server-served schema identity (CORE-LOGIC-SCHEMA-SYNC.md
-// §8/§3.2): a content-derived uuid plus the full SQLite DDL. Clients fetch it
-// from /v1/schema/snapshot and apply/migrate against it — nothing is bundled.
+// SchemaDescriptor is the schema identity a client applies/migrates against
+// (CORE-LOGIC-SCHEMA-SYNC.md): a content-derived uuid plus the full SQLite DDL.
+// Both clients build it from the BUNDLED `bundledDescriptor` (schema.ts) —
+// nothing is fetched.
 export interface SchemaDescriptor {
   schemaUuid: string
   fullDdl: string

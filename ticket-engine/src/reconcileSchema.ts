@@ -45,9 +45,10 @@ export interface ReconcileTable {
   columns: ReconcileColumn[]
 }
 
-// ReconcileDescriptor is the server snapshot (schema.json) as served by
-// /v1/schema/snapshot: schema_uuid + full_ddl + tables[] (with column
-// defaults, so the diff can build legal ALTERs).
+// ReconcileDescriptor is a schema.json-shaped payload: schema_uuid + full_ddl
+// + tables[] (with column defaults, so the diff can build legal ALTERs). Both
+// clients pass the BUNDLED copy (`bundledDescriptor`); the shape served by
+// /v1/schema/snapshot is byte-identical and exists only for pre-switch builds.
 export interface ReconcileDescriptor {
   schemaUuid: string
   fullDdl: string
