@@ -175,6 +175,28 @@ export const chunkBucketsForUpload = <T extends { uuid: string }>(
   return chunks;
 };
 
+/** Flatten a bucket map back into a tickets map (bucket identity is an
+ *  implementation detail of the diff — callers exchange flat tickets). */
+export const flattenBuckets = <T extends { uuid: string }>(
+  buckets: BucketMap<T>,
+): Record<string, T[]> => {
+  const result: Record<string, T[]> = {};
+
+  for (const b in buckets) {
+    const bucket = buckets[b];
+    if (!bucket) continue;
+
+    for (const t in bucket) {
+      const logs = bucket[t];
+      if (!logs) continue;
+
+      result[t] = logs;
+    }
+  }
+
+  return result;
+};
+
 /** Buckets whose hash changed, appeared, or disappeared between two snapshots. */
 export const getDirtyBuckets = (
   current: BucketHashes,

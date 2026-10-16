@@ -53,8 +53,15 @@ export const PLANS = [
   { key: 'enterprise', price: 9999, descriptionEn: 'For restaurant chains — unlimited devices & locations', descriptionEs: 'Para cadenas de restaurantes — dispositivos y ubicaciones ilimitados' },
 ] as const
 
+/** Plain "12.34" money formatting — the ticket/price display format both
+ *  clients use (no currency symbol; callers that want one add it). */
+export function formatCents(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+/** Billing display with the currency symbol baked in. */
 export function centsToDollar(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
+  return `$${formatCents(cents)}`;
 }
 
 export function getPlanLabel(priceCents: number, lang: string): string {

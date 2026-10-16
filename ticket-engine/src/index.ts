@@ -66,10 +66,49 @@ export {
   bucketForTicket,
   buildBuckets,
   buildBucketHashes,
+  flattenBuckets,
   chunkBucketsForUpload,
   getDirtyBuckets,
 } from "./syncBuckets.js";
 export type { BucketHashes, BucketMap } from "./syncBuckets.js";
+export { CUTOFF_MS, THIRTY_MINUTES, SERVER_TIMESTAMP_OFFSET } from "./consts.js";
+export {
+  getPriority,
+  sortTicketLogs,
+  normalizeLogs,
+  groupLogsByTicket,
+  isPaidTicket,
+  filterTicketsByActivity,
+} from "./syncQueue.js";
+export type { SyncLogLike, SyncSummary, TicketsMapLike } from "./syncQueue.js";
+export { appendLog, insertLog, applyLog } from "./ticketLogLedger.js";
+export type { LedgerDeps, LedgerLogger, TicketLogRow } from "./ticketLogLedger.js";
+export {
+  DEFAULT_POD_URL,
+  POD_URL_STORAGE_KEY,
+  initialRosterState,
+  applyPodMessage,
+  normalizePodWsUrl,
+  podQueueUrl,
+  podStunUrl,
+  reconnectDelayMs,
+  RtcPodClient,
+} from "./podClient.js";
+export type {
+  PodRosterState,
+  PodEnvelope,
+  PodMessage,
+  PodClientHandlers,
+} from "./podClient.js";
+export {
+  PRINT_ROWS_SQL,
+  parsePrintPayload,
+  mapPrintRows,
+  readPrintFold,
+  runBatonPrint,
+  manualTakeover,
+} from "./batonLoop.js";
+export type { BatonResult, BatonDeps } from "./batonLoop.js";
 export type { TicketLogEntry } from "./applyTicketLog.js";
 export {
   rowFromDb,
@@ -111,6 +150,7 @@ export type {
 export {
   PLAN_NAMES,
   PLANS,
+  formatCents,
   centsToDollar,
   getPlanLabel,
   getActivePriceOnDate,
@@ -125,3 +165,17 @@ export type {
   PlanChangePreview,
   TimelineEvent,
 } from "./billing.js";
+export {
+  toCents,
+  toSentenceCase,
+  toTitleCase,
+  shadeColor,
+  isEmail,
+  safe,
+  coerceBools,
+  getPrinterTypeName,
+  getShortPermissionLabel,
+  toPostgresTimestampTz,
+  days,
+  daysLetter,
+} from "./utils.js";
