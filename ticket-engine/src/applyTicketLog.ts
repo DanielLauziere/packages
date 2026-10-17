@@ -39,11 +39,12 @@ export const ACTION_PRIORITY: Record<string, number> = {
   ADD_PAYMENT: 8,
   SET_STATUS_COMPLETE: 9,
   SET_STATUS_ACCEPTED: 10,
-  SET_STATUS_PAID: 11,
-  PRINT_SUCCESS: 12,
-  PRINT_PASS: 12,
-  PRINT_REQUEST: 12,
-  PRINT_REASSIGN: 12,
+  SET_STATUS_READY: 11,
+  SET_STATUS_PAID: 12,
+  PRINT_SUCCESS: 13,
+  PRINT_PASS: 13,
+  PRINT_REQUEST: 13,
+  PRINT_REASSIGN: 13,
 }
 
 /**
@@ -57,9 +58,10 @@ export const ACTION_PRIORITY: Record<string, number> = {
  * SET_FULFILLMENT. Mirrors Go guardConflictActions (omni/src/domain/apply_engine.go).
  */
 export const GUARD_CONFLICT_ACTIONS: Record<string, string[]> = {
-  SET_STATUS_COMPLETE: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_PAID'],
-  SET_STATUS_ACCEPTED: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_PAID'],
-  SET_STATUS_PAID: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_PAID'],
+  SET_STATUS_COMPLETE: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_READY', 'SET_STATUS_PAID'],
+  SET_STATUS_ACCEPTED: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_READY', 'SET_STATUS_PAID'],
+  SET_STATUS_READY: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_READY', 'SET_STATUS_PAID'],
+  SET_STATUS_PAID: ['SET_STATUS_COMPLETE', 'SET_STATUS_ACCEPTED', 'SET_STATUS_READY', 'SET_STATUS_PAID'],
   APPLY_PROMOTION: ['APPLY_PROMOTION', 'REMOVE_PROMOTION'],
   REMOVE_PROMOTION: ['APPLY_PROMOTION', 'REMOVE_PROMOTION'],
   SET_ITEM_NOTE: ['SET_ITEM_NOTE'],
@@ -401,6 +403,13 @@ export async function applyTicketLog(
         await ensureTicketExists(adapter, entry)
         if (await isSupersededByAppliedLog(adapter, entry)) break
         await adapter.run(`UPDATE ticket SET status = 'ACCEPTED', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
+        break
+      }
+
+      case 'SET_STATUS_READY': {
+        await ensureTicketExists(adapter, entry)
+        if (await isSupersededByAppliedLog(adapter, entry)) break
+        await adapter.run(`UPDATE ticket SET status = 'READY', admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [entry.admin_uuid ?? null, ticketUuid])
         break
       }
 

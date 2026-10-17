@@ -459,6 +459,13 @@ describe('applyTicketLog', () => {
       expect(update).toBeDefined()
     })
 
+    it('SET_STATUS_READY updates status', async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      await applyTicketLog(adapter, entry({ action: 'SET_STATUS_READY' }))
+      const update = adapter.findRun("SET status = 'READY'")
+      expect(update).toBeDefined()
+    })
+
     it('SET_STATUS_PAID updates status', async () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       await applyTicketLog(adapter, entry({ action: 'SET_STATUS_PAID' }))
