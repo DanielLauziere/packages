@@ -166,6 +166,36 @@ export type {
   TimelineEvent,
 } from "./billing.js";
 export {
+  FLOOR_SPRITES,
+  FLOOR_ROOMS,
+  FLOOR_SIZE_MULTIPLIERS,
+  FLOOR_SIZE_MIN,
+  FLOOR_SIZE_MAX,
+  FLOOR_SIZE_DEFAULT,
+  MAX_FLOOR_ITEMS,
+  isFloorTableSprite,
+  isTableActive,
+  floorSpriteKind,
+  floorSpriteSize,
+  normalizeFloorSize,
+  floorRotatedSize,
+  floorItemBox,
+  floorContentBox,
+  validateFloorItems,
+  placedTableUuids,
+  unplacedTables,
+  countOpenTicketsByTable,
+  ticketStartActions,
+} from "./floorSprites.js";
+export type {
+  FloorSpriteName,
+  FloorSpriteKind,
+  FloorRoomKind,
+  FloorItem,
+  FloorTableRef,
+  FloorStartAction,
+} from "./floorSprites.js";
+export {
   toCents,
   toSentenceCase,
   toTitleCase,

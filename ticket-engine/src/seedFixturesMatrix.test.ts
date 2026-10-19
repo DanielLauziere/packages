@@ -158,3 +158,70 @@ describe('seed matrix (F1) — every LG fixture seeds a healthy local DB', () =>
     })
   }
 })
+
+// Regression (incident 2026-10-15, fixed omni-side in commit 52431aa): an
+// admin's kitchen/guest printer pointers are admin-global, but
+// location_group_printer ships LG-scoped in the per-venue seed payload. Before
+// the server-side strip (stripCrossLocationGroupPrinters), a payload could
+// point an admin at a printer ABSENT from the payload → the client seeded a
+// dangling FK (seed runs with foreign_keys OFF) → PRAGMA foreign_key_check
+// (the F1 boot health bar) hard-failed → boot bounced to logout/login loop.
+//
+// The F1/F3 suites above only ever see the fixed, sanitized fixtures. This
+// test re-creates the MALFORMED payload itself and pins the client-side net:
+// validateSeedPayload has NO FK-closure check (it validates tables and
+// conflict keys only), the seed applies the dangling pointer as-is, and only
+// the post-seed foreign_key_check catches it, identifying the admin table.
+//
+// Negative control (un-mutated payload seeds clean with an empty
+// foreign_key_check) is already pinned by the F1 assertions above — not
+// duplicated here.
+describe('regression 2026-10-15 — admin printer pointer outside the payload', () => {
+  // Pick a fixture shaped like the incident: admins AND printers present, but
+  // the mutated pointer references a printer with no payload row.
+  const g = manifest.location_groups.find(
+    (x) => (x.row_counts.admin ?? 0) > 0 && (x.row_counts.location_group_printer ?? 0) > 0,
+  )!
+  const MISSING_PRINTER = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+
+  it('validation does not reject; seeding completes; foreign_key_check flags the admin row', async () => {
+    const payload = loadFixture(g.file)
+    const admin = (payload.admin as any[])[0]!
+    // Reproduce the regression: the admin points at a printer that has NO
+    // location_group_printer row in this LG-scoped payload.
+    admin.kitchen_location_group_printer_uuid = MISSING_PRINTER
+    admin.guest_location_group_printer_uuid = MISSING_PRINTER
+
+    const db = freshDb()
+    await applyDdl(adapter(db), FULL_DDL)
+
+    // validateSeedPayload checks unknown tables / missing conflict keys only —
+    // no FK closure — so the dangling pointer is NOT caught up front (filtered
+    // the same way F1 filters the harmless seed_version scalar).
+    const issues = (await validateSeedPayload(adapter(db), payload)).filter(
+      (i) => !(i.table === 'seed_version' && i.issue === 'nonTable'),
+    )
+    expect(issues).toEqual([])
+
+    // The seed applies the malformed rows as-is (foreign_keys OFF inside the
+    // transaction) and completes without throwing...
+    await seedGroupDatabase(adapter(db), payload as any, SEED_ORDER)
+    const seeded = db
+      .prepare(
+        'SELECT kitchen_location_group_printer_uuid k, guest_location_group_printer_uuid g FROM admin WHERE uuid = ?',
+      )
+      .get(admin.uuid) as any
+    expect(seeded).toEqual({ k: MISSING_PRINTER, g: MISSING_PRINTER })
+
+    // ...and the boot health bar (F1's isDbHealthy foreign_key_check) is what
+    // catches the dangling FK — non-empty, identifying the admin table and the
+    // location_group_printer parent it points at.
+    const violations = db.prepare('PRAGMA foreign_key_check').all() as Array<{ table: string; parent: string }>
+    expect(violations.length).toBeGreaterThan(0)
+    for (const v of violations) {
+      expect(v.table).toBe('admin')
+      expect(v.parent).toBe('location_group_printer')
+    }
+    db.close()
+  })
+})

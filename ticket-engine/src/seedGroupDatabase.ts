@@ -70,6 +70,11 @@ const JOIN_OVERRIDE = new Set<string>([
   // permission rows the server stops sending linger indefinitely and the local
   // app reports stale permissions. JOIN_OVERRIDE forces diff-delete by uuid.
   'admin_location_permission',
+  // floor_item is a leaf "one row per placed sprite" table keyed by its uuid
+  // PK. classify() would treat it as ENTITY (upsert, no diff-delete), so items
+  // the server drops in a whole-floor replace would linger locally forever.
+  // JOIN_OVERRIDE forces diff-delete by uuid like admin_location_permission.
+  'floor_item',
 ])
 
 interface TablePlan {
