@@ -81,6 +81,16 @@ export {
   filterTicketsByActivity,
 } from "./syncQueue.js";
 export type { SyncLogLike, SyncSummary, TicketsMapLike } from "./syncQueue.js";
+export {
+  switchLocationGroup,
+  flushVenueLogs,
+} from "./locationGroupSwitch.js";
+export type {
+  VenueRef,
+  SwitchResult,
+  SwitchDeps,
+  VenueFlushDeps,
+} from "./locationGroupSwitch.js";
 export { appendLog, insertLog, applyLog } from "./ticketLogLedger.js";
 export type { LedgerDeps, LedgerLogger, TicketLogRow } from "./ticketLogLedger.js";
 export {
