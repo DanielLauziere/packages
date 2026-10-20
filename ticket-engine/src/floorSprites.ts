@@ -276,7 +276,10 @@ export function countOpenTicketsByTable(
 // Start-ticket plan
 // ---------------------------------------------------------------------------
 
-const FULFILLMENT_UUID_EATIN = 'ed345e57-4fb1-4111-8603-9c820417ed3e'
+/** The EATIN fulfillment uuid (also the placeholder every fresh draft ticket
+ *  is INSERTed with — that placeholder is NOT a known type and must never
+ *  bypass the fulfillment picker). */
+export const FULFILLMENT_UUID_EATIN = 'ed345e57-4fb1-4111-8603-9c820417ed3e'
 
 /** One step of the pre-attached new-ticket plan. Each client executes the
  *  plan through its own DB/sync layer (appendLog etc.) — only the plan is

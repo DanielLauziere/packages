@@ -196,6 +196,7 @@ export {
   unplacedTables,
   countOpenTicketsByTable,
   ticketStartActions,
+  FULFILLMENT_UUID_EATIN,
 } from "./floorSprites.js";
 export type {
   FloorSpriteName,
@@ -205,6 +206,28 @@ export type {
   FloorTableRef,
   FloorStartAction,
 } from "./floorSprites.js";
+export {
+  NEW_TABLE_SPRITE,
+  PLACEMENT_GAP,
+  PLACEMENT_STEP,
+  floorSpriteBoxAt,
+  floorBoxesOverlap,
+  findFloorFreeSpot,
+  floorSpriteLabel,
+  clampFloorCentre,
+  floorSizeFitsRoom,
+  stepFloorSize,
+  floorNewItemAt,
+} from "./floorMap.js";
+export {
+  PLACE_ORDER_FEATURES,
+  planPlaceOrder,
+} from "./placeOrderPlan.js";
+export type {
+  PlaceOrderFulfillment,
+  PlaceOrderPlan,
+  PlaceOrderPlanInput,
+} from "./placeOrderPlan.js";
 export {
   toCents,
   toSentenceCase,
