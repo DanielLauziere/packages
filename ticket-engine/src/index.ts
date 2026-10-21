@@ -69,8 +69,17 @@ export {
   flattenBuckets,
   chunkBucketsForUpload,
   getDirtyBuckets,
+  PULL_PAGE_BYTES,
+  RECENT_SYNC_WINDOW_MS,
+  adoptDeliveredHashes,
 } from "./syncBuckets.js";
-export type { BucketHashes, BucketMap } from "./syncBuckets.js";
+export type {
+  BucketHashes,
+  BucketMap,
+  PullAfter,
+  PullOptions,
+  PullResult,
+} from "./syncBuckets.js";
 export { CUTOFF_MS, THIRTY_MINUTES, SERVER_TIMESTAMP_OFFSET } from "./consts.js";
 export {
   getPriority,

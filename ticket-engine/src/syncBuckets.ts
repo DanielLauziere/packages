@@ -216,3 +216,91 @@ export const getDirtyBuckets = (
 
   return dirty;
 };
+
+// =====================================================
+// PAGED PULL PROTOCOL (omni/docs/features/SYNC-PULL-PAGING.md)
+// Client side of the `pull` request/response extension. Mirrors PullAfter /
+// PullOptions / PullResult in Go (`omni/src/services/bucket/types.go`).
+// =====================================================
+
+/** Keyset resume cursor: last ticket unit delivered, in the protocol's stable
+ *  (bucket asc, ticket_uuid asc) order. Pages are ticket-atomic. */
+export interface PullAfter {
+  bucket: number;
+  ticket_uuid: string;
+}
+
+/** Client → server paged-pull options; every field optional (server clamps). */
+export interface PullOptions {
+  /** Narrow the window below the 36h cutoff (phase-1 recent-first sync). */
+  max_age_ms?: number;
+  /** Page byte budget — server default 32KB, clamped 8KB–512KB. */
+  max_bytes?: number;
+  /** Resume cursor; omit on the first page. */
+  after?: PullAfter | null;
+}
+
+/** Server → client paged-pull metadata. ABSENT on legacy servers — response
+ *  presence is the backcompat gate (no feature flag): absent → the response is
+ *  the legacy monolithic payload and the client falls back to legacy handling. */
+export interface PullResult {
+  has_more: boolean;
+  next_after?: PullAfter | null;
+  /** Dirty buckets whose full ticket set this response carried — their entries
+   *  in `bucket_hashes` are adoptable as the client baseline (see
+   *  adoptDeliveredHashes). */
+  delivered_buckets: number[];
+  /** Which activity window the response's `bucket_hashes` describe. */
+  window_ms: number;
+}
+
+/** Page budget for paged pulls — ~3s across a ~10KB/s metered link, safely
+ *  inside the client HTTP timeout. Mirrors the server default. */
+export const PULL_PAGE_BYTES = 32 * 1024;
+
+/** Phase-1 window (SYNC-PULL-PAGING.md): hydrate the dashboard from tickets
+ *  active in the last 6h before continuing the full 36h backfill. */
+export const RECENT_SYNC_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Per-bucket baseline adoption for the paged pull (SYNC-PULL-PAGING.md rules
+ * 3–5). Adopt the server's hash for buckets fully delivered this response,
+ * plus clean buckets where the client's current hash already matches the
+ * server (a clean bucket that never adopts would re-dirty every cycle
+ * forever). Undelivered dirty buckets keep their previous baseline and are
+ * resumed via the cursor.
+ *
+ * `prev` is the client's existing baseline, `current` what the client sent
+ * (its CURRENT local hashes), `server` the response hash map, `delivered` the
+ * response's delivered_buckets. current/server must come from the SAME window
+ * scope — never mix a narrowed-window response into a full-window baseline.
+ * Absent keys mean 0 ("no logs") on every map.
+ */
+export const adoptDeliveredHashes = (
+  prev: BucketHashes,
+  current: BucketHashes,
+  server: BucketHashes,
+  delivered: number[],
+): BucketHashes => {
+  const next: BucketHashes = { ...prev };
+  const deliveredSet = new Set(delivered);
+
+  const keys = new Set([
+    ...Object.keys(server).map(Number),
+    ...Object.keys(prev).map(Number),
+  ]);
+
+  for (const b of keys) {
+    const serverHash = server[b] ?? 0;
+    const currentHash = current[b] ?? 0;
+    if (deliveredSet.has(b) || currentHash === serverHash) {
+      if (serverHash === 0) {
+        delete next[b];
+      } else {
+        next[b] = serverHash;
+      }
+    }
+  }
+
+  return next;
+};

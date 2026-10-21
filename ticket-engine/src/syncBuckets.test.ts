@@ -8,6 +8,7 @@ import {
   buildBucketHashes,
   chunkBucketsForUpload,
   getDirtyBuckets,
+  adoptDeliveredHashes,
   type BucketMap,
   type BucketHashes,
 } from "./syncBuckets.js";
@@ -342,5 +343,60 @@ describe("chunkBucketsForUpload", () => {
     expect(chunkBucketsForUpload(buckets, 40)).toEqual(
       chunkBucketsForUpload(buckets, 40),
     );
+  });
+});
+
+describe("adoptDeliveredHashes (SYNC-PULL-PAGING.md rules 3–5)", () => {
+  // Packed-style stand-in hashes (any distinct numbers work — adoption is
+  // equality logic, not hashing).
+  const H = { a: 9001, b: 9002, c: 9003, z: 9009 };
+
+  it("adopts delivered buckets and clean (equal) buckets, keeps the rest", () => {
+    const prev: BucketHashes = { 0: 111, 1: 222, 2: 333 };
+    const current: BucketHashes = { 0: 111, 1: 555, 2: 666, 3: H.b };
+    const server: BucketHashes = { 0: 111, 1: H.a, 2: H.c, 3: H.b };
+
+    const next = adoptDeliveredHashes(prev, current, server, [1]);
+
+    // 0: clean (current === server) → adopt (same value).
+    expect(next[0]).toBe(111);
+    // 1: delivered → server's hash wins over the stale baseline.
+    expect(next[1]).toBe(H.a);
+    // 2: dirty (current ≠ server) and undelivered → previous baseline
+    //    preserved so the bucket stays dirty and resumes via the cursor.
+    expect(next[2]).toBe(333);
+    // 3: NOT delivered but current === server → clean, self-adopts.
+    expect(next[3]).toBe(H.b);
+  });
+
+  it("keeps a dirty undelivered bucket's baseline so the cursor can resume", () => {
+    const prev: BucketHashes = { 5: 42 };
+    const next = adoptDeliveredHashes(prev, { 5: 777 }, { 5: H.c }, []);
+    expect(next[5]).toBe(42);
+  });
+
+  it("deletes baseline entries when the server reports a bucket as empty (0)", () => {
+    const prev: BucketHashes = { 4: 1234 };
+    // Delivered but server hash 0 (e.g. dirty-only-client-logs bucket) →
+    // adopt "server has nothing" by dropping the entry.
+    const next = adoptDeliveredHashes(prev, { 4: 1234 }, {}, [4]);
+    expect(4 in next).toBe(false);
+  });
+
+  it("treats absent keys as 0 on every map (clean empty bucket self-adopts)", () => {
+    const prev: BucketHashes = { 9: 55 };
+    // Client pruned its last bucket-9 log → current 0; server also 0 → clean.
+    const next = adoptDeliveredHashes(prev, {}, {}, []);
+    expect(9 in next).toBe(false);
+  });
+
+  it("never mutates the inputs", () => {
+    const prev: BucketHashes = { 0: 1 };
+    const current: BucketHashes = { 0: 2 };
+    const server: BucketHashes = { 0: 3 };
+    adoptDeliveredHashes(prev, current, server, [0]);
+    expect(prev).toEqual({ 0: 1 });
+    expect(current).toEqual({ 0: 2 });
+    expect(server).toEqual({ 0: 3 });
   });
 });
