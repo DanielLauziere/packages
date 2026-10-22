@@ -1,6 +1,7 @@
 import { v5 as uuidv5 } from 'uuid'
 import { DbAdapter } from './dbAdapter.js'
 import { ticketIdFromUUID } from './ticketId.js'
+import { RETRY_BACKOFF_CAP_STEPS } from './consts.js'
 
 import {
   AddItemPayload,
@@ -446,18 +447,37 @@ export async function hasLogBeenApplied(
   return await exists(adapter, `SELECT 1 FROM ticket_log_applied WHERE uuid = ? AND time_stamp IS NOT NULL LIMIT 1`, [uuid])
 }
 
-async function claimLog(adapter: DbAdapter, entry: TicketLogEntry): Promise<void> {
+/** Sort order for applying a set of logs: action priority (guards/status
+ *  first), then time_stamp, then uuid. Shared by applyLogsBatch and the
+ *  ledger's applyTicketGroup — identical input order is part of LWW parity. */
+export function compareLogEntries(
+  a: Pick<TicketLogEntry, 'action' | 'time_stamp' | 'uuid'>,
+  b: Pick<TicketLogEntry, 'action' | 'time_stamp' | 'uuid'>,
+): number {
+  const pa = ACTION_PRIORITY[a.action] ?? 999
+  const pb = ACTION_PRIORITY[b.action] ?? 999
+  if (pa !== pb) return pa - pb
+  if ((a.time_stamp ?? 0) < (b.time_stamp ?? 0)) return -1
+  if ((a.time_stamp ?? 0) > (b.time_stamp ?? 0)) return 1
+  if (a.uuid < b.uuid) return -1
+  if (a.uuid > b.uuid) return 1
+  return 0
+}
+
+export async function claimLog(adapter: DbAdapter, entry: TicketLogEntry): Promise<void> {
   await adapter.run(`INSERT OR IGNORE INTO "ticket_log_applied" (uuid, time_stamp, retry_count) VALUES (?, NULL, 0)`, [entry.uuid])
 }
 
-async function markLogApplied(adapter: DbAdapter, entry: TicketLogEntry): Promise<void> {
+export async function markLogApplied(adapter: DbAdapter, entry: TicketLogEntry): Promise<void> {
   await adapter.run(`UPDATE "ticket_log_applied" SET time_stamp = ?, retry_count = NULL, next_retry_at = NULL, last_error = NULL WHERE uuid = ?`, [entry.time_stamp, entry.uuid])
 }
 
-async function failLog(adapter: DbAdapter, entry: TicketLogEntry, error: string): Promise<void> {
+export async function failLog(adapter: DbAdapter, entry: TicketLogEntry, error: string): Promise<void> {
+  // next_retry_at = now + min(retry_count + 1, RETRY_BACKOFF_CAP_STEPS) × 10s
+  // (cap = 60s — mirrors ticketLogLedger.applyLog, see the constant's doc).
   await adapter.run(
-    `UPDATE "ticket_log_applied" SET retry_count = COALESCE(retry_count, 0) + 1, next_retry_at = ? + (COALESCE(retry_count, 0) + 1) * 10000, last_error = ? WHERE uuid = ?`,
-    [Date.now(), error.slice(0, 255), entry.uuid],
+    `UPDATE "ticket_log_applied" SET retry_count = COALESCE(retry_count, 0) + 1, next_retry_at = ? + MIN(COALESCE(retry_count, 0) + 1, ?) * 10000, last_error = ? WHERE uuid = ?`,
+    [Date.now(), RETRY_BACKOFF_CAP_STEPS, error.slice(0, 255), entry.uuid],
   )
 }
 
@@ -475,16 +495,7 @@ export async function applyLogsBatch(
 
   if (!logs.length) return { applied, skipped, errors }
 
-  const sorted = [...logs].sort((a, b) => {
-    const pa = ACTION_PRIORITY[a.action] ?? 999
-    const pb = ACTION_PRIORITY[b.action] ?? 999
-    if (pa !== pb) return pa - pb
-    if ((a.time_stamp ?? 0) < (b.time_stamp ?? 0)) return -1
-    if ((a.time_stamp ?? 0) > (b.time_stamp ?? 0)) return 1
-    if (a.uuid < b.uuid) return -1
-    if (a.uuid > b.uuid) return 1
-    return 0
-  })
+  const sorted = [...logs].sort(compareLogEntries)
 
   for (const entry of sorted) {
     try {

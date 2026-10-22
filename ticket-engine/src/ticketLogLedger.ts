@@ -13,7 +13,9 @@
  *  - insertLog  (sync delivery) skips only logs whose ledger row is actually
  *               applied — a mere claim row must not block re-insertion.
  *  - applyLog   claims, applies, marks; failures bump retry_count and
- *               schedule next_retry_at = now + retry_count × 10s.
+ *               schedule next_retry_at = now + min(retry_count + 1, 6) × 10s
+ *               (RETRY_BACKOFF_CAP_STEPS — capped at 60s so a late
+ *               dependency is picked up within a minute).
  *               MISSING_DEPENDENCY backoffs without throwing (returns false).
  *
  * No function holds an outer transaction: if apply fails the ticket_log row
@@ -22,7 +24,16 @@
  */
 
 import { sanitizePayload } from './sanitizePayload.js';
-import type { TicketLogEntry } from './applyTicketLog.js';
+import {
+  applyTicketLog,
+  claimLog,
+  compareLogEntries,
+  failLog,
+  markLogApplied,
+  type TicketLogEntry,
+} from './applyTicketLog.js';
+import type { DbAdapter } from './dbAdapter.js';
+import { RETRY_BACKOFF_CAP_STEPS } from './consts.js';
 
 /** Log row as read from ticket_log / exchanged with peers (both clients'
  *  `TicketLog` satisfies it). */
@@ -205,10 +216,12 @@ export async function applyLog(deps: LedgerDeps, log: TicketLogRow): Promise<boo
       const msg = e instanceof Error ? e.message : String(e);
       const isMissingDep = msg.includes('MISSING_DEPENDENCY');
 
-      // Failure: bump retry_count, schedule now + retry_count × 10s.
+      // Failure: bump retry_count, schedule
+      // now + min(retry_count + 1, RETRY_BACKOFF_CAP_STEPS) × 10s (cap = 60s
+      // so a late dependency is picked up within a minute, not minutes).
       await deps.run(
-        `UPDATE "ticket_log_applied" SET "retry_count" = COALESCE("retry_count", 0) + 1, "next_retry_at" = ? + (COALESCE("retry_count", 0) + 1) * 10000, "last_error" = ? WHERE "uuid" = ?`,
-        [now, msg.slice(0, 255), entry.uuid],
+        `UPDATE "ticket_log_applied" SET "retry_count" = COALESCE("retry_count", 0) + 1, "next_retry_at" = ? + MIN(COALESCE("retry_count", 0) + 1, ?) * 10000, "last_error" = ? WHERE "uuid" = ?`,
+        [now, RETRY_BACKOFF_CAP_STEPS, msg.slice(0, 255), entry.uuid],
       );
 
       if (isMissingDep) {
@@ -223,5 +236,121 @@ export async function applyLog(deps: LedgerDeps, log: TicketLogRow): Promise<boo
       logger.error('APPLY FAILED (will retry)', e);
       throw e;
     }
+  });
+}
+
+export interface TicketGroupDeps {
+  /** One shared adapter for the whole group — its BEGIN/COMMIT interception
+   *  coalesces each log's writes into one atomic flush (the per-log claim
+   *  and mark land as direct writes, not per-statement notifies). */
+  adapter: DbAdapter;
+  /** Raw read against the real DB (already-applied check) — same contract
+   *  as LedgerDeps.query. */
+  query(sql: string, params?: any[]): Promise<any[]>;
+  /** Optional whole-flow write lock (RN `withDbLock`). FE: caller holds it. */
+  lock?<T>(fn: () => Promise<T>): Promise<T>;
+  /** Optional logger (RN routes to its file logger). Default: console. */
+  logger?: LedgerLogger;
+}
+
+/** SQLite's default parameter ceiling is 999 on old builds — chunk the
+ *  batched already-applied check well under it. */
+const APPLIED_CHECK_CHUNK = 400;
+
+/** Grouped apply (CORE-LOGIC-TICKET-LOGS.md Flow 2, group variant): claim →
+ *  apply → mark for a whole set of logs (typically one ticket's logs) through
+ *  ONE shared adapter, preserving the per-log ledger contract:
+ *
+ *  - already-applied logs are skipped via ONE batched read per chunk;
+ *  - claims/marks/failures are per log and written OUTSIDE the buffered
+ *    transaction (a failed log keeps its claim + retry backoff — the loop
+ *    can re-fetch and retry it);
+ *  - apply + mark of one log are wrapped in BEGIN/COMMIT so the adapter
+ *    coalesces that log's writes into atomic flushes; on failure ROLLBACK
+ *    discards only the unflushed tail;
+ *  - MISSING_DEPENDENCY records the backoff and skips (returns in `skipped`),
+ *    every other failure is recorded in `errors` — one bad log never stops
+ *    the rest of the group.
+ *
+ * Caller owns locking (FE wraps withWriteLock) and notification (one notify
+ * per group after a non-zero applied count). */
+export async function applyTicketGroup(
+  deps: TicketGroupDeps,
+  logs: TicketLogRow[],
+): Promise<{
+  applied: number;
+  skipped: number;
+  errors: { entry: TicketLogEntry; error: unknown }[];
+}> {
+  const lock = deps.lock ?? ((fn: () => Promise<any>) => fn());
+  return lock(async () => {
+    const { adapter, query } = deps;
+    const logger = deps.logger ?? consoleLogger;
+    let applied = 0;
+    let skipped = 0;
+    const errors: { entry: TicketLogEntry; error: unknown }[] = [];
+
+    if (!logs.length) return { applied, skipped, errors };
+
+    const entries = logs.map(fromSyncLog).sort(compareLogEntries);
+
+    // Batched already-applied check: one IN-query per chunk instead of one
+    // query per log. Reads the real DB (LedgerDeps.query contract).
+    const appliedSet = new Set<string>();
+    for (let i = 0; i < entries.length; i += APPLIED_CHECK_CHUNK) {
+      const chunk = entries.slice(i, i + APPLIED_CHECK_CHUNK);
+      const placeholders = chunk.map(() => '?').join(', ');
+      const rows = await query(
+        `SELECT "uuid" FROM "ticket_log_applied" WHERE "time_stamp" IS NOT NULL AND "uuid" IN (${placeholders})`,
+        chunk.map((e) => e.uuid),
+      );
+      for (const row of rows) appliedSet.add(String(row.uuid));
+    }
+
+    for (const entry of entries) {
+      if (appliedSet.has(entry.uuid)) {
+        skipped++;
+        continue;
+      }
+      try {
+        // Claim first, outside any transaction: it must survive a failed
+        // apply so failLog's retry state has a row to update.
+        await claimLog(adapter, entry);
+
+        await adapter.run('BEGIN');
+        try {
+          await applyTicketLog(adapter, entry);
+          await markLogApplied(adapter, entry);
+          await adapter.run('COMMIT');
+          applied++;
+          appliedSet.add(entry.uuid);
+        } catch (error) {
+          await adapter.run('ROLLBACK');
+
+          const msg =
+            error instanceof Error ? error.message : String(error);
+          // Same backoff write as LedgerDeps.applyLog — MISSING_DEPENDENCY
+          // must park with retry state, not hot-loop the apply pass.
+          await failLog(adapter, entry, msg);
+
+          if (msg.includes('MISSING_DEPENDENCY')) {
+            logger.warn('MISSING_DEPENDENCY (will retry)', {
+              uuid: entry.uuid,
+              action: entry.action,
+            });
+            skipped++;
+            continue;
+          }
+
+          logger.error('APPLY FAILED (will retry)', error);
+          errors.push({ entry, error });
+        }
+      } catch (fatal) {
+        // e.g. the claim write itself failed — record and keep going.
+        errors.push({ entry, error: fatal });
+      }
+    }
+
+    return { applied, skipped, errors };
   });
 }

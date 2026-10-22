@@ -12,3 +12,10 @@ export const THIRTY_MINUTES = 1800000;
 /** key_value row holding the server-clock offset in ms (appendLog windows
  *  every minted log's time_stamp by it). */
 export const SERVER_TIMESTAMP_OFFSET = 'server_timestamp_offset';
+
+/** Retry backoff: next_retry_at = now + min(retry_count + 1, CAP) × 10s.
+ *  The cap keeps a log whose dependency arrives late (or never) from parking
+ *  itself for unbounded minutes — the apply loop must stay hot enough to pick
+ *  the dependency up within ~60s of it landing. Mirrored in SQL by the
+ *  MIN(..., 6) in ticketLogLedger.applyLog and applyTicketLog.failLog. */
+export const RETRY_BACKOFF_CAP_STEPS = 6;
