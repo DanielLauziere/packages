@@ -495,6 +495,23 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
     expect(tla.next_retry_at).toBe(FIXED_NOW + 20_000)
   })
 
+  it('T14-cap: failLog backoff is CAPPED at 60s — retry_count keeps counting (RETRY_BACKOFF_CAP_STEPS)', async () => {
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+
+    const log = badLog('BOGUS_ACTION', 'bogus-cap')
+    // Fail the same log 9 times — well past the 6-step cap. An uncapped
+    // linear backoff would schedule the last one at now + 10×10s = 100s,
+    // parking the log past when a late-arriving dependency could be picked up.
+    for (let i = 0; i < 9; i++) {
+      await applyLogsBatch(makeAdapter(db), [log] as any)
+    }
+
+    const tla = row(db, 'SELECT retry_count, next_retry_at, time_stamp FROM ticket_log_applied WHERE uuid=?', 'bogus-cap')
+    expect(tla.retry_count).toBe(9) // the count is NOT capped — only the delay
+    expect(tla.next_retry_at).toBe(FIXED_NOW + 60_000) // 6 × 10s ceiling
+    expect(tla.time_stamp).toBeNull() // still unapplied — queue gate retries it
+  })
+
   it('T17: last_error is truncated to exactly 255 chars like the Go/RN clients', async () => {
     await seedGroupDatabase(makeAdapter(db), seed as any)
 

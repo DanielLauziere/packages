@@ -3,6 +3,7 @@ import { v5 as uuidv5 } from 'uuid'
 import {
   applyTicketLog,
   applyLogsBatch,
+  compareLogEntries,
   hasLogBeenApplied,
   handleAddPaymentLog,
   normalizePhone,
@@ -633,5 +634,39 @@ describe('applyLogsBatch', () => {
     const fail = adapter.findRun('UPDATE "ticket_log_applied" SET retry_count')
     expect(fail).toBeDefined()
     expect(fail!.params).toContain('bad-2')
+  })
+})
+
+describe('compareLogEntries (exported sort contract — applyLogsBatch/applyTicketGroup parity)', () => {
+  const e = (action: string, time_stamp: number | null, uuid: string) => ({ action, time_stamp, uuid })
+
+  it('orders by action priority first (guards/status before content writes)', () => {
+    // SET_TABLE (0) must precede SET_STATUS_PAID (12) regardless of timestamps
+    // — same order for-scraped replay as a from-scratch sorted replay.
+    expect(compareLogEntries(e('SET_STATUS_PAID', 1, 'a'), e('SET_TABLE', 9999, 'z'))).toBeGreaterThan(0)
+    expect(compareLogEntries(e('SET_TABLE', 9999, 'z'), e('SET_STATUS_PAID', 1, 'a'))).toBeLessThan(0)
+  })
+
+  it('unknown actions sort last (priority 999)', () => {
+    expect(compareLogEntries(e('TOTALLY_UNKNOWN', 1, 'a'), e('PRINT_SUCCESS', 9999, 'a'))).toBeGreaterThan(0)
+    expect(compareLogEntries(e('PRINT_SUCCESS', 1, 'a'), e('TOTALLY_UNKNOWN', 9999, 'a'))).toBeLessThan(0)
+  })
+
+  it('same priority: earlier time_stamp first (LWW applies old → new)', () => {
+    expect(compareLogEntries(e('ADD_ITEM', 100, 'b'), e('ADD_ITEM', 200, 'a'))).toBeLessThan(0)
+    expect(compareLogEntries(e('ADD_ITEM', 200, 'a'), e('ADD_ITEM', 100, 'b'))).toBeGreaterThan(0)
+  })
+
+  it('null time_stamp sorts as 0 (before any real timestamp)', () => {
+    expect(compareLogEntries(e('ADD_ITEM', null, 'a'), e('ADD_ITEM', 1, 'a'))).toBeLessThan(0)
+  })
+
+  it('same priority + timestamp: uuid ascending (stable tie-break)', () => {
+    expect(compareLogEntries(e('ADD_ITEM', 100, 'a'), e('ADD_ITEM', 100, 'b'))).toBeLessThan(0)
+    expect(compareLogEntries(e('ADD_ITEM', 100, 'b'), e('ADD_ITEM', 100, 'a'))).toBeGreaterThan(0)
+  })
+
+  it('identical entries compare 0', () => {
+    expect(compareLogEntries(e('ADD_ITEM', 100, 'same'), e('ADD_ITEM', 100, 'same'))).toBe(0)
   })
 })
