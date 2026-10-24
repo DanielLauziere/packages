@@ -59,16 +59,25 @@ function all(db: DatabaseSync, sql: string, ...p: any[]): any[] {
 function serializeTicket(db: DatabaseSync, ticketUuid: string, wanted: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {}
 
-  if ('status' in wanted || 'table_uuid' in wanted || 'fulfillment_uuid' in wanted || 'guest_uuid' in wanted) {
-    const t = db.prepare('SELECT status, table_uuid, fulfillment_uuid, guest_uuid FROM ticket WHERE uuid = ?').get(ticketUuid) as any
+  if ('status' in wanted || 'table_uuid' in wanted || 'fulfillment_uuid' in wanted || 'guest_uuid' in wanted || 'anonymous_address' in wanted) {
+    const t = db.prepare('SELECT status, table_uuid, fulfillment_uuid, guest_uuid, anonymous_address FROM ticket WHERE uuid = ?').get(ticketUuid) as any
     if ('status' in wanted) out.status = t.status
     if ('table_uuid' in wanted) out.table_uuid = t.table_uuid
     if ('fulfillment_uuid' in wanted) out.fulfillment_uuid = t.fulfillment_uuid
     if ('guest_uuid' in wanted) out.guest_uuid = t.guest_uuid
+    if ('anonymous_address' in wanted) out.anonymous_address = t.anonymous_address
   }
 
   if ('items' in wanted) {
     out.items = all(db, 'SELECT menu_item_uuid FROM ticket_menu_item WHERE ticket_uuid = ? ORDER BY uuid', ticketUuid).map((r) => r.menu_item_uuid)
+  }
+
+  if ('notes' in wanted) {
+    const rows = all(db, `SELECT uuid, note FROM ticket_menu_item WHERE ticket_uuid = ? AND note IS NOT NULL AND note <> '' ORDER BY uuid`, ticketUuid)
+    out.notes = rows.reduce((acc: Record<string, unknown>, r) => {
+      acc[r.uuid] = r.note
+      return acc
+    }, {})
   }
 
   if ('modifiers' in wanted) {
@@ -108,7 +117,10 @@ describe('T4 parity corpus → TS engine on real SQLite', () => {
 
       expect(res.applied).toBe(scenario.expect.applied)
       expect(res.skipped).toBe(scenario.expect.skipped)
-      expect(res.errors).toEqual(scenario.expect.errors)
+      // expect.errors is a list of log uuids that hard-errored (error message
+      // text intentionally not compared: the engines phrase errors differently
+      // — `unknown action: X` vs `UNKNOWN_ACTION: X`).
+      expect(res.errors.map((e) => e.entry.uuid)).toEqual(scenario.expect.errors)
 
       for (const [ticketUuid, wanted] of Object.entries(scenario.expect.tickets)) {
         expect(serializeTicket(db, ticketUuid, wanted)).toEqual(wanted)

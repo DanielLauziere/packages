@@ -1,4 +1,4 @@
-import { v5 as uuidv5 } from 'uuid'
+import crypto from 'crypto'
 import { DbAdapter } from './dbAdapter.js'
 import { ticketIdFromUUID } from './ticketId.js'
 import { RETRY_BACKOFF_CAP_STEPS } from './consts.js'
@@ -165,7 +165,32 @@ async function upsertGuest(
   email?: string,
   phone?: string,
 ): Promise<string> {
-  const finalUuid = uuidv5(username, '6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+  // Guest UUID MUST match the Go engine's `getGuestUUID`: SHA-1
+  // name-based UUID (RFC 4122 §4.3) over the local-name namespace
+  // 6ba7b810-9dad-11d1-80b4-00c04fd430c8. The previous TS used
+  // uuidv5(), a *different* algorithm that produced a divergent
+  // guest_uuid on every client, breaking guest identity convergence.
+  // See doc/core-logic-ticket-logs.md.
+  const sha1 = crypto.createHash('sha1')
+  const ns = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex')
+  const data = Buffer.concat([ns, Buffer.from(username, 'utf8')])
+  sha1.update(data)
+  const digest = sha1.digest()
+
+  const timeLow = digest.readUInt32BE(0)
+  const timeMid = digest.readUInt16BE(4)
+  const timeHigh = (digest.readUInt16BE(6) & 0x0fff) | 0x5000
+  let clockSeq = ((digest[8] << 8) | digest[9]) & 0x3fff | 0x8000;
+
+  const hex = [
+    timeLow.toString(16).padStart(8, '0').toLowerCase(),
+    timeMid.toString(16).padStart(4, '0').toLowerCase(),
+    timeHigh.toString(16).padStart(4, '0').toLowerCase(),
+    clockSeq.toString(16).padStart(4, '0').toLowerCase(),
+    digest.slice(10, 16).toString('hex').toLowerCase(),
+  ].join('-')
+
+  const finalUuid = hex
 
   await adapter.run(
     `INSERT INTO guest (uuid, user_name, email, phone)
@@ -202,7 +227,9 @@ export async function applyTicketLog(
         if (p.table_uuid && !await exists(adapter, `SELECT 1 FROM dining_table WHERE uuid = ?`, [p.table_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        await adapter.run(`UPDATE "ticket" SET table_uuid = ?, is_dirty = 1, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.table_uuid, entry.admin_uuid ?? null, ticketUuid])
+        // '' is treated like null (agreed with the Go engine): skip the FK
+        // probe above and write NULL — never a '' uuid column.
+        await adapter.run(`UPDATE "ticket" SET table_uuid = ?, is_dirty = 1, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.table_uuid || null, entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
@@ -252,7 +279,9 @@ export async function applyTicketLog(
         if (p.fulfillment_uuid && !await exists(adapter, `SELECT 1 FROM fulfillment WHERE uuid = ?`, [p.fulfillment_uuid])) {
           throw new Error('MISSING_DEPENDENCY')
         }
-        await adapter.run(`UPDATE ticket SET fulfillment_uuid = ?, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.fulfillment_uuid, entry.admin_uuid ?? null, ticketUuid])
+        // '' is treated like null (agreed with the Go engine): skip the FK
+        // probe above and write NULL — never a '' uuid column.
+        await adapter.run(`UPDATE ticket SET fulfillment_uuid = ?, admin_uuid = COALESCE(admin_uuid, (SELECT uuid FROM admin WHERE uuid = ?)) WHERE uuid = ?`, [p.fulfillment_uuid || null, entry.admin_uuid ?? null, ticketUuid])
         break
       }
 
@@ -371,7 +400,7 @@ export async function applyTicketLog(
 
         await adapter.run(
           `INSERT OR IGNORE INTO "ticket_promotion" (uuid, time_stamp, ticket_uuid, promotion_uuid, ticket_menu_item_uuid) VALUES (?, ?, ?, ?, ?)`,
-          [entry.uuid, new Date().toISOString(), ticketUuid, p.promotion_uuid, p.ticket_menu_item_uuid ?? null],
+          [entry.uuid, new Date(entry.time_stamp).toISOString(), ticketUuid, p.promotion_uuid, p.ticket_menu_item_uuid || null],
         )
         break
       }
@@ -517,6 +546,10 @@ export async function applyLogsBatch(
         await adapter.run('ROLLBACK')
 
         if (error?.message === 'MISSING_DEPENDENCY') {
+          // Backoff the claim row (same as the generic path) — without it the
+          // row stays retry_count=0/next_retry_at=NULL and the queue hot
+          // re-fetches it every pass. Still classified skipped, not an error.
+          await failLog(adapter, entry, 'MISSING_DEPENDENCY')
           skipped++
           continue
         }

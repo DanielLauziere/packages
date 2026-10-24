@@ -34,7 +34,7 @@ const seed = {
   dining_table: [{ uuid: 'tbl1', name: '12', active: 1, location_group_uuid: LG }, { uuid: 'tbl2', name: '13', active: 1, location_group_uuid: LG }],
   payment: [{ uuid: 'pay1', name: 'Cash', code: 'CASH' }],
   fulfillment: [{ uuid: 'fu1', name: 'Dine-in', code: 'DINE' }],
-  promotion: [{ uuid: 'promo1', name: 'BOGO', type: 'BOGO', active: 1, location_group_uuid: LG }],
+  promotion: [{ uuid: 'promo1', name: 'BOGO', type: 'BOGO', active: 1, location_group_uuid: LG }, { uuid: 'promo2', name: 'Reward', type: 'BOGO', active: 1, location_group_uuid: LG }],
   admin: [{ uuid: 'admin1', user_name: 'admin', password_hash: 'x' }],
 }
 
@@ -202,6 +202,48 @@ describe('out-of-order apply convergence (order-guard)', () => {
     expect(await hasLogBeenApplied(makeAdapter(db2), removePromo2.uuid)).toBe(true)
     expect(row(db2, 'SELECT COUNT(*) AS c FROM ticket_log_applied WHERE "time_stamp" IS NULL').c).toBe(0)
     db2.close()
+  })
+
+  it('promotion guard is scoped per promotion_uuid: an older APPLY(A) after a newer applied APPLY(B) still applies', async () => {
+    const add = log({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 })
+    const applyA = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 2000 })
+    const applyB = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo2' }, time_stamp: 5000 })
+    const promosOf = (d: DatabaseSync) =>
+      d.prepare('SELECT promotion_uuid FROM ticket_promotion WHERE ticket_uuid = ? ORDER BY promotion_uuid').all('t1').map((r: any) => r.promotion_uuid)
+
+    // newer B lands first; older A arrives later — no cross-promo supersede
+    await arrive(db, [add, applyB, applyA])
+    expect(promosOf(db)).toEqual(['promo1', 'promo2'])
+
+    // reverse arrival converges to the same two-row state
+    const db2 = new DatabaseSync(':memory:')
+    db2.prepare('PRAGMA foreign_keys = ON').run()
+    await applyDdl(makeAdapter(db2), FULL_DDL)
+    await seedGroupDatabase(makeAdapter(db2), seed as any)
+    seq = 0
+    const add2 = log({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 })
+    const applyA2 = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 2000 })
+    const applyB2 = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo2' }, time_stamp: 5000 })
+    await arrive(db2, [add2, applyA2, applyB2])
+    expect(promosOf(db2)).toEqual(['promo1', 'promo2'])
+    db2.close()
+  })
+
+  it('an older REMOVE_PROMOTION(A) never deletes a newer applied APPLY(A) — promo B stays untouched', async () => {
+    const add = log({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi1' }, time_stamp: 1000 })
+    const removeA = log({ action: 'REMOVE_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 2000 })
+    const applyB = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo2' }, time_stamp: 3000 })
+    const applyA = log({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo1' }, time_stamp: 4000 })
+
+    // applyA (newer) applied first; the stale removeA arrives last and must be
+    // superseded within promo1's family — promo2 is out of that family's scope.
+    await arrive(db, [add, applyB, applyA, removeA])
+    expect(
+      db.prepare('SELECT promotion_uuid FROM ticket_promotion WHERE ticket_uuid = ? ORDER BY promotion_uuid').all('t1').map((r: any) => r.promotion_uuid),
+    ).toEqual(['promo1', 'promo2'])
+    // The superseded remove is still marked applied (no retry loop, no wedge).
+    expect(await hasLogBeenApplied(makeAdapter(db), removeA.uuid)).toBe(true)
+    expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_log_applied WHERE "time_stamp" IS NULL').c).toBe(0)
   })
 
   it('late SET_FULFILLMENT after an applied ADD_ITEM still applies (items never supersede checkout)', async () => {

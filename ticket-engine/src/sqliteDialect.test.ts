@@ -17,6 +17,12 @@ const BANNED_PATTERNS: { name: string; re: RegExp }[] = [
   { name: 'generated column GENERATED ALWAYS', re: /(?:GENERATED\s+ALWAYS\s+AS|GENERATED\s+AS\s*\()/ },
   { name: 'WITHOUT ROWID table', re: /\bWITHOUT\s+ROWID\b/ },
   { name: 'partial index CREATE INDEX ... WHERE', re: /\bCREATE\s+(?:UNIQUE\s+)?INDEX\b[^;]*\bWHERE\b/i },
+  // concat() landed in SQLite 3.44.0 (string_agg() is not SQLite at all —
+  // the dialect floor would choke on either). Word-boundary + case-insensitive;
+  // the lookbehind skips the JS `.concat(` method call so only a SQL function
+  // form trips the ban (lint only ever sees SQL string literals anyway).
+  { name: 'concat( function', re: /(?<!\.)\bCONCAT\s*\(/i },
+  { name: 'string_agg( function', re: /\bSTRING_AGG\s*\(/i },
 ]
 
 function lint(sqlOrSource: string): string[] {
@@ -37,6 +43,9 @@ function engineSqlStatements(): string[] {
      'seedGroupDatabase.ts',
     'migrateSchema.ts',
     'calculateCombos.ts',
+    'ticketLogLedger.ts',
+    'reconcileSchema.ts',
+    'seedCommon.ts',
   ]
   const out: string[] = []
   for (const f of files) {
@@ -80,6 +89,11 @@ describe('SQLite-3.39.4 dialect floor (T3) — full_ddl + engine SQL', () => {
     expect(lint('ALTER TABLE t ADD COLUMN g INTEGER GENERATED ALWAYS AS (x*2)').length).toBeGreaterThan(0)
     expect(lint('CREATE TABLE t (id INTEGER PRIMARY KEY) WITHOUT ROWID').length).toBeGreaterThan(0)
     expect(lint('CREATE INDEX ix ON t (a) WHERE b = 1').length).toBeGreaterThan(0)
+    expect(lint("SELECT concat(a, b) FROM t").length).toBeGreaterThan(0)
+    expect(lint('SELECT STRING_AGG(name, \',\') FROM t').length).toBeGreaterThan(0)
+    // ...but plain JS/SQL concat method calls in TS must not false-positive
+    // unless they sit inside a scanned SQL literal with a SQL keyword.
+    expect(lint('[1,2].concat([3])').length).toBe(0)
   })
 })
 

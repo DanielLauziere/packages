@@ -334,11 +334,12 @@ describe("F3 apply corpus replayed against every fixture DB", () => {
       "status" in wanted ||
       "table_uuid" in wanted ||
       "fulfillment_uuid" in wanted ||
-      "guest_uuid" in wanted
+      "guest_uuid" in wanted ||
+      "anonymous_address" in wanted
     ) {
       const t = one(
         db,
-        "SELECT status, table_uuid, fulfillment_uuid, guest_uuid FROM ticket WHERE uuid = ?",
+        "SELECT status, table_uuid, fulfillment_uuid, guest_uuid, anonymous_address FROM ticket WHERE uuid = ?",
         ticketUuid,
       );
       if ("status" in wanted) out.status = t.status;
@@ -346,6 +347,8 @@ describe("F3 apply corpus replayed against every fixture DB", () => {
       if ("fulfillment_uuid" in wanted)
         out.fulfillment_uuid = t.fulfillment_uuid;
       if ("guest_uuid" in wanted) out.guest_uuid = t.guest_uuid;
+      if ("anonymous_address" in wanted)
+        out.anonymous_address = t.anonymous_address;
     }
     if ("items" in wanted) {
       out.items = all(
@@ -353,6 +356,17 @@ describe("F3 apply corpus replayed against every fixture DB", () => {
         "SELECT menu_item_uuid FROM ticket_menu_item WHERE ticket_uuid = ? ORDER BY uuid",
         ticketUuid,
       ).map((r) => r.menu_item_uuid);
+    }
+    if ("notes" in wanted) {
+      const rows = all(
+        db,
+        "SELECT uuid, note FROM ticket_menu_item WHERE ticket_uuid = ? AND note IS NOT NULL AND note <> '' ORDER BY uuid",
+        ticketUuid,
+      );
+      out.notes = rows.reduce((acc: Record<string, unknown>, r) => {
+        acc[r.uuid] = r.note;
+        return acc;
+      }, {});
     }
     if ("modifiers" in wanted) {
       out.modifiers = all(
@@ -397,7 +411,11 @@ describe("F3 apply corpus replayed against every fixture DB", () => {
         const res = await applyLogsBatch(makeAdapter(db), scenario.logs);
         expect(res.applied).toBe(scenario.expect.applied);
         expect(res.skipped).toBe(scenario.expect.skipped);
-        expect(res.errors).toEqual(scenario.expect.errors);
+        // expect.errors is a list of log uuids that hard-errored (message text
+        // intentionally not compared: engines phrase errors differently).
+        expect(res.errors.map((e) => e.entry.uuid)).toEqual(
+          scenario.expect.errors,
+        );
 
         for (const [ticketUuid, wanted] of Object.entries(
           scenario.expect.tickets,

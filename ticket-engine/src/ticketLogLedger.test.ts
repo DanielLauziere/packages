@@ -3,6 +3,7 @@ import {
   appendLog,
   insertLog,
   applyLog,
+  applyTicketGroup,
   type LedgerDeps,
   type TicketLogRow,
 } from "./ticketLogLedger.js";
@@ -213,5 +214,47 @@ describe("applyLog", () => {
     await expect(applyLog(ctx.deps, makeRow())).rejects.toThrow("SQLITE_CORRUPT");
     expect(ctx.runs).toHaveLength(2);
     expect(ctx.error).toHaveBeenCalled();
+  });
+});
+
+// fromSyncLog numeric hardening: a driver may return INTEGER columns as
+// strings — the entry handed to apply must carry a number so the
+// (priority, time_stamp, uuid) sort stays numeric, never lexicographic.
+describe("fromSyncLog time_stamp coercion", () => {
+  it("applyLog coerces a stringified time_stamp to a number before apply/mark", async () => {
+    const ctx = makeDeps();
+    const ok = await applyLog(ctx.deps, makeRow({ time_stamp: "1700000000000" as any }));
+    expect(ok).toBe(true);
+    expect(ctx.applyEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ time_stamp: 1_700_000_000_000 }),
+    );
+    // markLogApplied stamps the coerced number, not the raw string.
+    expect(ctx.runs[1]!.params).toEqual([1_700_000_000_000, "log-1"]);
+  });
+
+  it("stringified time_stamps still sort numerically in applyTicketGroup", async () => {
+    // Lexicographically "1000" < "999" — without coercion the 1000 log would
+    // claim first, inverting the deterministic replay order.
+    const runs: Recorded[] = [];
+    const adapter = {
+      run: async (sql: string, params?: any[]) => {
+        runs.push({ sql, params });
+      },
+      query: async () => [],
+    } as any;
+    const rows: TicketLogRow[] = [
+      makeRow({ uuid: "lg-early", action: "PRINT_SUCCESS", time_stamp: "1000" as any }),
+      makeRow({ uuid: "lg-late", action: "PRINT_SUCCESS", time_stamp: "999" as any }),
+    ];
+
+    const res = await applyTicketGroup({ adapter, query: async () => [] }, rows);
+    expect(res.applied).toBe(2);
+    expect(res.errors).toEqual([]);
+
+    const claims = runs
+      .filter((r) => r.sql.includes('INSERT OR IGNORE INTO "ticket_log_applied"'))
+      .map((r) => r.params![0]);
+    // 999 < 1000 numerically → the older log claims first.
+    expect(claims).toEqual(["lg-late", "lg-early"]);
   });
 });

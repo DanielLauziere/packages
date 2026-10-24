@@ -5,6 +5,8 @@ import {
   applyDdl,
   seedGroupDatabase,
   applyLogsBatch,
+  applyTicketGroup,
+  insertLog,
   migrateSchema,
   dropAllTables,
   getSchemaUuid,
@@ -15,6 +17,7 @@ import {
   ticketIdFromUUID,
   rowsFromDb,
   type DbAdapter,
+  type LedgerDeps,
 } from './index.js'
 
 function makeAdapter(db: DatabaseSync): DbAdapter {
@@ -533,5 +536,100 @@ describe('T14/T17: backoff value + last_error truncation (real SQLite)', () => {
     await applyLogsBatch(makeAdapter(db), [badLog('BOGUS_ACTION', 'bogus-3')] as any)
     const tla = row(db, 'SELECT last_error FROM ticket_log_applied WHERE uuid=?', 'bogus-3')
     expect(tla.last_error).toBe('UNKNOWN_ACTION: BOGUS_ACTION')
+  })
+})
+
+describe('wipe → re-delivery → re-apply: logs survive resetDatabase(session)', () => {
+  let db: DatabaseSync
+
+  beforeEach(async () => {
+    db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
+    await applyDdl(makeAdapter(db), FULL_DDL)
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    db.prepare(`INSERT INTO key_value (key, value) VALUES ('device_uuid', 'dev-1')`).run()
+  })
+
+  afterEach(() => db.close())
+
+  it('re-delivered ticket_log rows rebuild ticket state identical to the pre-wipe state', async () => {
+    // 1. Ingest the logs into ticket_log (sync/appendLog writes the row) and
+    // apply the full lifecycle locally (local-first apply).
+    for (const l of logs as any[]) {
+      db.prepare(
+        `INSERT INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid)
+         VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(uuid) DO NOTHING`,
+      ).run(l.uuid, l.ticket_uuid, l.location_group_uuid, l.action, JSON.stringify(l.payload), l.time_stamp, l.admin_uuid ?? null)
+    }
+    const first = await applyLogsBatch(makeAdapter(db), logs as any)
+    expect(first.applied).toBe(logs.length)
+    expect(first.skipped).toBe(0)
+    expect(first.errors).toEqual([])
+
+    // 2. Snapshot final ticket state + every ticket_log row.
+    const subtree = (d: DatabaseSync) => ({
+      ticket: all(d, 'SELECT * FROM ticket ORDER BY uuid'),
+      items: all(d, 'SELECT * FROM ticket_menu_item ORDER BY uuid'),
+      modifiers: all(d, 'SELECT * FROM ticket_menu_item_modifier ORDER BY uuid'),
+      // ticket_promotion.time_stamp is stamped `new Date()` at apply (wall
+      // clock, display-only) — excluded; every other column is deterministic.
+      promotions: all(d, 'SELECT uuid, ticket_uuid, promotion_uuid, ticket_menu_item_uuid FROM ticket_promotion ORDER BY uuid'),
+      payments: all(d, 'SELECT * FROM ticket_payment ORDER BY uuid'),
+    })
+    const before = subtree(db)
+    expect(before.ticket).toHaveLength(1)
+    expect(before.items).toHaveLength(1)
+    expect(before.payments).toHaveLength(1)
+    const logSnapshot = all(
+      db,
+      'SELECT uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid FROM ticket_log ORDER BY uuid',
+    )
+    expect(logSnapshot).toHaveLength(logs.length)
+
+    // 3. The session wipe: drop the ticket subtree (everything but key_value —
+    // the resetDatabase(db, 'session') / protected=['key_value'] contract).
+    await dropAllTables(makeAdapter(db), ['key_value'])
+    expect(row(db, `SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='ticket'`).c).toBe(0)
+    expect(row(db, `SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='ticket_log'`).c).toBe(0)
+    expect(row(db, `SELECT value FROM key_value WHERE key='device_uuid'`).value).toBe('dev-1')
+
+    // 4. Re-DDL + ref re-seed (what boot does after the wipe).
+    await applyDdl(makeAdapter(db), FULL_DDL)
+    await seedGroupDatabase(makeAdapter(db), seed as any)
+    expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
+
+    // 5. Sync re-delivers the snapshot ticket_log rows through insertLog.
+    const deps: LedgerDeps = {
+      run: async (sql, params) => {
+        db.prepare(sql).run(...((params ?? []) as any[]))
+      },
+      query: async (sql, params) => db.prepare(sql).all(...((params ?? []) as any[])) as any[],
+      applyEntry: async () => {},
+      serverOffsetMs: async () => 0,
+      newUuid: () => 'unused',
+      notify: () => {},
+    }
+    for (const r of logSnapshot) await insertLog(deps, r as any)
+    expect(all(db, 'SELECT uuid FROM ticket_log ORDER BY uuid')).toHaveLength(logs.length)
+    expect(all(db, 'SELECT * FROM ticket_log ORDER BY uuid')).toEqual(logSnapshot)
+
+    // 6. Group-apply the re-delivered rows (payload parsed the way
+    // getUnappliedLogs hands rows to the engine).
+    const delivered = (logSnapshot as any[]).map((r) => ({
+      ...r,
+      payload: typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload,
+    }))
+    const group = await applyTicketGroup(
+      { adapter: makeAdapter(db), query: (sql, params) => db.prepare(sql).all(...((params ?? []) as any[])) },
+      delivered,
+    )
+    expect(group.applied).toBe(logs.length)
+    expect(group.skipped).toBe(0)
+    expect(group.errors).toEqual([])
+
+    // 7. Final state deep-equals the pre-wipe snapshot — replay survived the reset.
+    expect(subtree(db)).toEqual(before)
+    expect(all(db, 'PRAGMA foreign_key_check')).toEqual([])
+    expect(row(db, `SELECT value FROM key_value WHERE key='device_uuid'`).value).toBe('dev-1')
   })
 })

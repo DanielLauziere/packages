@@ -85,7 +85,10 @@ function fromSyncLog(log: TicketLogRow): TicketLogEntry {
     location_group_uuid: log.location_group_uuid,
     action: log.action,
     payload: sanitizePayload(log.payload),
-    time_stamp: log.time_stamp as number,
+    // Coerce: a driver may hand back INTEGER as a string — a raw cast would
+    // make compareLogEntries compare lexicographically and silently reorder
+    // the deterministic apply order. Missing/null keeps the old ?? 0 result.
+    time_stamp: Number(log.time_stamp ?? 0),
     admin_uuid: log.admin_uuid ?? undefined,
   };
 }

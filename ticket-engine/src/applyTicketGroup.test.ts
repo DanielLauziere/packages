@@ -235,6 +235,43 @@ describe('applyTicketGroup (one shared adapter per ticket group)', () => {
     expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_menu_item').c).toBe(1)
   })
 
+  it('850 unapplied logs span exactly 3 chunked prefetch queries; a pre-applied log in the LAST chunk is skipped', async () => {
+    // 851 rows: 850 unapplied + 1 already applied in the final chunk
+    // (APPLIED_CHECK_CHUNK = 400 → ceil(851/400) = 3 IN-queries).
+    const rows: TicketLogRow[] = []
+    for (let i = 0; i < 851; i++) {
+      rows.push(logRow({ action: 'PRINT_SUCCESS', payload: {}, time_stamp: 1000 + i }))
+    }
+    // Sorted by time_stamp, so the newest row sorts into the LAST chunk.
+    const preApplied = rows[rows.length - 1]!
+    db.prepare('INSERT INTO ticket_log_applied (uuid, time_stamp) VALUES (?, ?)').run(preApplied.uuid, preApplied.time_stamp)
+    park(db, rows)
+
+    const inQueries: string[] = []
+    const res = await applyTicketGroup(
+      {
+        adapter: makeAdapter(db),
+        query: (sql, params) => {
+          if (sql.includes('"uuid" IN (')) inQueries.push(sql)
+          return db.prepare(sql).all(...((params ?? []) as any[]))
+        },
+      },
+      rows,
+    )
+
+    expect(inQueries).toHaveLength(3) // 400 + 400 + 51 placeholders
+    expect(res.applied).toBe(850)
+    expect(res.skipped).toBe(1) // the pre-applied log in the last chunk
+    expect(res.errors).toEqual([])
+    // Every row accounted for: 851 ledger rows, none left unapplied, and the
+    // pre-applied one kept its original stamp (never re-claimed).
+    expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_log_applied').c).toBe(851)
+    expect(row(db, 'SELECT COUNT(*) AS c FROM ticket_log_applied WHERE "time_stamp" IS NULL').c).toBe(0)
+    const pre = row(db, 'SELECT time_stamp FROM ticket_log_applied WHERE uuid = ?', preApplied.uuid)
+    expect(Number(pre.time_stamp)).toBe(preApplied.time_stamp)
+    expect(await hasLogBeenApplied(makeAdapter(db), preApplied.uuid)).toBe(true)
+  })
+
   it('a stale ACCEPTED in a later pass never downgrades an applied PAID', async () => {
     const paid = logRow({ action: 'SET_STATUS_PAID', payload: {}, time_stamp: 10000 })
     park(db, [paid])

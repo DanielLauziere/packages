@@ -10,6 +10,7 @@ import {
   type TicketLogEntry,
 } from './applyTicketLog.js'
 import type { DbAdapter } from './dbAdapter.js'
+import { RETRY_BACKOFF_CAP_STEPS } from './consts.js'
 
 class MockAdapter implements DbAdapter {
   runs: { sql: string; params?: any[] }[] = []
@@ -130,6 +131,22 @@ describe('handleAddPaymentLog', () => {
     expect(ins).toBeUndefined()
   })
 
+  it('dedup runs BEFORE the ref check: existing ticket_payment with a deleted payment ref returns early as success', async () => {
+    // Divergence pin (dedup-before-ref-check order): the payment ref row is
+    // gone, but the dedup row short-circuits — success, no MISSING_DEPENDENCY.
+    adapter.onQuery('SELECT 1 FROM "ticket_payment"', [{ uuid: 'tp-001' }])
+    adapter.onQuery('SELECT 1 FROM payment', [])
+    await handleAddPaymentLog(adapter, entry(), {
+      payment_uuid: 'pay-001',
+      price_whole: 10,
+      price_hundredths: 0,
+      complete: false,
+    })
+    expect(adapter.findRun('INSERT INTO "ticket_payment"')).toBeUndefined()
+    // The ref probe never ran (dedup returned first).
+    expect(adapter.queries.some((q) => q.sql.includes('FROM payment'))).toBe(false)
+  })
+
   it('throws MISSING_DEPENDENCY when payment not found', async () => {
     adapter.onQuery('SELECT 1 FROM payment', [])
     await expect(
@@ -190,6 +207,25 @@ describe('applyTicketLog', () => {
       await expect(
         applyTicketLog(adapter, entry({ payload: { table_uuid: 'missing-table' } })),
       ).rejects.toThrow('MISSING_DEPENDENCY')
+    })
+
+    // Both engines agree: '' is treated like null for FK uuid payloads.
+    it('empty-string table_uuid skips the FK probe and writes NULL', async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      await applyTicketLog(adapter, entry({ payload: { table_uuid: '' } }))
+      expect(adapter.queries.some((q) => q.sql.includes('FROM dining_table'))).toBe(false)
+      const update = adapter.findRun('UPDATE "ticket" SET table_uuid')
+      expect(update).toBeDefined()
+      expect(update!.params![0]).toBeNull()
+    })
+
+    it('null table_uuid skips the FK probe and writes NULL', async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      await applyTicketLog(adapter, entry({ payload: { table_uuid: null } }))
+      expect(adapter.queries.some((q) => q.sql.includes('FROM dining_table'))).toBe(false)
+      const update = adapter.findRun('UPDATE "ticket" SET table_uuid')
+      expect(update).toBeDefined()
+      expect(update!.params![0]).toBeNull()
     })
   })
 
@@ -255,6 +291,25 @@ describe('applyTicketLog', () => {
       await expect(
         applyTicketLog(adapter, entry({ action: 'SET_FULFILLMENT', payload: { fulfillment_uuid: 'missing' } })),
       ).rejects.toThrow('MISSING_DEPENDENCY')
+    })
+
+    // Both engines agree: '' is treated like null for FK uuid payloads.
+    it('empty-string fulfillment_uuid skips the FK probe and writes NULL', async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      await applyTicketLog(adapter, entry({ action: 'SET_FULFILLMENT', payload: { fulfillment_uuid: '' } }))
+      expect(adapter.queries.some((q) => q.sql.includes('FROM fulfillment'))).toBe(false)
+      const update = adapter.findRun('UPDATE ticket SET fulfillment_uuid')
+      expect(update).toBeDefined()
+      expect(update!.params![0]).toBeNull()
+    })
+
+    it('null fulfillment_uuid skips the FK probe and writes NULL', async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      await applyTicketLog(adapter, entry({ action: 'SET_FULFILLMENT', payload: { fulfillment_uuid: null } }))
+      expect(adapter.queries.some((q) => q.sql.includes('FROM fulfillment'))).toBe(false)
+      const update = adapter.findRun('UPDATE ticket SET fulfillment_uuid')
+      expect(update).toBeDefined()
+      expect(update!.params![0]).toBeNull()
     })
   })
 
@@ -411,6 +466,31 @@ describe('applyTicketLog', () => {
         applyTicketLog(adapter, entry({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'missing' } })),
       ).rejects.toThrow('MISSING_DEPENDENCY')
     })
+
+    it('item-level APPLY_PROMOTION with a valid promotion but missing ticket_menu_item throws MISSING_DEPENDENCY', async () => {
+      // Pins the TS side of the Risk 5 gap-2 divergence: the item FK gate
+      // fires before any write even though the promotion ref row exists.
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      adapter.onQuery('SELECT 1 FROM promotion', [{ uuid: 'promo-001' }])
+      await expect(
+        applyTicketLog(adapter, entry({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo-001', ticket_menu_item_uuid: 'tmi-missing' } })),
+      ).rejects.toThrow('MISSING_DEPENDENCY')
+      // No partial write: neither the item-level replace nor the insert ran.
+      expect(adapter.findRun('DELETE FROM "ticket_promotion"')).toBeUndefined()
+      expect(adapter.findRun('INSERT OR IGNORE INTO "ticket_promotion"')).toBeUndefined()
+    })
+
+    it("treats an empty ticket_menu_item_uuid as the itemless path (writes NULL)", async () => {
+      // ''-FK contract parity with Go: an empty item uuid means itemless —
+      // no item probe, no item-level DELETE, and the row gets NULL (not '').
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      adapter.onQuery('SELECT 1 FROM promotion', [{ uuid: 'promo-001' }])
+      await applyTicketLog(adapter, entry({ action: 'APPLY_PROMOTION', payload: { promotion_uuid: 'promo-001', ticket_menu_item_uuid: '' } }))
+      expect(adapter.findRun('DELETE FROM "ticket_promotion"')).toBeUndefined()
+      const insert = adapter.findRun('INSERT OR IGNORE INTO "ticket_promotion"')
+      expect(insert).toBeDefined()
+      expect(insert!.params[insert!.params.length - 1]).toBeNull()
+    })
   })
 
   describe('REMOVE_PROMOTION', () => {
@@ -495,6 +575,11 @@ describe('applyTicketLog', () => {
       // Mirror of Go: the log is NOT marked applied; it stays unapplied
       // (time_stamp NULL) and is retried each cycle until the cutoff prunes it.
       expect(adapter.findRun('UPDATE "ticket_log_applied"')).toBeUndefined()
+      // No side effects before the throw: the switch's default runs before
+      // ensureTicketExists, so an unknown action must never create a phantom
+      // ticket row (the Go engine rejects before its implicit creation too).
+      expect(adapter.findRun('INSERT INTO "ticket"')).toBeUndefined()
+      expect(adapter.findRun('SET time_stamp')).toBeUndefined()
     })
   })
 })
@@ -577,11 +662,20 @@ describe('applyLogsBatch', () => {
     expect(result.skipped).toBe(1)
   })
 
-  it('skips logs that throw MISSING_DEPENDENCY', async () => {
+  it('skips logs that throw MISSING_DEPENDENCY and parks them with backoff', async () => {
     adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
     const result = await applyLogsBatch(adapter, [entry({ payload: { table_uuid: 'missing-table' } })])
     expect(result.applied).toBe(0)
     expect(result.skipped).toBe(1)
+    expect(result.errors).toEqual([])
+
+    // Risk 3 gap 9: the claim row must get failLog's backoff (retry_count
+    // bumped, next_retry_at set) — a bare claim would hot re-fetch forever.
+    const fail = adapter.findRun('UPDATE "ticket_log_applied" SET retry_count')
+    expect(fail).toBeDefined()
+    expect(fail!.params).toEqual([expect.any(Number), RETRY_BACKOFF_CAP_STEPS, 'MISSING_DEPENDENCY', 'log-001'])
+    // Still unapplied: markLogApplied must NOT have stamped time_stamp.
+    expect(adapter.findRun('UPDATE "ticket_log_applied" SET time_stamp')).toBeUndefined()
   })
 
   it('catches errors and returns them', async () => {
@@ -599,7 +693,7 @@ describe('applyLogsBatch', () => {
     adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
     const result = await applyLogsBatch(adapter, [entry({ action: 'ADD_ITEM', payload: { menu_item_uuid: 'mi-001' } })])
     // menu_item missing → MISSING_DEPENDENCY → skipped (not marked applied),
-    // so the claim row keeps time_stamp NULL and the log is retried next cycle.
+    // with failLog backoff written so the claim row parks instead of hot-looping.
     expect(result.applied).toBe(0)
     expect(result.skipped).toBe(1)
 
@@ -607,6 +701,13 @@ describe('applyLogsBatch', () => {
     // claim row exists with retry_count 0 and a NULL time_stamp (not applied)
     // — the retry-contract probe: fetch-unapplied looks for time_stamp IS NULL.
     expect(claim).toBeDefined()
+
+    // Backoff state written on the MD path too (retry_count bumped,
+    // next_retry_at scheduled, last_error recorded).
+    const fail = adapter.findRun('UPDATE "ticket_log_applied" SET retry_count')
+    expect(fail).toBeDefined()
+    expect(fail!.params).toEqual([expect.any(Number), RETRY_BACKOFF_CAP_STEPS, 'MISSING_DEPENDENCY', 'log-001'])
+    expect(adapter.findRun('UPDATE "ticket_log_applied" SET time_stamp')).toBeUndefined()
   })
 
   it('error isolation: one failing log never blocks the others (rule 7)', async () => {
