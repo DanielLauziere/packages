@@ -66,6 +66,7 @@ export {
   bucketForTicket,
   buildBuckets,
   buildBucketHashes,
+  buildTicketDigests,
   flattenBuckets,
   chunkBucketsForUpload,
   getDirtyBuckets,
@@ -76,6 +77,7 @@ export {
 export type {
   BucketHashes,
   BucketMap,
+  TicketDigests,
   PullAfter,
   PullOptions,
   PullResult,

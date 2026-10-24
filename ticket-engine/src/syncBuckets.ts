@@ -9,6 +9,8 @@
  *   - `fastHashUuid` mirrors `FastHashUuid` (FNV-1a 32 over char codes).
  *   - `buildBucketHashes` packs (log count, XOR) exactly like
  *     `PackBucketHash` in Go — 0 stays reserved for "bucket has no logs".
+ *   - `buildTicketDigests` is the same packing per ticket, mirroring the
+ *     server's `ticket_digests` (Phase 2).
  *
  * Changing any of this INVALIDATES sync compatibility across every device.
  */
@@ -113,6 +115,49 @@ export const buildBucketHashes = (buckets: BucketMap<any>): BucketHashes => {
 };
 
 /**
+ * Packed (log count, XOR of per-log hashes) fingerprint of every ticket's log
+ * group across a bucket map, as `ticket_uuid → digest` — the wire value of
+ * `ticket_digests` in SyncBucketsRequest (Phase 2 of
+ * docs/features/sync-payload-reduction.md).
+ *
+ * This is the bucket-hash primitive one level down and must stay byte-for-byte
+ * compatible with the server's per-ticket digests (the (count, xor)
+ * accumulation in `computeServerBuckets`, omni/src/services/bucket/sync_service.go).
+ * Build it from the SAME buckets map (same window scope) as the `bucket_hashes`
+ * of that request: a narrower scope is still correct — a missing digest just
+ * makes the server ship that ticket — but it gives up the skipping. Empty
+ * groups are skipped: a server ticket always has >= 1 log, so a digest is
+ * never 0.
+ */
+export type TicketDigests = Record<string, number>;
+
+export const buildTicketDigests = <T extends { uuid: string }>(
+  buckets: BucketMap<T>,
+): TicketDigests => {
+  const result: TicketDigests = {};
+
+  for (const b in buckets) {
+    const tickets = buckets[b];
+    if (!tickets) continue;
+
+    for (const t in tickets) {
+      const logs = tickets[t];
+      if (!logs?.length) continue;
+
+      let h = 0;
+      let count = 0;
+      for (const log of logs) {
+        h ^= fastHashUuid(log.uuid);
+        count++;
+      }
+      result[t] = packBucketHash(count, h);
+    }
+  }
+
+  return result;
+};
+
+/**
  * Default max serialized size of a `ticket-log/sync-buckets` request body.
  * The server truncates bodies over 20MB and rejects them with 400 and no
  * partial accept (omni `bucketHandler.go`), which would loop forever while the
@@ -123,6 +168,26 @@ export const buildBucketHashes = (buckets: BucketMap<any>): BucketHashes => {
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 /**
+ * Phase 3 wire cut (docs/features/sync-payload-reduction.md): on the
+ * sync-buckets wire these two fields are redundant — `location_group_uuid`
+ * comes from the request route and `ticket_uuid` from the `buckets[b][ticket]`
+ * map key — so uploads drop them and the server re-stamps both at ingest.
+ * Returns the SAME object when there is nothing to strip. P2P/RTC transports
+ * never route through `chunkBucketsForUpload` (they send flat log arrays) and
+ * keep both fields unchanged.
+ */
+type WireStrip = { ticket_uuid?: unknown; location_group_uuid?: unknown };
+
+const stripWireFields = <T extends { uuid: string }>(log: T): T => {
+  const o = log as T & WireStrip;
+  if (o.ticket_uuid === undefined && o.location_group_uuid === undefined) {
+    return log;
+  }
+  const { ticket_uuid: _t, location_group_uuid: _l, ...rest } = o;
+  return rest as T;
+};
+
+/**
  * Split an outgoing bucket map into request-sized chunks.
  *
  * Returns `[]` for an empty map — callers should send a single request with
@@ -131,6 +196,12 @@ export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
  * (bucket asc, ticket asc). The per-unit size estimate over-counts structural
  * overhead so a chunk's real JSON never exceeds `maxBytes` in practice (the
  * 8MB default leaves ~12MB of slack against the server's 20MB cap).
+ *
+ * Every server-bound upload flows through here (sync loop, drains, venue
+ * switch flush), so this is also the single strip point for the Phase 3 wire
+ * cut: chunked logs are copies without `ticket_uuid`/`location_group_uuid`
+ * (see stripWireFields), and the size estimate measures the stripped copy —
+ * exactly what goes on the wire.
  */
 export const chunkBucketsForUpload = <T extends { uuid: string }>(
   buckets: BucketMap<T>,
@@ -157,15 +228,16 @@ export const chunkBucketsForUpload = <T extends { uuid: string }>(
     const tickets = buckets[b]!;
     for (const t of Object.keys(tickets).sort()) {
       for (const log of tickets[t]!) {
+        const wireLog = stripWireFields(log);
         // "ticket-uuid":[  +  log json  +  comma/bracket slack
-        const unit = JSON.stringify(log).length + t.length + 6;
+        const unit = JSON.stringify(wireLog).length + t.length + 6;
         if (size > 2 && size + unit > maxBytes) flush();
         if (!current[b]) {
           current[b] = {};
           size += 8; // "0":{}
         }
         if (!current[b]![t]) current[b]![t] = [];
-        current[b]![t]!.push(log);
+        current[b]![t]!.push(wireLog);
         size += unit;
       }
     }
@@ -176,7 +248,15 @@ export const chunkBucketsForUpload = <T extends { uuid: string }>(
 };
 
 /** Flatten a bucket map back into a tickets map (bucket identity is an
- *  implementation detail of the diff — callers exchange flat tickets). */
+ *  implementation detail of the diff — callers exchange flat tickets).
+ *
+ *  Phase 3 wire cut: server buckets no longer carry `ticket_uuid` inside each
+ *  log (it WAS the map key on the wire), so flatten re-injects it from the key
+ *  — after this, every consumer (`filterTicketsByActivity` callers,
+ *  `insertTicketsMap`, `groupLogsByTicket`, `fromSyncLog`) sees the full field
+ *  again. Logs that already carry it are passed through untouched. The
+ *  `location_group_uuid` stamp happens at the ingest boundary (each client's
+ *  `insertTicketsMap`), where the sync route context lives. */
 export const flattenBuckets = <T extends { uuid: string }>(
   buckets: BucketMap<T>,
 ): Record<string, T[]> => {
@@ -190,7 +270,10 @@ export const flattenBuckets = <T extends { uuid: string }>(
       const logs = bucket[t];
       if (!logs) continue;
 
-      result[t] = logs;
+      result[t] = logs.map((log) => {
+        if ((log as T & { ticket_uuid?: string }).ticket_uuid) return log;
+        return { ...log, ticket_uuid: t } as T;
+      });
     }
   }
 

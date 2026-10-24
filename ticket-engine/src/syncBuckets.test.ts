@@ -6,7 +6,9 @@ import {
   bucketForTicket,
   buildBuckets,
   buildBucketHashes,
+  buildTicketDigests,
   chunkBucketsForUpload,
+  flattenBuckets,
   getDirtyBuckets,
   adoptDeliveredHashes,
   type BucketMap,
@@ -44,6 +46,21 @@ const GOLDEN = {
     firstHash: 2178313897,
     last: "bffe71b0-0fab-4f38-bdcf-267b1c0081de",
     lastHash: 3703842988,
+  },
+  // Per-ticket digests — PackBucketHash(log count, XOR of fastHashUuid over
+  // the group's log uuids), Phase 2 of sync-payload-reduction.md. Pinned in
+  // BOTH languages: this table and `omni/src/services/bucket/ticket_digest_test.go`.
+  digest: {
+    // pack(1, h(550e…))
+    one: 6587036968,
+    // pack(2, h(550e…)^h(6ba7…))
+    two: 10629861400,
+    // pack(3, h(550e…)^h(6ba7…)^h(a4d2…))
+    three: 16619993228,
+    // pack(4, …^h(606b…))
+    four: 17716189417,
+    // pack(2, h(a4d2…)^h(606b…)) — the 2026-10-09 incident pair
+    incidentPair: 10307586289,
   },
 };
 
@@ -92,6 +109,80 @@ describe("parity with Go bucket hashing", () => {
     const hashes = buildBucketHashes({ 0: { t: [{ uuid: u }] } });
     expect(hashes[0]).toBe(packBucketHash(1, fastHashUuid(u)));
     expect(hashes[0]).toBeGreaterThan(0xffffffff);
+  });
+});
+
+describe("buildTicketDigests (Phase 2 ticket_digests parity with Go)", () => {
+  const U1 = "550e8400-e29b-41d4-a716-446655440000";
+  const U2 = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+  const U3 = "a4d24005-0d66-454d-a661-3141f155cc20";
+  const U4 = "606bd2a4-3885-41dc-9829-3cd4f4c80eef";
+
+  /** Group logs into a bucket map the way buildBuckets does. */
+  const group = (logs: Log[], bucket = 0): BucketMap<Log> => ({
+    [bucket]: { "ticket-1": logs },
+  });
+
+  it("matches the Go golden vectors (ticket_digest_test.go)", () => {
+    expect(buildTicketDigests(group([{ uuid: U1 }]))["ticket-1"]).toBe(
+      GOLDEN.digest.one,
+    );
+    expect(
+      buildTicketDigests(group([{ uuid: U1 }, { uuid: U2 }]))["ticket-1"],
+    ).toBe(GOLDEN.digest.two);
+    expect(
+      buildTicketDigests(group([{ uuid: U1 }, { uuid: U2 }, { uuid: U3 }]))[
+        "ticket-1"
+      ],
+    ).toBe(GOLDEN.digest.three);
+    expect(
+      buildTicketDigests(
+        group([{ uuid: U1 }, { uuid: U2 }, { uuid: U3 }, { uuid: U4 }]),
+      )["ticket-1"],
+    ).toBe(GOLDEN.digest.four);
+    expect(
+      buildTicketDigests(group([{ uuid: U3 }, { uuid: U4 }]))["ticket-1"],
+    ).toBe(GOLDEN.digest.incidentPair);
+  });
+
+  it("is order-independent and count-sensitive", () => {
+    const forward = buildTicketDigests(
+      group([{ uuid: U1 }, { uuid: U2 }, { uuid: U3 }]),
+    );
+    const reverse = buildTicketDigests(
+      group([{ uuid: U3 }, { uuid: U2 }, { uuid: U1 }]),
+    );
+    expect(forward).toEqual(reverse);
+
+    // h ^ h cancels in the XOR — the count component must still flip the
+    // digest so a divergent ticket can never look identical (the incident
+    // class, one level down).
+    const base = buildTicketDigests(group([{ uuid: U1 }, { uuid: U2 }]));
+    const withPair = buildTicketDigests(
+      group([{ uuid: U1 }, { uuid: U2 }, { uuid: U3 }, { uuid: U3 }]),
+    );
+    expect(withPair["ticket-1"]).not.toBe(base["ticket-1"]);
+  });
+
+  it("covers every non-empty ticket across all buckets and never emits 0", () => {
+    const buckets: BucketMap<Log> = {
+      3: { a: [{ uuid: U1 }], b: [] },
+      9: { c: [{ uuid: U2 }, { uuid: U3 }] },
+      12: {},
+    };
+    const digests = buildTicketDigests(buckets);
+
+    expect(Object.keys(digests).sort()).toEqual(["a", "c"]);
+    expect(digests["a"]).toBe(GOLDEN.digest.one);
+    expect(digests["c"]).toBe(
+      packBucketHash(2, fastHashUuid(U2) ^ fastHashUuid(U3)),
+    );
+    for (const v of Object.values(digests)) expect(v).toBeGreaterThan(0);
+  });
+
+  it("empty buckets and empty groups contribute nothing (absent ⇒ server ships)", () => {
+    expect(buildTicketDigests({})).toEqual({});
+    expect(buildTicketDigests({ 0: { t: [] } })).toEqual({});
   });
 });
 
@@ -343,6 +434,66 @@ describe("chunkBucketsForUpload", () => {
     expect(chunkBucketsForUpload(buckets, 40)).toEqual(
       chunkBucketsForUpload(buckets, 40),
     );
+  });
+
+  it("strips ticket_uuid + location_group_uuid (Phase 3 wire cut) without mutating the input", () => {
+    type WireLog = Log & {
+      ticket_uuid?: string;
+      location_group_uuid?: string;
+      action?: string;
+    };
+    const log: WireLog = {
+      uuid: "a",
+      ticket_uuid: "t1",
+      location_group_uuid: "lg-1",
+      action: "ADD_ITEM",
+    };
+    const buckets: BucketMap<WireLog> = { 0: { t1: [log] } };
+
+    const chunks = chunkBucketsForUpload(buckets);
+    expect(chunks).toHaveLength(1);
+    const sent = chunks[0]![0]!["t1"]![0]!;
+    expect(sent).toEqual({ uuid: "a", action: "ADD_ITEM" });
+    expect("ticket_uuid" in sent).toBe(false);
+    expect("location_group_uuid" in sent).toBe(false);
+    // The caller's copy keeps both fields (hashes/digests already computed,
+    // and the same rows may feed a P2P send later).
+    expect(log.ticket_uuid).toBe("t1");
+    expect(log.location_group_uuid).toBe("lg-1");
+    expect(buckets[0]!["t1"]![0]).toBe(log);
+  });
+
+  it("passes logs that already lack the fields through unchanged (same object)", () => {
+    const log: Log = { uuid: "a" };
+    const chunks = chunkBucketsForUpload({ 0: { t1: [log] } });
+    expect(chunks[0]![0]!["t1"]![0]).toBe(log);
+  });
+});
+
+describe("flattenBuckets (Phase 3: ticket_uuid re-injected from the map key)", () => {
+  it("re-injects ticket_uuid when the wire log omits it", () => {
+    const buckets: BucketMap<Log & { ticket_uuid?: string }> = {
+      3: {
+        "t-1": [
+          { uuid: "a" },
+          { uuid: "b", ticket_uuid: "t-1" },
+        ],
+      },
+    };
+
+    const flat = flattenBuckets(buckets);
+    expect(Object.keys(flat)).toEqual(["t-1"]);
+    expect(flat["t-1"]!.map((l) => (l as { ticket_uuid?: string }).ticket_uuid)).toEqual([
+      "t-1",
+      "t-1",
+    ]);
+    expect(flat["t-1"]![0]!.uuid).toBe("a");
+  });
+
+  it("passes logs that already carry ticket_uuid through untouched", () => {
+    const log: Log & { ticket_uuid?: string } = { uuid: "a", ticket_uuid: "t-1" };
+    const flat = flattenBuckets({ 3: { "t-1": [log] } });
+    expect(flat["t-1"]![0]).toBe(log);
   });
 });
 
