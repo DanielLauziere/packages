@@ -233,10 +233,10 @@ async function upsertGuest(
 
     const buf = new Uint8Array(20);
     const write = (v: number) => {
-      buf[0] = v & 0xff;
-      buf[1] = (v >>> 8) & 0xff;
-      buf[2] = (v >>> 16) & 0xff;
-      buf[3] = (v >>> 24) & 0xff;
+      buf[0] = (v >>> 24) & 0xff;
+      buf[1] = (v >>> 16) & 0xff;
+      buf[2] = (v >>> 8) & 0xff;
+      buf[3] = v & 0xff;
     };
     for (const iv of [h0, h1, h2, h3, h4]) write(iv);
     return buf;
