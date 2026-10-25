@@ -45,6 +45,12 @@ export interface TicketLogRow {
   payload?: unknown;
   time_stamp?: number | string | null;
   admin_uuid?: string | null;
+  /** D3: outbox flag. 1 = the server has not yet seen this log (set on
+   *  local appendLog + P2P ingest); cleared to 0 by the sync loop once the
+   *  server-pull ingests it. The backend channel (push/pull) ships only
+   *  pending rows. Also carried on the client-side push request body so the
+   *  server can stamp its own seq. */
+  isPendingPush?: boolean;
 }
 
 export interface LedgerLogger {
@@ -114,8 +120,8 @@ export async function appendLog(
     };
 
     await deps.run(
-      `INSERT INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid, is_pending_push)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)
        ON CONFLICT(uuid) DO NOTHING`,
       [
         entry.uuid,
@@ -141,7 +147,11 @@ export async function appendLog(
 }
 
 /** Sync delivery: park the row unless the log already ran. */
-export async function insertLog(deps: LedgerDeps, log: TicketLogRow): Promise<void> {
+export async function insertLog(
+  deps: LedgerDeps,
+  log: TicketLogRow,
+  setIsPendingPush?: boolean,
+): Promise<void> {
   const entry = fromSyncLog(log);
 
   // Skip only when the log is actually applied (time_stamp set) — a mere
@@ -175,6 +185,16 @@ export async function insertLog(deps: LedgerDeps, log: TicketLogRow): Promise<vo
       entry.admin_uuid ?? null,
     ],
   );
+  if (setIsPendingPush) {
+    // D3: pull-ingested = server has it (by construction). Clear the outbox
+    // flag so the backend channel's push selection (`WHERE is_pending_push`)
+    // no longer ships this row. Cursor-advance happens in the sync loop, not
+    // here.
+    await deps.run(
+      `UPDATE ticket_log SET is_pending_push = 0 WHERE uuid = ?`,
+      [entry.uuid],
+    );
+  }
 }
 
 /** Claim → apply → mark, with the documented backoff on failure.

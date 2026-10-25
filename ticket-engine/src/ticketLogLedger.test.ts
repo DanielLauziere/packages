@@ -108,6 +108,29 @@ describe("appendLog", () => {
     expect(insertParams[4]).toBe('{"note":null}');
   });
 
+  it("sets is_pending_push = 1 (outbox pending flag) on local append", async () => {
+    const ctx = makeDeps();
+    const entry = await appendLog(ctx.deps, {
+      ticket_uuid: "t-1",
+      location_group_uuid: "lg-1",
+      action: "ADD_ITEM",
+      payload: { menu_item_uuid: "m-1" },
+      time_stamp: 0 as any,
+      admin_uuid: "admin-1",
+    });
+
+    expect(entry.uuid).toBe("uuid-1");
+    expect(entry.time_stamp).toBe(1_005_000);
+
+    const insertSql = ctx.runs[0]!.sql;
+    expect(insertSql).toContain("is_pending_push");
+    expect(insertSql).toContain("1");
+    expect(ctx.applyEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ uuid: "uuid-1", time_stamp: 1_005_000 }),
+    );
+    expect(ctx.notify).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the log row when apply throws (no outer transaction, no mark)", async () => {
     const ctx = makeDeps();
     ctx.applyEntry.mockRejectedValueOnce(new Error("boom"));
@@ -151,6 +174,59 @@ describe("appendLog", () => {
       admin_uuid: "admin-1",
     });
     expect(order).toEqual(["lock-in", "apply", "lock-out"]);
+  });
+
+  it("sets is_pending_push = 1 (outbox pending flag) on local append", async () => {
+    const ctx = makeDeps();
+    const entry = await appendLog(ctx.deps, {
+      ticket_uuid: "t-1",
+      location_group_uuid: "lg-1",
+      action: "ADD_ITEM",
+      payload: { menu_item_uuid: "m-1" },
+      time_stamp: 0 as any,
+      admin_uuid: "admin-1",
+    });
+
+    expect(entry.uuid).toBe("uuid-1");
+    expect(entry.time_stamp).toBe(1_005_000);
+
+    const insertSql = ctx.runs[0]!.sql;
+    expect(insertSql).toContain("is_pending_push");
+    expect(insertSql).toContain("1");
+
+    expect(ctx.applyEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ uuid: "uuid-1", time_stamp: 1_005_000 }),
+    );
+    expect(ctx.notify).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("insertLog", () => {
+  it("skips when the ledger row is actually applied (time_stamp set)", async () => {
+    const ctx = makeDeps();
+    ctx.setQueryResults([[{ 1: 1 }]]);
+    await insertLog(ctx.deps, makeRow());
+    expect(ctx.runs).toHaveLength(0);
+  });
+
+  it("inserts when no ledger row exists (claim rows do not block)", async () => {
+    const ctx = makeDeps();
+    await insertLog(ctx.deps, makeRow({ payload: { a: 1 } }));
+    expect(ctx.runs).toHaveLength(1);
+    expect(ctx.runs[0]!.sql).toContain("INSERT OR IGNORE INTO ticket_log");
+    expect(ctx.runs[0]!.params![4]).toBe('{"a":1}');
+  });
+
+  it("clears is_pending_push = 0 when setIsPendingPush is true (pull-ingest)", async () => {
+    const ctx = makeDeps();
+    await insertLog(ctx.deps, makeRow(), true);
+    expect(ctx.runs.length).toBeGreaterThanOrEqual(2);
+    // insert ran
+    expect(ctx.runs[0]!.sql).toContain("INSERT OR IGNORE INTO ticket_log");
+    // clear ran
+    const clearSql = ctx.runs.find((r) => r.sql.includes("is_pending_push = 0"));
+    expect(clearSql).toBeDefined();
+    expect(clearSql!.params).toEqual(["log-1"]);
   });
 });
 

@@ -580,9 +580,13 @@ describe('wipe → re-delivery → re-apply: logs survive resetDatabase(session)
     expect(before.ticket).toHaveLength(1)
     expect(before.items).toHaveLength(1)
     expect(before.payments).toHaveLength(1)
+    // Explicit column list (not SELECT *) so the snapshot stays stable as
+    // sync bookkeeping columns are added — e.g. server_seq (cursor pull).
+    const logCols =
+      'uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid'
     const logSnapshot = all(
       db,
-      'SELECT uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid FROM ticket_log ORDER BY uuid',
+      `SELECT ${logCols} FROM ticket_log ORDER BY uuid`,
     )
     expect(logSnapshot).toHaveLength(logs.length)
 
@@ -611,7 +615,7 @@ describe('wipe → re-delivery → re-apply: logs survive resetDatabase(session)
     }
     for (const r of logSnapshot) await insertLog(deps, r as any)
     expect(all(db, 'SELECT uuid FROM ticket_log ORDER BY uuid')).toHaveLength(logs.length)
-    expect(all(db, 'SELECT * FROM ticket_log ORDER BY uuid')).toEqual(logSnapshot)
+    expect(all(db, `SELECT ${logCols} FROM ticket_log ORDER BY uuid`)).toEqual(logSnapshot)
 
     // 6. Group-apply the re-delivered rows (payload parsed the way
     // getUnappliedLogs hands rows to the engine).

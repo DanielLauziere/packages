@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { DbAdapter } from './dbAdapter.js'
 import { ticketIdFromUUID } from './ticketId.js'
 import { RETRY_BACKOFF_CAP_STEPS } from './consts.js'
@@ -165,30 +164,109 @@ async function upsertGuest(
   email?: string,
   phone?: string,
 ): Promise<string> {
-  // Guest UUID MUST match the Go engine's `getGuestUUID`: SHA-1
-  // name-based UUID (RFC 4122 §4.3) over the local-name namespace
-  // 6ba7b810-9dad-11d1-80b4-00c04fd430c8. The previous TS used
-  // uuidv5(), a *different* algorithm that produced a divergent
-  // guest_uuid on every client, breaking guest identity convergence.
-  // See doc/core-logic-ticket-logs.md.
-  const sha1 = crypto.createHash('sha1')
-  const ns = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex')
-  const data = Buffer.concat([ns, Buffer.from(username, 'utf8')])
-  sha1.update(data)
-  const digest = sha1.digest()
+  // SHA-1 (RFC 3174) implemented in pure TS so the shared engine bundle can be
+  // loaded by Metro (the React Native bundler), which does not expose Node's
+  // built-in `crypto` module. The digest is byte-identical to Go's
+  // `crypto/sha1` and to `uuid.NewSHA1(namespace, name)` (RFC 4122 §4.3).
+  // Preserved from the original implementation so the encoding is byte-exact:
+  //   - version = 0x50 set in octet 6
+  //   - variant = 0x80 set in octet 8 (RFC 4122)
+  //   - field read order: timeLow(bytes 0-3), timeMid(bytes 4-5),
+  //     timeHigh(bytes 6-7), clockSeq(bytes 8-9), node(bytes 10-15)
+  // All arithmetic is unsigned 32-bit (>>> 0) to match Go's uint32.
+  function sha1Digest(msgBytes: Uint8Array): Uint8Array {
+   let h0 = 0x67452301 >>> 0;
+   let h1 = 0xefcdab89 >>> 0;
+    let h2 = 0x98badcfe >>> 0;
+    let h3 = 0x10325476 >>> 0;
+    let h4 = 0xc3d2e1f0 >>> 0;
 
-  const timeLow = digest.readUInt32BE(0)
-  const timeMid = digest.readUInt16BE(4)
-  const timeHigh = (digest.readUInt16BE(6) & 0x0fff) | 0x5000
-  let clockSeq = ((digest[8] << 8) | digest[9]) & 0x3fff | 0x8000;
+    const msgLen = msgBytes.length;
+    const bitLenNum = msgLen * 8;
+
+    // total = msgLen + 1 (0x80) + padLen + 8 (bit length) must be ≡ 0 (mod 64)
+    const padLen = (55 - msgLen) % 64;
+    const trailing = new Uint8Array(1 + padLen + 8);
+    trailing[0] = 0x80;
+    for (let i = 0; i < 8; i++) {
+      trailing[1 + padLen + i] = (bitLenNum >>> (56 - i * 8)) & 0xff;
+    }
+
+    const data = new Uint8Array(msgLen + trailing.length);
+    data.set(msgBytes, 0);
+    data.set(trailing, msgLen);
+
+    for (let off = 0; off < data.length; off += 64) {
+      const w = new Uint32Array(80);
+      for (let i = 0; i < 16; i++) {
+        w[i] = (data[off + i * 4] << 24) | (data[off + i * 4 + 1] << 16) | (data[off + i * 4 + 2] << 8) | data[off + i * 4 + 3];
+      }
+      for (let i = 16; i < 80; i++) {
+        const x = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
+        w[i] = (x << 1) | (x >>> 31);
+      }
+      let a = h0,
+        b = h1,
+        c = h2,
+        d = h3,
+        e = h4;
+      for (let i = 0; i < 80; i++) {
+        let f;
+        let k;
+        if (i < 20) { f = (b & c) | ((~b) & d); k = 0x5a827999; }
+        else if (i < 40) { f = b ^ c ^ d; k = 0x6ed9eba1; }
+        else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8f1bbcdc; }
+        else { f = b ^ c ^ d; k = 0xca62c1d6; }
+        const temp = ((((a << 5) | (a >>> 27)) + f + e + k + w[i]) >>> 0) & 0xffffffff;
+        e = d;
+        d = c;
+        c = b;
+        b = a;
+        a = temp;
+      }
+      h0 = (h0 + a) >>> 0;
+      h1 = (h1 + b) >>> 0;
+      h2 = (h2 + c) >>> 0;
+      h3 = (h3 + d) >>> 0;
+      h4 = (h4 + e) >>> 0;
+    }
+
+    const buf = new Uint8Array(20);
+    const write = (v: number) => {
+      buf[0] = v & 0xff;
+      buf[1] = (v >>> 8) & 0xff;
+      buf[2] = (v >>> 16) & 0xff;
+      buf[3] = (v >>> 24) & 0xff;
+    };
+    for (const iv of [h0, h1, h2, h3, h4]) write(iv);
+    return buf;
+  }
+
+  const usernameBytes = new TextEncoder().encode(username);
+  const ns = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) {
+    ns[i] = parseInt('6ba7b8109dad11d180b400c04fd430c8'.slice(i * 2, i * 2 + 2), 16);
+  }
+  const data = new Uint8Array(ns.length + usernameBytes.length);
+  data.set(ns, 0);
+  data.set(usernameBytes, ns.length);
+
+  const digest = sha1Digest(data);
+
+  const timeLow = digest[0] << 24 | digest[1] << 16 | digest[2] << 8 | digest[3];
+  const timeMid = digest[4] << 8 | digest[5];
+  const timeHigh = ((digest[6] << 8 | digest[7]) & 0x0fff) | 0x5000;
+  let clockSeq = (digest[8] << 8 | digest[9]) & 0x3fff | 0x8000;
 
   const hex = [
     timeLow.toString(16).padStart(8, '0').toLowerCase(),
     timeMid.toString(16).padStart(4, '0').toLowerCase(),
     timeHigh.toString(16).padStart(4, '0').toLowerCase(),
     clockSeq.toString(16).padStart(4, '0').toLowerCase(),
-    digest.slice(10, 16).toString('hex').toLowerCase(),
-  ].join('-')
+    Array.from(digest.slice(10, 16))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(''),
+  ].join('-');
 
   const finalUuid = hex
 

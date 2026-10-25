@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client'
+
 import { describe, it, expect, beforeEach } from 'vitest'
 import { v5 as uuidv5 } from 'uuid'
 import {
@@ -58,7 +62,6 @@ function entry(overrides?: Partial<TicketLogEntry>): TicketLogEntry {
     ...overrides,
   }
 }
-
 
 describe('normalizePhone', () => {
   it('strips non-digit characters', () => {
@@ -266,13 +269,31 @@ describe('applyTicketLog', () => {
       const DNS_NS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       adapter.onQuery('SELECT uuid FROM guest', [{ uuid: 'guest-001' }])
-      // Mixed case + surrounding whitespace must canonicalize to 'User@Domain.Com' → 'user@domain.com'
-      // and the uuid must be uuidv5 of the canonicalized value (NOT uuidv4).
+      // Mixed case + surrounding whitespace must canonicalize to 'user@domain.com'
+      // and the uuid must be sha1(namespace || username) (RFC 4122 §4.3) — NOT
+      // plain uuidv5(). Seeded by the Go getGuestUUID golden vector.
       await applyTicketLog(adapter, entry({ action: 'SET_GUEST', payload: { guest_user_name: '  User@Domain.Com  ' } }))
       const insert = adapter.findRun('INSERT INTO guest')
-      expect(insert!.params).toContain('user@domain.com')
-      expect(insert!.params[0]).toBe(uuidv5('user@domain.com', DNS_NS))
+      expect(insert).toBeDefined()
+      expect(insert!.params[0]).toBe('2a369f48-9bf8-5626-a79a-f6bbc7257307')
       expect(insert!.params[0]).not.toBe(uuidv5('User@Domain.Com', DNS_NS))
+    })
+
+    it('guest uuid is sha1(namespace || username): SHA-1 RFC 4122 §4.3, case-insensitive name', async () => {
+      const cases: { name: string; want: string }[] = [
+        { name: 'user@domain.com', want: '2a369f48-9bf8-5626-a79a-f6bbc7257307' },
+        { name: 'User@Domain.Com', want: '2a369f48-9bf8-5626-a79a-f6bbc7257307' },
+        { name: '5551234', want: '89d490335463c5e34416236d1a9c2b11e16c9f29' },
+        { name: 'Dani', want: '39f9298e-56be-50c7-b21f-c9b608f4e065' },
+      ]
+      for (const c of cases) {
+        adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+        adapter.onQuery('SELECT uuid FROM guest', [{ uuid: 'guest-001' }])
+        await applyTicketLog(adapter, entry({ action: 'SET_GUEST', payload: { guest_user_name: c.name } }))
+        const insert = adapter.findRun('INSERT INTO guest')
+        expect(insert).toBeDefined()
+        expect(insert!.params[0]).toBe(c.want)
+      }
     })
   })
 
@@ -480,7 +501,7 @@ describe('applyTicketLog', () => {
       expect(adapter.findRun('INSERT OR IGNORE INTO "ticket_promotion"')).toBeUndefined()
     })
 
-    it("treats an empty ticket_menu_item_uuid as the itemless path (writes NULL)", async () => {
+    it('treats an empty ticket_menu_item_uuid as the itemless path (writes NULL)', async () => {
       // ''-FK contract parity with Go: an empty item uuid means itemless —
       // no item probe, no item-level DELETE, and the row gets NULL (not '').
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
