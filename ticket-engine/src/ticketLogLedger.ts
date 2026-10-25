@@ -150,14 +150,19 @@ export async function appendLog(
 export async function insertLog(
   deps: LedgerDeps,
   log: TicketLogRow,
-  setIsPendingPush?: boolean,
+  isPendingPush = true,
 ): Promise<void> {
   const entry = fromSyncLog(log);
+  if (!isPendingPush) {
+    // A server-delivered copy also accepts a matching local outbox row.
+    await deps.run(
+      `UPDATE ticket_log SET is_pending_push = 0 WHERE uuid = ?`,
+      [entry.uuid],
+    );
+  }
 
   // Skip only when the log is actually applied (time_stamp set) — a mere
-  // claim row must not block re-inserting the ticket_log row, or a log
-  // whose ledger row outlives its ticket_log row (e.g. pre-fix prune) could
-  // never be restored by re-delivery.
+  // claim row must not block re-inserting the ticket_log row.
   const applied = await deps.query(
     `SELECT 1 FROM ticket_log_applied WHERE uuid = ? AND time_stamp IS NOT NULL LIMIT 1`,
     [entry.uuid],
@@ -172,8 +177,8 @@ export async function insertLog(
         : JSON.stringify(entry.payload);
 
   await deps.run(
-    `INSERT OR IGNORE INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT OR IGNORE INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid, is_pending_push)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(uuid) DO NOTHING`,
     [
       entry.uuid,
@@ -183,18 +188,9 @@ export async function insertLog(
       payloadString,
       entry.time_stamp,
       entry.admin_uuid ?? null,
+      isPendingPush ? 1 : 0,
     ],
   );
-  if (setIsPendingPush) {
-    // D3: pull-ingested = server has it (by construction). Clear the outbox
-    // flag so the backend channel's push selection (`WHERE is_pending_push`)
-    // no longer ships this row. Cursor-advance happens in the sync loop, not
-    // here.
-    await deps.run(
-      `UPDATE ticket_log SET is_pending_push = 0 WHERE uuid = ?`,
-      [entry.uuid],
-    );
-  }
 }
 
 /** Claim → apply → mark, with the documented backoff on failure.

@@ -85,12 +85,10 @@ export const isPaidTicket = <T extends { action: string }>(logs: T[]): boolean =
 /**
  * Drop tickets whose newest log is older than the activity window. `now` is
  * the caller's offset-adjusted server time (injected — keeps this pure).
- * `windowMs` defaults to the 36h cutoff; pass a smaller value to derive a
- * recent-window subset (SYNC-PULL-PAGING.md phase 1) — note the returned
- * subset's bucket hashes describe THAT window only and must never be adopted
- * as the full-window baseline. Updates `summary` in place: total/active on
- * every ticket, expired+pruned on drop (pass a throwaway summary for
- * window-narrowed calls so counts don't double-count).
+ *  `windowMs` defaults to the 36h cutoff; pass a smaller value to derive an
+ *  activity-window subset. Updates `summary` in place: total/active on every
+ *  ticket, expired+pruned on drop (pass a throwaway summary for narrowed calls
+ *  so counts don't double-count).
  */
 export const filterTicketsByActivity = <T extends SyncLogLike>(
   tickets: TicketsMapLike<T>,

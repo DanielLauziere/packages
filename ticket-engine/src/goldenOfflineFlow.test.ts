@@ -3,7 +3,7 @@
 //
 // Every eligible customer fixture must take a full offline session from
 // empty DB → seat → item → modifier → promotion → payment → paid → print
-// baton actions → a well-formed sync-buckets upload, all against the REAL
+// baton actions → a well-formed ticket-log payload, all against the REAL
 // prod rows in the bundle (real menu prices, real payment methods, real
 // printers). Then the shared apply corpus replays against every fixture DB
 // proving synthetic scenarios behave identically on top of real customer data
@@ -20,7 +20,6 @@ import {
   buildBuckets,
   buildBucketHashes,
   bucketForTicket,
-  chunkBucketsForUpload,
   fastHashUuid,
   packBucketHash,
   FULL_DDL,
@@ -293,19 +292,12 @@ describe("F3 golden offline flow (per fixture, real prod rows)", () => {
           }
         }
 
-        // Upload payload shape: the applied logs bucket exactly as a sync
-        // request would carry them — one bucket, all logs once, non-zero hash.
+        // P2P hash shape: all fixture logs are represented in the expected
+        // bucket, with a non-zero hash.
         const buckets = buildBuckets({ [ticketUuid]: logs });
         const expectedBucket = bucketForTicket(ticketUuid);
         expect(Object.keys(buckets)).toEqual([String(expectedBucket)]);
         expect(buckets[expectedBucket]![ticketUuid]).toHaveLength(logs.length);
-
-        const chunks = chunkBucketsForUpload(buckets);
-        expect(chunks).toHaveLength(1);
-        const uploaded = chunks[0]![expectedBucket]![ticketUuid]!;
-        expect(uploaded.map((l) => l.uuid).sort()).toEqual(
-          logs.map((l) => l.uuid).sort(),
-        );
 
         const hashes = buildBucketHashes(buckets);
         expect(hashes[expectedBucket]).not.toBe(0);

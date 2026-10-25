@@ -1,10 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   switchLocationGroup,
-  flushVenueLogs,
   type SwitchDeps,
   type VenueRef,
-  type VenueFlushDeps,
 } from './locationGroupSwitch.js';
 
 const target: VenueRef = { uuid: 'lg-b', url_name: 'venue-b' };
@@ -113,105 +111,5 @@ describe('switchLocationGroup', () => {
       restGroup: 'venue-b',
     });
     expect(deps.onSwitched).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('flushVenueLogs', () => {
-  type Log = {
-    uuid: string;
-    ticket_uuid: string;
-    action: string;
-    time_stamp: number;
-  };
-  const lg = 'lg-a';
-  const log = (ticket_uuid: string, uuid: string): Log => ({
-    ticket_uuid,
-    uuid,
-    time_stamp: Date.now(),
-    action: 'CREATE_TICKET',
-  });
-
-  const flushWith = (
-    getLocalTicketsMap: VenueFlushDeps<Log>['getLocalTicketsMap'],
-    syncTicketLogs: VenueFlushDeps<Log>['syncTicketLogs'],
-  ) =>
-    flushVenueLogs<Log>(lg, {
-      getLocalTicketsMap,
-      syncTicketLogs,
-      logError: () => {},
-    });
-
-  it('treats a wiped/empty local DB as a successful flush', async () => {
-    const syncTicketLogs = vi.fn();
-    const result = await flushWith(async () => {
-      throw new Error('no such table');
-    }, syncTicketLogs);
-
-    expect(result).toBe(true);
-    expect(syncTicketLogs).not.toHaveBeenCalled();
-  });
-
-  it('succeeds without an HTTP call when there are no active tickets', async () => {
-    const syncTicketLogs = vi.fn();
-    const result = await flushWith(async () => ({}), syncTicketLogs);
-
-    expect(result).toBe(true);
-    expect(syncTicketLogs).not.toHaveBeenCalled();
-  });
-
-  it('pushes full buckets with an empty baseline hash and succeeds on ok', async () => {
-    const syncTicketLogs = vi.fn(async () => ({
-      ok: true,
-      data: { buckets: {}, bucket_hashes: {}, server_timestamp: Date.now() },
-    }));
-
-    const result = await flushWith(
-      async () => ({ t1: [log('t1', 'l1'), log('t1', 'l2')] }),
-      syncTicketLogs,
-    );
-
-    expect(result).toBe(true);
-    expect(syncTicketLogs).toHaveBeenCalledTimes(1);
-    const [passedLg, body] = syncTicketLogs.mock.calls[0]!;
-    expect(passedLg).toBe(lg);
-    expect(body.bucket_hashes).toEqual({});
-    expect(Object.keys(body.buckets)).toHaveLength(1);
-    const singleBucket = Object.values(body.buckets)[0]!;
-    expect(Object.keys(singleBucket)).toContain('t1');
-  });
-
-  it('fails when the server rejects the upload', async () => {
-    const result = await flushWith(
-      async () => ({ t1: [log('t1', 'l1')] }),
-      vi.fn(async () => ({ ok: false, message: 'boom' })),
-    );
-
-    expect(result).toBe(false);
-  });
-
-  it('fails when the upload throws', async () => {
-    const result = await flushWith(
-      async () => ({ t1: [log('t1', 'l1')] }),
-      vi.fn(async () => {
-        throw new Error('network down');
-      }),
-    );
-
-    expect(result).toBe(false);
-  });
-
-  it('drops expired tickets (36h cutoff) and does not upload them', async () => {
-    const syncTicketLogs = vi.fn(async () => ({ ok: true }));
-    const stale: Log = {
-      uuid: 'old',
-      ticket_uuid: 't-old',
-      action: 'CREATE_TICKET',
-      time_stamp: Date.now() - 40 * 60 * 60 * 1000,
-    };
-
-    const result = await flushWith(async () => ({ 't-old': [stale] }), syncTicketLogs);
-
-    expect(result).toBe(true);
-    expect(syncTicketLogs).not.toHaveBeenCalled();
   });
 });

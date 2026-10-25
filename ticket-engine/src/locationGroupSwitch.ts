@@ -22,10 +22,6 @@
  *    reseeds from scratch (a wiped venue's data can never leak into another).
  */
 
-import { buildBuckets, chunkBucketsForUpload } from './syncBuckets.js';
-import type { BucketMap } from './syncBuckets.js';
-import { filterTicketsByActivity } from './syncQueue.js';
-import type { SyncLogLike, SyncSummary, TicketsMapLike } from './syncQueue.js';
 
 /** Minimal venue reference a switch needs. Both clients' `LocationGroup`
  *  satisfies it (only `uuid` + `url_name` are used). */
@@ -69,16 +65,6 @@ export interface SwitchDeps {
   onSwitched: () => void;
 }
 
-const emptySummary = (): SyncSummary => ({
-  ticketsTotal: 0,
-  ticketsActive: 0,
-  ticketsExpired: 0,
-  incomingTickets: 0,
-  bucketsOut: 0,
-  pruned: 0,
-  ticketsOutOfSync: 0,
-});
-
 /**
  * Venue switch — the ONLY supported way to change the active location_group
  * while keeping the same admin session. See the module doc for the invariants.
@@ -110,66 +96,4 @@ export async function switchLocationGroup(
   });
   deps.onSwitched();
   return 'switched';
-}
-
-/** IO a venue flush needs. `getLocalTicketsMap` throws on a wiped/empty DB
- *  (no ticket tables yet) — treated as a successful no-op flush. */
-export interface VenueFlushDeps<T extends SyncLogLike> {
-  /** Every local ticket log for the venue, keyed by ticket uuid. */
-  getLocalTicketsMap: (
-    locationGroupUuid: string,
-  ) => Promise<TicketsMapLike<T>>;
-  /** Offset-aware server clock (ms). Defaults to local `Date.now()`. */
-  now?: () => number;
-  /** Upload a bucket chunk. Resolve `{ ok }`; falsy/`ok:false` fails the flush. */
-  syncTicketLogs: (
-    locationGroupUuid: string,
-    body: { bucket_hashes: Record<number, number>; buckets: BucketMap<T> },
-  ) => Promise<{ ok?: boolean } | null | undefined>;
-  /** Optional error sink (web logs to console; RN to its logger). */
-  logError?: (message: string, error?: unknown) => void;
-}
-
-/**
- * Push every local ticket log for `locationGroupUuid` to the server before a
- * venue switch wipes the local DB. Sending the FULL bucket map with an empty
- * baseline (`bucket_hashes: {}`) forces the server to ingest all our logs
- * idempotently — the response is discarded (we're about to wipe). Chunking is
- * the engine's shared `chunkBucketsForUpload`. Returns true only when every
- * chunk was accepted; a wiped/empty DB is a successful no-op.
- */
-export async function flushVenueLogs<T extends SyncLogLike>(
-  locationGroupUuid: string,
-  deps: VenueFlushDeps<T>,
-): Promise<boolean> {
-  try {
-    let buckets: BucketMap<T>;
-    try {
-      const raw = await deps.getLocalTicketsMap(locationGroupUuid);
-      const tickets = filterTicketsByActivity(
-        raw,
-        emptySummary(),
-        deps.now?.() ?? Date.now(),
-      );
-      buckets = buildBuckets(tickets);
-    } catch {
-      // Wiped/empty DB (no ticket tables yet) — nothing to push.
-      return true;
-    }
-
-    const chunks = Object.keys(buckets).length
-      ? chunkBucketsForUpload(buckets)
-      : [];
-    for (const chunk of chunks) {
-      const res = await deps.syncTicketLogs(locationGroupUuid, {
-        bucket_hashes: {},
-        buckets: chunk,
-      });
-      if (!res?.ok) return false;
-    }
-    return true;
-  } catch (e) {
-    deps.logError?.('flushVenueLogs failed', e);
-    return false;
-  }
 }
