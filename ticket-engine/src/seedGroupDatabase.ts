@@ -281,6 +281,136 @@ function renderValue(v: unknown): unknown {
   return v === undefined ? null : typeof v === 'boolean' ? (v ? 1 : 0) : v
 }
 
+// reconcileGuestIdentities resolves guest-uuid divergence BEFORE any row is
+// written (guest has a UNIQUE user_name in addition to its uuid PK, so a
+// naive PK upsert aborts the whole seed — see core-logic-schema-boot.md
+// "guest identity reconciliation").
+//
+// Divergence happens in the offline-first flow: a local SET_GUEST log mints
+// uuidv5(user_name), while the server's own guest row (portal registration)
+// uses a random uuid — two uuids, one user_name. The rule mirrors the apply
+// engine (core-logic-ticket-logs.md: "an existing row with this user_name
+// wins"): the LOCAL holder's uuid is authoritative.
+//
+//   - snapshot uuid NOT local, user_name held by a local row
+//       → merge: rewrite the snapshot row's uuid to the local holder, and
+//         remap every other payload row's references (guest_location_group,
+//         guest_address, …) to it. The upsert then refreshes the local row's
+//         columns instead of colliding on user_name.
+//   - snapshot uuid IS local, but user_name owned by a different local row
+//       → keep the local row's current user_name (uuid stays identity) so
+//         the DO UPDATE cannot violate the UNIQUE index; other columns merge.
+//
+// Never touches ticket_* (NEVER_TOUCH). A pre-existing orphaned
+// guest_location_group row (child committed under the divergent uuid by an
+// earlier failed seed) heals via the normal join diff-delete: the remapped
+// payload no longer carries its key.
+async function reconcileGuestIdentities(db: DbAdapter, seed: Seed): Promise<void> {
+  const payload = seed['guest']
+  if (!Array.isArray(payload)) return
+  const payloadRows = payload.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+  if (!payloadRows.length) return
+
+  let localRows: Array<{ uuid?: unknown; user_name?: unknown }>
+  try {
+    localRows = await db.query(`SELECT "uuid", "user_name" FROM "guest"`) as typeof localRows
+  } catch {
+    return // guest table not created yet — the seed itself will surface the error
+  }
+
+  const nameToUuid = new Map<string, string>()
+  const uuidToName = new Map<string, string>()
+  for (const r of localRows) {
+    const uuid = String(r.uuid ?? '')
+    const name = String(r.user_name ?? '')
+    if (uuid) {
+      uuidToName.set(uuid, name)
+      if (!nameToUuid.has(name)) nameToUuid.set(name, uuid)
+    }
+  }
+
+  const remap = new Map<string, string>() // divergent snapshot uuid → local uuid
+  for (const row of payloadRows) {
+    const snapshotUuid = row['uuid'] === undefined || row['uuid'] === null ? '' : String(row['uuid'])
+    if (!snapshotUuid) continue
+    // Missing user_name becomes '' in fillNotNullDefaults — match it here.
+    const name = row['user_name'] === undefined || row['user_name'] === null ? '' : String(row['user_name'])
+    const holder = nameToUuid.get(name)
+    if (!holder || holder === snapshotUuid) continue
+
+    const localName = uuidToName.get(snapshotUuid)
+    if (localName !== undefined) {
+      // The snapshot uuid exists locally but another row owns the target
+      // user_name (e.g. a server-side rename into a locally-claimed name).
+      // Keep the local row's name rather than violating UNIQUE(user_name).
+      row['user_name'] = localName
+      console.error(`🌱 seedGroup guest ${snapshotUuid}: snapshot user_name "${name}" is owned by local guest ${holder} — keeping local name "${localName}"`)
+    } else {
+      // The offline row (uuidv5 or otherwise) already owns this user_name —
+      // it wins; merge the snapshot row onto it.
+      remap.set(snapshotUuid, holder)
+      row['uuid'] = holder
+      console.error(`🌱 seedGroup guest: snapshot uuid ${snapshotUuid} diverges from local ${holder} for user_name "${name}" — merging onto local uuid`)
+    }
+  }
+
+  if (!remap.size) return
+  for (const [table, rows] of Object.entries(seed)) {
+    if (NEVER_TOUCH.has(table) || table === 'guest') continue
+    const tableRows = rows === null ? [] : rows
+    if (!Array.isArray(tableRows)) continue
+    for (const row of tableRows) {
+      if (!row || typeof row !== 'object') continue
+      for (const [col, v] of Object.entries(row as Record<string, unknown>)) {
+        if (typeof v !== 'string') continue
+        const target = remap.get(v)
+        if (target) (row as Record<string, unknown>)[col] = target
+      }
+    }
+  }
+}
+
+// fkOrder returns the payload tables in FK-parent-first order when the caller
+// passes no explicit `order` (the live schema-version reseed passes none, and
+// payload key order is not FK-safe — e.g. the sync payload ships
+// guest_location_group before guest). Children committing before their parents
+// is what strands orphaned rows when a later table fails mid-seed (each
+// classify() read flushes the atomic buffer as its own committed sub-batch).
+// Dependencies outside the payload don't block. Cycles fall back to input
+// order — FKs are OFF during the seed, so order only affects failure windows,
+// never correctness.
+async function fkOrder(db: DbAdapter, keys: string[]): Promise<string[]> {
+  const all = new Set(keys)
+  const deps = new Map<string, string[]>()
+  for (const table of keys) {
+    const parents: string[] = []
+    try {
+      const fks = await db.query(`PRAGMA foreign_key_list("${table}")`) as Array<{ table?: unknown }>
+      for (const fk of fks) {
+        const parent = String(fk.table ?? '')
+        if (parent && parent !== table) parents.push(parent)
+      }
+    } catch {
+      // unknown/unquotable key — treat as independent
+    }
+    deps.set(table, parents)
+  }
+
+  const remaining = keys.slice()
+  const emitted = new Set<string>()
+  const out: string[] = []
+  while (remaining.length) {
+    const idx = remaining.findIndex((t) =>
+      (deps.get(t) ?? []).every((p) => !all.has(p) || emitted.has(p)),
+    )
+    const pick = idx === -1 ? 0 : idx // no ready table → cycle: emit in input order
+    const table = remaining.splice(pick, 1)[0]!
+    emitted.add(table)
+    out.push(table)
+  }
+  return out
+}
+
 // diffDelete removes join rows whose unique key is not present in the seed.
 // Row-value NOT IN is supported since SQLite 3.15, so the 3.39.4 floor holds.
 // Values are parameterized — never string-interpolated (injection-free).
@@ -383,15 +513,18 @@ export async function validateSeedPayload(db: DbAdapter, seed: Seed): Promise<Ar
 }
 
 // seedGroupDatabase seeds or re-seeds a restaurant group's SQLite DB from the
-// canonical snapshot payload. `order` optionally hoists parent tables first
-// (diagnostic readability); with foreign_keys off the seed order does not
-// affect correctness, only insert sequencing. Tables not present in the payload
-// are never touched.
+// canonical snapshot payload. `order` (the server's seed_order, passed by the
+// boot path) hoists parent tables first; without it the tables are ordered
+// from live FK metadata (fkOrder). Guest-uuid divergence is reconciled up
+// front (reconcileGuestIdentities) so a snapshot guest colliding on the
+// UNIQUE user_name merges onto the local row instead of aborting the seed.
+// Tables not present in the payload are never touched.
 export async function seedGroupDatabase(db: DbAdapter, seed: Seed, order?: string[]): Promise<void> {
   // Clear cached schema metadata so DDL changes between calls are picked up.
   notNullColumnsCache.clear()
 
-  const tableOrder = order && order.length ? order.filter((t) => t in seed) : Object.keys(seed)
+  const tableOrder = order && order.length ? order.filter((t) => t in seed) : await fkOrder(db, Object.keys(seed))
+  await reconcileGuestIdentities(db, seed)
 
   const prevFK = await (async () => {
     try {

@@ -280,13 +280,20 @@ describe('applyTicketLog', () => {
     })
 
     it('guest uuid is sha1(namespace || username): SHA-1 RFC 4122 §4.3, case-insensitive name', async () => {
+      const DNS_NS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
       const cases: { name: string; want: string }[] = [
         { name: 'user@domain.com', want: '2a369f48-9bf8-5626-a79a-f6bbc7257307' },
         { name: 'User@Domain.Com', want: '2a369f48-9bf8-5626-a79a-f6bbc7257307' },
-        { name: '5551234', want: '89d490335463c5e34416236d1a9c2b11e16c9f29' },
+        // Digit names normalize to E.164 first (both engines): userName becomes
+        // '5035551234', so the uuid is uuidv5 of the NORMALIZED name — matching
+        // Go getGuestUUID(normalized userName).
+        { name: '5551234', want: uuidv5('5035551234', DNS_NS) },
         { name: 'Dani', want: '39f9298e-56be-50c7-b21f-c9b608f4e065' },
       ]
       for (const c of cases) {
+        // findRun returns the FIRST recorded insert — reset per case so
+        // iterations don't assert against a previous case's run.
+        adapter.reset()
         adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
         adapter.onQuery('SELECT uuid FROM guest', [{ uuid: 'guest-001' }])
         await applyTicketLog(adapter, entry({ action: 'SET_GUEST', payload: { guest_user_name: c.name } }))

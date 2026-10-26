@@ -185,11 +185,15 @@ async function upsertGuest(
     const bitLenNum = msgLen * 8;
 
     // total = msgLen + 1 (0x80) + padLen + 8 (bit length) must be ≡ 0 (mod 64)
-    const padLen = (55 - msgLen) % 64;
+    // +64 before %: JS `%` keeps the sign, so (55 - msgLen) goes negative for
+    // msgLen > 55 (long emails) and would throw on Uint8Array(-1).
+    const padLen = (((55 - msgLen) % 64) + 64) % 64;
     const trailing = new Uint8Array(1 + padLen + 8);
     trailing[0] = 0x80;
+    // Divide instead of `>>>`: shift counts are taken mod 32 in JS, so
+    // `bitLenNum >>> (56 - i * 8)` corrupts the length field at i = 3.
     for (let i = 0; i < 8; i++) {
-      trailing[1 + padLen + i] = (bitLenNum >>> (56 - i * 8)) & 0xff;
+      trailing[1 + padLen + i] = Math.floor(bitLenNum / 2 ** (56 - i * 8)) & 0xff;
     }
 
     const data = new Uint8Array(msgLen + trailing.length);
@@ -220,7 +224,9 @@ async function upsertGuest(
         const temp = ((((a << 5) | (a >>> 27)) + f + e + k + w[i]) >>> 0) & 0xffffffff;
         e = d;
         d = c;
-        c = b;
+        // FIPS 180-1: C = ROTATE_LEFT(30, B) — dropping this shifts every
+        // subsequent round and yields a digest that is not SHA-1 at all.
+        c = (b << 30) | (b >>> 2);
         b = a;
         a = temp;
       }
@@ -232,13 +238,15 @@ async function upsertGuest(
     }
 
     const buf = new Uint8Array(20);
-    const write = (v: number) => {
-      buf[0] = (v >>> 24) & 0xff;
-      buf[1] = (v >>> 16) & 0xff;
-      buf[2] = (v >>> 8) & 0xff;
-      buf[3] = v & 0xff;
+    // Offset write: each 32-bit word lands at its own slot (fixed indices left
+    // bytes 4-19 zeroed, making every digest — and thus every uuidv5 — wrong).
+    const write = (v: number, off: number) => {
+      buf[off] = (v >>> 24) & 0xff;
+      buf[off + 1] = (v >>> 16) & 0xff;
+      buf[off + 2] = (v >>> 8) & 0xff;
+      buf[off + 3] = v & 0xff;
     };
-    for (const iv of [h0, h1, h2, h3, h4]) write(iv);
+    [h0, h1, h2, h3, h4].forEach((v, i) => write(v, i * 4));
     return buf;
   }
 
@@ -253,7 +261,9 @@ async function upsertGuest(
 
   const digest = sha1Digest(data);
 
-  const timeLow = digest[0] << 24 | digest[1] << 16 | digest[2] << 8 | digest[3];
+  // >>> 0: digest[0] >= 0x80 makes `<< 24` negative — toString(16) would then
+  // emit a leading '-' and a malformed uuid.
+  const timeLow = ((digest[0] << 24 | digest[1] << 16 | digest[2] << 8 | digest[3]) >>> 0);
   const timeMid = digest[4] << 8 | digest[5];
   const timeHigh = ((digest[6] << 8 | digest[7]) & 0x0fff) | 0x5000;
   let clockSeq = (digest[8] << 8 | digest[9]) & 0x3fff | 0x8000;

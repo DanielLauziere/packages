@@ -429,3 +429,97 @@ describe('seedGroupDatabase (unified seeder)', () => {
   })
 
 })
+
+describe('guest identity reconciliation + default table order', () => {
+  it('merges a divergent snapshot guest onto the local uuidv5 row, remaps children, heals the orphan glg', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
+    await applyDdl(adapter(db), FULL_DDL)
+
+    // Offline-first divergence: a local SET_GUEST log minted uuidv5 for this
+    // user_name, while the server's snapshot carries its own random uuid.
+    // The orphan guest_location_group row is what a previously failed seed
+    // stranded under the snapshot uuid.
+    db.exec('PRAGMA foreign_keys = OFF')
+    db.prepare('INSERT INTO guest (uuid, user_name, first_name, last_name, email, phone) VALUES (?,?,?,?,?,?)')
+      .run('v5-local', 'guest@x.com', '', '', '', '')
+    db.prepare('INSERT INTO guest_location_group (uuid, guest_uuid, location_group_uuid, points) VALUES (?,?,?,?)')
+      .run('orph-1', 'srv-rand', 'lgg', 7)
+    db.exec('PRAGMA foreign_keys = ON')
+
+    const seed: any = {
+      country: COUNTRY,
+      location_group: [LG()],
+      guest: [{ uuid: 'srv-rand', user_name: 'guest@x.com', first_name: 'Serv', last_name: 'Er', email: 's@x.com' }],
+      guest_address: [{ uuid: 'ga-1', guest_uuid: 'srv-rand', address: '1 Way' }],
+      guest_location_group: [{ uuid: 'glg-1', guest_uuid: 'srv-rand', location_group_uuid: 'lgg', points: 42 }],
+    }
+
+    // Pre-fix this aborted with: UNIQUE constraint failed: guest.user_name
+    await seedGroupDatabase(adapter(db), seed)
+
+    const all = (s: string) => db.prepare(s).all() as any[]
+    // One guest row: the local uuid survives, the snapshot's columns merge in.
+    expect(all('SELECT uuid, user_name, first_name, email FROM guest')).toEqual([
+      { uuid: 'v5-local', user_name: 'guest@x.com', first_name: 'Serv', email: 's@x.com' },
+    ])
+    // Child rows follow the local uuid — nothing references the snapshot uuid.
+    expect(all('SELECT guest_uuid FROM guest_address').map((r) => r.guest_uuid)).toEqual(['v5-local'])
+    expect(all('SELECT guest_uuid, points FROM guest_location_group')).toEqual([
+      { guest_uuid: 'v5-local', points: 42 },
+    ])
+    expect(all('PRAGMA foreign_key_check')).toEqual([])
+  })
+
+  it('keeps the local user_name when the snapshot renames a local uuid into a claimed name', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
+    await applyDdl(adapter(db), FULL_DDL)
+
+    db.prepare('INSERT INTO guest (uuid, user_name, first_name, last_name, email, phone) VALUES (?,?,?,?,?,?)')
+      .run('A', 'a@x.com', '', '', '', '')
+    db.prepare('INSERT INTO guest (uuid, user_name, first_name, last_name, email, phone) VALUES (?,?,?,?,?,?)')
+      .run('B', 'old@x.com', '', '', '', '')
+
+    // Snapshot says guest B was renamed to a@x.com — a name local guest A owns.
+    // Adopting it would violate UNIQUE(user_name); the local name must win.
+    await seedGroupDatabase(adapter(db), {
+      guest: [{ uuid: 'B', user_name: 'a@x.com', first_name: 'Renamed' }],
+    } as any)
+
+    const all = (s: string) => db.prepare(s).all() as any[]
+    expect(all('SELECT uuid, user_name, first_name FROM guest ORDER BY uuid')).toEqual([
+      { uuid: 'A', user_name: 'a@x.com', first_name: '' },
+      { uuid: 'B', user_name: 'old@x.com', first_name: 'Renamed' },
+    ])
+    expect(all('PRAGMA foreign_key_check')).toEqual([])
+  })
+
+  it('orders FK children after their parents when the caller passes no order', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON')
+    await applyDdl(adapter(db), FULL_DDL)
+
+    const runs: string[] = []
+    const recording = {
+      run: async (s: string, p: unknown[] = []) => {
+        runs.push(s)
+        return db.prepare(s).run(...(p as any))
+      },
+      query: async (s: string, p: unknown[] = []) => db.prepare(s).all(...(p as any)),
+    }
+
+    // Payload key order is child-first (the sync payload ships
+    // guest_location_group before guest) — with no explicit order the engine
+    // must still insert the parent first.
+    await seedGroupDatabase(recording, {
+      guest_address: [{ uuid: 'ga-1', guest_uuid: 'g1', address: '1 Way' }],
+      guest: [{ uuid: 'g1', user_name: 'u@x.com' }],
+    } as any)
+
+    const guestIdx = runs.findIndex((s) => s.includes('INSERT INTO "guest" ('))
+    const addressIdx = runs.findIndex((s) => s.includes('INSERT INTO "guest_address" ('))
+    expect(guestIdx).toBeGreaterThanOrEqual(0)
+    expect(addressIdx).toBeGreaterThan(guestIdx)
+  })
+})
