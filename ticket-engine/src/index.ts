@@ -80,6 +80,9 @@ export type {
   BucketHashes,
   BucketMap,
   TicketLogBucketSyncResponse,
+  SyncPullBlock,
+  SyncPullCursor,
+  SyncPullRequest,
 } from "./syncBuckets.js";
 export { CUTOFF_MS, THIRTY_MINUTES, SERVER_TIMESTAMP_OFFSET, RETRY_BACKOFF_CAP_STEPS } from "./consts.js";
 export {

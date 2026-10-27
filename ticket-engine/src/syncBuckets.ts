@@ -29,6 +29,40 @@ export interface TicketLogBucketSyncResponse<
   bucket_hashes: BucketHashes;
   buckets: BucketMap<TLog & { uuid: string }>;
   server_timestamp: number;
+  /**
+   * Present only when the request carried a `pull` block. Absent = legacy
+   * monolithic response (old server, or a force-send that must not page).
+   */
+  pull?: SyncPullBlock;
+}
+
+/**
+ * Keyset cursor for the byte-budgeted response pull. `last_ms`/`ticket_uuid`
+ * is the position of the last shipped ticket group in the server's
+ * recency-ordered walk; `anchor_ms` freezes the cycle's scope so tickets
+ * created mid-cycle stay dirty for the next cycle instead of shifting the
+ * resume position.
+ */
+export interface SyncPullCursor {
+  anchor_ms: number;
+  last_ms: number;
+  ticket_uuid: string;
+}
+
+export interface SyncPullRequest {
+  max_bytes?: number;
+  after?: SyncPullCursor;
+}
+
+/**
+ * Page descriptor echoed by the server. `delivered_buckets` lists buckets
+ * whose whole dirty ticket set shipped — adopt those hashes immediately;
+ * everything else is adopted only when the local bucket matches after apply.
+ */
+export interface SyncPullBlock {
+  has_more: boolean;
+  next_after?: SyncPullCursor;
+  delivered_buckets: number[];
 }
 
 /**
