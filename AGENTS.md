@@ -33,7 +33,8 @@ The engine is the TS port of the Go apply/seed logic in `../omni`. Its contract:
 5. **SQL must parse on SQLite 3.39.4** (RN quick-sqlite 8.2.7 floor) —
    `sqliteDialect.test.ts` enforces this.
 6. **`syncBuckets.ts` is byte-compatible with Go**
-   (`../omni/src/services/bucket/hashing.go`) — change both together.
+   (`../omni/src/services/bucket/hashing.go`) — backend and P2P bucket hashes
+   share this contract; change both together.
 7. Keep `dist/` fresh: consumers load a **copied** `file:../packages/ticket-engine`
    directory, so `yarn build` here + reinstall in the consumer after any source
    change.

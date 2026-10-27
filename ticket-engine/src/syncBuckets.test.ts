@@ -8,6 +8,7 @@ import {
   buildBucketHashes,
   flattenBuckets,
   getDirtyBuckets,
+  stripBucketWireFields,
   type BucketMap,
   type BucketHashes,
 } from "./syncBuckets.js";
@@ -302,6 +303,23 @@ describe("flattenBuckets", () => {
       "t-1",
     ]);
     expect(flat["t-1"]![0]!.uuid).toBe("a");
+  });
+
+  describe("stripBucketWireFields", () => {
+    it("omits redundant scope fields without mutating the local bucket", () => {
+      const log = {
+        uuid: "log-1",
+        ticket_uuid: "ticket-1",
+        location_group_uuid: "group-1",
+        action: "ADD_ITEM",
+      };
+      const buckets = { 2: { "ticket-1": [log] } };
+
+      expect(stripBucketWireFields(buckets)).toEqual({
+        2: { "ticket-1": [{ uuid: "log-1", action: "ADD_ITEM" }] },
+      });
+      expect(buckets[2]!["ticket-1"]![0]).toBe(log);
+    });
   });
 
   it("passes logs that already carry ticket_uuid through untouched", () => {

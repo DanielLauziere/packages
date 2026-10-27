@@ -4,8 +4,7 @@
  * This is the SINGLE SOURCE OF TRUTH for bucket assignment + bucket hashing,
  * shared by the React Native app and the Next.js web client.
  *
- * These hashes are P2P-only and are not used by the backend push/pull
- * transport.
+ * The same hashes are used by P2P and backend anti-entropy sync.
  */
 
 /** Number of anti-entropy buckets used by the P2P clients. */
@@ -22,6 +21,52 @@ export type BucketMap<T extends { uuid: string } = { uuid: string }> = Record<
   number,
   Record<string, T[]>
 >;
+
+/** Hash exchange request/response shared by both backend-sync clients. */
+export interface TicketLogBucketSyncResponse<
+  TLog extends { uuid: string } = { uuid: string },
+> {
+  bucket_hashes: BucketHashes;
+  buckets: BucketMap<TLog & { uuid: string }>;
+  server_timestamp: number;
+}
+
+/**
+ * Copy a bucket map into the compact backend wire shape. The route supplies
+ * location_group_uuid and each bucket's ticket key supplies ticket_uuid.
+ */
+export const stripBucketWireFields = <
+  T extends {
+    uuid: string;
+    location_group_uuid?: string;
+    ticket_uuid?: string;
+  },
+>(
+  buckets: BucketMap<T>,
+): BucketMap<Omit<T, "location_group_uuid" | "ticket_uuid">> => {
+  const result: BucketMap<
+    Omit<T, "location_group_uuid" | "ticket_uuid">
+  > = {};
+
+  for (const bucket in buckets) {
+    const tickets = buckets[bucket];
+    if (!tickets) continue;
+
+    result[Number(bucket)] = {};
+    for (const ticketUuid in tickets) {
+      const logs = tickets[ticketUuid];
+      if (!logs) continue;
+      result[Number(bucket)]![ticketUuid] = logs.map((log) => {
+        const wireLog = { ...log };
+        delete wireLog.location_group_uuid;
+        delete wireLog.ticket_uuid;
+        return wireLog;
+      });
+    }
+  }
+
+  return result;
+};
 
 /**
  * Deterministic, non-cryptographic hash used ONLY for bucket diffing.

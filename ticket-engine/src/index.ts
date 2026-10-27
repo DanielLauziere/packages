@@ -67,10 +67,12 @@ export {
   buildBucketHashes,
   flattenBuckets,
   getDirtyBuckets,
+  stripBucketWireFields,
 } from "./syncBuckets.js";
 export type {
   BucketHashes,
   BucketMap,
+  TicketLogBucketSyncResponse,
 } from "./syncBuckets.js";
 export { CUTOFF_MS, THIRTY_MINUTES, SERVER_TIMESTAMP_OFFSET, RETRY_BACKOFF_CAP_STEPS } from "./consts.js";
 export {
@@ -92,15 +94,6 @@ export type {
 } from "./locationGroupSwitch.js";
 export { appendLog, insertLog, applyLog, applyTicketGroup } from "./ticketLogLedger.js";
 export type { LedgerDeps, LedgerLogger, TicketLogRow, TicketGroupDeps } from "./ticketLogLedger.js";
-export {
-  PULL_PAGE_BYTES,
-  PUSH_BATCH_BYTES,
-  chunkTicketLogPush,
-} from "./ticketLogSync.js";
-export type {
-  TicketLogPushLog,
-  TicketLogPullResponse,
-} from "./ticketLogSync.js";
 export {
   DEFAULT_POD_URL,
   POD_URL_STORAGE_KEY,

@@ -45,11 +45,8 @@ export interface TicketLogRow {
   payload?: unknown;
   time_stamp?: number | string | null;
   admin_uuid?: string | null;
-  /** D3: outbox flag. 1 = the server has not yet seen this log (set on
-   *  local appendLog + P2P ingest); cleared to 0 by the sync loop once the
-   *  server-pull ingests it. The backend channel (push/pull) ships only
-   *  pending rows. Also carried on the client-side push request body so the
-   *  server can stamp its own seq. */
+  /** Legacy local marker retained in the schema; backend bucket sync selects
+   *  logs by bucket hashes and does not consult this flag. */
   isPendingPush?: boolean;
 }
 

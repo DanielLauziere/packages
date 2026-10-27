@@ -581,7 +581,7 @@ describe('wipe → re-delivery → re-apply: logs survive resetDatabase(session)
     expect(before.items).toHaveLength(1)
     expect(before.payments).toHaveLength(1)
     // Explicit column list (not SELECT *) so the snapshot stays stable as
-    // sync bookkeeping columns are added — e.g. server_seq (cursor pull).
+    // sync bookkeeping columns remain implementation details.
     const logCols =
       'uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid'
     const logSnapshot = all(
