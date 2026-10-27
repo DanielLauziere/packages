@@ -45,9 +45,6 @@ export interface TicketLogRow {
   payload?: unknown;
   time_stamp?: number | string | null;
   admin_uuid?: string | null;
-  /** Legacy local marker retained in the schema; backend bucket sync selects
-   *  logs by bucket hashes and does not consult this flag. */
-  isPendingPush?: boolean;
 }
 
 export interface LedgerLogger {
@@ -73,7 +70,7 @@ export interface LedgerDeps {
   /** Fresh uuid for a minted log. */
   newUuid(): string;
   /** Notify the client's reactive layer (live queries / P2P push). */
-  notify(): void;
+  notify(ticketUuid?: string, action?: string): void;
   /** Optional whole-flow write lock (RN `withDbLock`). Default: identity.
    *  FE leaves this unset — its lock lives inside `applyEntry`. */
   lock?<T>(fn: () => Promise<T>): Promise<T>;
@@ -117,8 +114,8 @@ export async function appendLog(
     };
 
     await deps.run(
-      `INSERT INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid, is_pending_push)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+      `INSERT INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(uuid) DO NOTHING`,
       [
         entry.uuid,
@@ -138,7 +135,7 @@ export async function appendLog(
       [entry.uuid, entry.time_stamp],
     );
 
-    deps.notify();
+    deps.notify(entry.ticket_uuid, entry.action);
     return entry;
   });
 }
@@ -147,16 +144,8 @@ export async function appendLog(
 export async function insertLog(
   deps: LedgerDeps,
   log: TicketLogRow,
-  isPendingPush = true,
 ): Promise<void> {
   const entry = fromSyncLog(log);
-  if (!isPendingPush) {
-    // A server-delivered copy also accepts a matching local outbox row.
-    await deps.run(
-      `UPDATE ticket_log SET is_pending_push = 0 WHERE uuid = ?`,
-      [entry.uuid],
-    );
-  }
 
   // Skip only when the log is actually applied (time_stamp set) — a mere
   // claim row must not block re-inserting the ticket_log row.
@@ -174,8 +163,8 @@ export async function insertLog(
         : JSON.stringify(entry.payload);
 
   await deps.run(
-    `INSERT OR IGNORE INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid, is_pending_push)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT OR IGNORE INTO ticket_log (uuid, ticket_uuid, location_group_uuid, action, payload, time_stamp, admin_uuid)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(uuid) DO NOTHING`,
     [
       entry.uuid,
@@ -185,7 +174,6 @@ export async function insertLog(
       payloadString,
       entry.time_stamp,
       entry.admin_uuid ?? null,
-      isPendingPush ? 1 : 0,
     ],
   );
 }

@@ -1,5 +1,12 @@
 export { calculateCombos } from "./calculateCombos.js";
-export { calculateLocationTickets } from "./calculateLocationTickets.js";
+export {
+  calculateLocationTickets,
+  calculateLocationTicketsMemoized,
+} from "./calculateLocationTickets.js";
+export type {
+  CalculateLocationTicketsInput,
+  LocationTicketMemo,
+} from "./calculateLocationTickets.js";
 export { sanitizePayload } from "./sanitizePayload.js";
 export {
   SCHEMA_UUID,

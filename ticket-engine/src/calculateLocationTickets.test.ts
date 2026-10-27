@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { calculateLocationTickets } from './calculateLocationTickets.js'
+import {
+  calculateLocationTickets,
+  calculateLocationTicketsMemoized,
+} from './calculateLocationTickets.js'
 import type {
   CompleteTicket,
   TicketMenuItemDB,
@@ -187,6 +190,44 @@ describe('empty / edge', () => {
   it('empty tickets returns empty', () => {
     const ts = run({})
     expect(ts).toHaveLength(0)
+  })
+
+  describe('memoized ticket calculation', () => {
+    it('reuses unchanged tickets and recalculates a changed ticket', () => {
+      const input = {
+        tickets: [makeTicket(1), makeTicket(2)],
+        ticket_menu_items: [],
+        menu_items: [],
+        bogo_menu_items: [],
+        ticketPromotions: [],
+        promotions: [],
+        tables: [],
+        modifiers: [],
+        ticketMenuItemsModifier: [],
+        comboComboMenuItems: [],
+        tip_percentage: 0,
+        tax_percentage: 0,
+      }
+      const cache = new Map()
+      const first = calculateLocationTicketsMemoized(input, cache)
+      const unchanged = calculateLocationTicketsMemoized(input, cache)
+      expect(unchanged[0]).toBe(first[0])
+      expect(unchanged[1]).toBe(first[1])
+
+      const changed = calculateLocationTicketsMemoized(
+        {
+          ...input,
+          tickets: [{ ...input.tickets[0]!, status: 'READY' }, input.tickets[1]!],
+        },
+        cache,
+      )
+      expect(changed[0]).not.toBe(first[0])
+      expect(changed[1]).toBe(first[1])
+      expect(changed[0]!.status).toBe('READY')
+
+      calculateLocationTicketsMemoized({ ...input, tickets: [] }, cache)
+      expect(cache.size).toBe(0)
+    })
   })
 
   it('one ticket no items', () => {

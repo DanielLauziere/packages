@@ -15,6 +15,26 @@ import {
   TicketPromotionDB,
 } from './types.js'
 
+export type CalculateLocationTicketsInput = {
+  tickets: CompleteTicket[]
+  ticket_menu_items: TicketMenuItemDB[]
+  menu_items: MenuItemDB[]
+  bogo_menu_items: BogoMenuItemDB[]
+  ticketPromotions: TicketPromotionDB[]
+  promotions: PromotionDB[]
+  tables: TableDB[]
+  modifiers: MenuItemModifierGroupModifierDB[]
+  ticketMenuItemsModifier: TicketMenuItemModifierDB[]
+  comboComboMenuItems: ComboComboMenuItemDB[]
+  tip_percentage: number
+  tax_percentage: number
+}
+
+export type LocationTicketMemo = Map<
+  string,
+  { signature: string; value: ReturnCompleteTicket }
+>
+
 export const calculateLocationTickets = ({
   tickets,
   ticket_menu_items,
@@ -28,20 +48,7 @@ export const calculateLocationTickets = ({
   comboComboMenuItems,
   tip_percentage,
   tax_percentage,
-}: {
-  tickets: CompleteTicket[]
-  ticket_menu_items: TicketMenuItemDB[]
-  menu_items: MenuItemDB[]
-  bogo_menu_items: BogoMenuItemDB[]
-  ticketPromotions: TicketPromotionDB[]
-  promotions: PromotionDB[]
-  tables: TableDB[]
-  modifiers: MenuItemModifierGroupModifierDB[]
-  ticketMenuItemsModifier: TicketMenuItemModifierDB[]
-  comboComboMenuItems: ComboComboMenuItemDB[]
-  tip_percentage: number
-  tax_percentage: number
-}): ReturnCompleteTicket[] => {
+}: CalculateLocationTicketsInput): ReturnCompleteTicket[] => {
   const returnTickets: ReturnCompleteTicket[] = []
 
   let multiplier = 0
@@ -367,4 +374,91 @@ export const calculateLocationTickets = ({
   })
 
   return returnTickets
+}
+
+/** Recalculate only tickets whose own rows or shared pricing inputs changed. */
+export function calculateLocationTicketsMemoized(
+  input: CalculateLocationTicketsInput,
+  cache: LocationTicketMemo,
+): ReturnCompleteTicket[] {
+  const sharedSignature = JSON.stringify([
+    input.menu_items,
+    input.bogo_menu_items,
+    input.promotions,
+    input.tables,
+    input.modifiers,
+    input.comboComboMenuItems,
+    input.tip_percentage,
+    input.tax_percentage,
+  ])
+  const itemsByTicket = new Map<string, TicketMenuItemDB[]>()
+  for (const row of input.ticket_menu_items) {
+    const rows = itemsByTicket.get(row.ticket_uuid) ?? []
+    rows.push(row)
+    itemsByTicket.set(row.ticket_uuid, rows)
+  }
+  const modifiersByTicket = new Map<string, TicketMenuItemModifierDB[]>()
+  for (const row of input.ticketMenuItemsModifier) {
+    const rows = modifiersByTicket.get(row.ticket_uuid) ?? []
+    rows.push(row)
+    modifiersByTicket.set(row.ticket_uuid, rows)
+  }
+  const promotionsByTicket = new Map<string, TicketPromotionDB[]>()
+  for (const row of input.ticketPromotions) {
+    const rows = promotionsByTicket.get(row.ticket_uuid) ?? []
+    rows.push(row)
+    promotionsByTicket.set(row.ticket_uuid, rows)
+  }
+
+  const seen = new Set<string>()
+  const result: ReturnCompleteTicket[] = []
+  for (const ticket of input.tickets) {
+    seen.add(ticket.uuid)
+    const ticketItems = itemsByTicket.get(ticket.uuid) ?? []
+    const ticketModifiers = modifiersByTicket.get(ticket.uuid) ?? []
+    const ticketPromos = promotionsByTicket.get(ticket.uuid) ?? []
+    const signature = JSON.stringify([
+      sharedSignature,
+      ticket,
+      ticketItems,
+      ticketModifiers,
+      ticketPromos,
+    ])
+    const previous = cache.get(ticket.uuid)
+    if (previous?.signature === signature) {
+      result.push(previous.value)
+      continue
+    }
+
+    const calculated = calculateLocationTickets({
+      ...input,
+      tickets: [ticket],
+      ticket_menu_items: ticketItems,
+      ticketMenuItemsModifier: ticketModifiers,
+      ticketPromotions: ticketPromos,
+    })[0]
+    if (calculated) {
+      cache.set(ticket.uuid, { signature, value: calculated })
+      result.push(calculated)
+    }
+  }
+  for (const ticketUuid of cache.keys()) {
+    if (!seen.has(ticketUuid)) cache.delete(ticketUuid)
+  }
+  result.sort((a, b) => {
+    const aName = a.table_name || ''
+    const bName = b.table_name || ''
+    if (aName === '' && bName === '') return 0
+    if (aName === '') return 1
+    if (bName === '') return -1
+    const ai = Number(aName)
+    const bi = Number(bName)
+    const aIsNum = !isNaN(ai)
+    const bIsNum = !isNaN(bi)
+    if (aIsNum && !bIsNum) return -1
+    if (!aIsNum && bIsNum) return 1
+    if (aIsNum && bIsNum) return ai - bi
+    return aName.localeCompare(bName)
+  })
+  return result
 }
