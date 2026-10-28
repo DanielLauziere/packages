@@ -221,9 +221,10 @@ describe("applyLog", () => {
     expect(ok).toBe(true);
     const sqls = ctx.runs.map((r) => r.sql);
     expect(sqls[0]).toContain('INSERT OR IGNORE INTO "ticket_log_applied"');
-    expect(sqls[0]).toContain("VALUES (?, NULL, 0)");
+    expect(sqls[0]).toContain("VALUES (?, NULL, 0, NULL)");
     expect(ctx.applyEntry).toHaveBeenCalledTimes(1);
     expect(sqls[1]).toContain('SET "time_stamp" = ?');
+    expect(sqls[1]).toContain('"backgrounded_at" = NULL');
     expect(ctx.runs[1]!.params).toEqual([42, "log-1"]);
   });
 

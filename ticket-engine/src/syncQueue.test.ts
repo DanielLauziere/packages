@@ -5,6 +5,7 @@ import {
   normalizeLogs,
   groupLogsByTicket,
   isPaidTicket,
+  isForegroundTicket,
   filterTicketsByActivity,
   type SyncLogLike,
   type SyncSummary,
@@ -113,7 +114,22 @@ describe("isPaidTicket", () => {
   });
 });
 
-describe("filterTicketsByActivity (36h cutoff)", () => {
+describe("isForegroundTicket", () => {
+  const log = { action: "ADD_ITEM" };
+
+  it("keeps open and new tickets on the synchronous path", () => {
+    expect(isForegroundTicket("INCOMPLETE", [log])).toBe(true);
+    expect(isForegroundTicket(undefined, [log])).toBe(true);
+  });
+
+  it("defers settled tickets and incoming paid transitions", () => {
+    expect(isForegroundTicket("PAID", [log])).toBe(false);
+    expect(isForegroundTicket("CANCELLED", [log])).toBe(false);
+    expect(isForegroundTicket("INCOMPLETE", [{ action: "SET_STATUS_PAID" }])).toBe(false);
+  });
+});
+
+describe("filterTicketsByActivity (24h cutoff)", () => {
   const now = 1_000_000;
 
   it("drops tickets whose newest log is older than the cutoff", () => {

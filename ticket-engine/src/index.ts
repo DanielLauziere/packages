@@ -91,6 +91,7 @@ export {
   normalizeLogs,
   groupLogsByTicket,
   isPaidTicket,
+  isForegroundTicket,
   filterTicketsByActivity,
 } from "./syncQueue.js";
 export type { SyncLogLike, SyncSummary, TicketsMapLike } from "./syncQueue.js";

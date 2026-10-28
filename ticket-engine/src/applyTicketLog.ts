@@ -582,11 +582,11 @@ export function compareLogEntries(
 }
 
 export async function claimLog(adapter: DbAdapter, entry: TicketLogEntry): Promise<void> {
-  await adapter.run(`INSERT OR IGNORE INTO "ticket_log_applied" (uuid, time_stamp, retry_count) VALUES (?, NULL, 0)`, [entry.uuid])
+  await adapter.run(`INSERT OR IGNORE INTO "ticket_log_applied" (uuid, time_stamp, retry_count, backgrounded_at) VALUES (?, NULL, 0, NULL)`, [entry.uuid])
 }
 
 export async function markLogApplied(adapter: DbAdapter, entry: TicketLogEntry): Promise<void> {
-  await adapter.run(`UPDATE "ticket_log_applied" SET time_stamp = ?, retry_count = NULL, next_retry_at = NULL, last_error = NULL WHERE uuid = ?`, [entry.time_stamp, entry.uuid])
+  await adapter.run(`UPDATE "ticket_log_applied" SET time_stamp = ?, retry_count = NULL, next_retry_at = NULL, last_error = NULL, backgrounded_at = NULL WHERE uuid = ?`, [entry.time_stamp, entry.uuid])
 }
 
 export async function failLog(adapter: DbAdapter, entry: TicketLogEntry, error: string): Promise<void> {

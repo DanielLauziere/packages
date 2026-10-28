@@ -131,7 +131,7 @@ export async function appendLog(
     await deps.applyEntry(entry);
 
     await deps.run(
-      `INSERT OR IGNORE INTO ticket_log_applied (uuid, time_stamp) VALUES (?, ?)`,
+      `INSERT OR IGNORE INTO ticket_log_applied (uuid, time_stamp, backgrounded_at) VALUES (?, ?, NULL)`,
       [entry.uuid, entry.time_stamp],
     );
 
@@ -203,7 +203,7 @@ export async function applyLog(deps: LedgerDeps, log: TicketLogRow): Promise<boo
     // one atomic batch; a manual BEGIN here would swallow other flows'
     // statements and ROLLBACK would erase them.
     await deps.run(
-      `INSERT OR IGNORE INTO "ticket_log_applied" ("uuid", "time_stamp", "retry_count") VALUES (?, NULL, 0)`,
+      `INSERT OR IGNORE INTO "ticket_log_applied" ("uuid", "time_stamp", "retry_count", "backgrounded_at") VALUES (?, NULL, 0, NULL)`,
       [entry.uuid],
     );
 
@@ -211,7 +211,7 @@ export async function applyLog(deps: LedgerDeps, log: TicketLogRow): Promise<boo
       await deps.applyEntry(entry);
 
       await deps.run(
-        `UPDATE "ticket_log_applied" SET "time_stamp" = ?, "retry_count" = NULL, "next_retry_at" = NULL, "last_error" = NULL WHERE "uuid" = ?`,
+        `UPDATE "ticket_log_applied" SET "time_stamp" = ?, "retry_count" = NULL, "next_retry_at" = NULL, "last_error" = NULL, "backgrounded_at" = NULL WHERE "uuid" = ?`,
         [entry.time_stamp, entry.uuid],
       );
       return true;

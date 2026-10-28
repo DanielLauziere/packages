@@ -1,6 +1,6 @@
 /**
  * Pure sync-queue helpers shared by the web client and the RN app
- * (CORE-LOGIC-TICKET-LOGS.md — deterministic ordering, 36h cutoff).
+ * (CORE-LOGIC-TICKET-LOGS.md — deterministic ordering, 24h cutoff).
  *
  * Everything here is side-effect free: DB access and the server-clock offset
  * are injected by the callers, so the exact code both clients run is pinned
@@ -79,13 +79,33 @@ export const groupLogsByTicket = <T extends SyncLogLike>(logs: T[]): Record<stri
 };
 
 /** True when any log of the ticket set its status to PAID. */
-export const isPaidTicket = <T extends { action: string }>(logs: T[]): boolean =>
+export const isPaidTicket = <T extends { action: string }>(
+  logs: readonly T[],
+): boolean =>
   logs.some((log) => log.action === 'SET_STATUS_PAID');
+
+const FOREGROUND_STATUSES = new Set([
+  'INCOMPLETE',
+  'COMPLETE',
+  'ACCEPTED',
+  'READY',
+]);
+
+/** Whether a ticket group should be applied on the synchronous UI path. */
+export const isForegroundTicket = (
+  status: string | null | undefined,
+  logs: readonly { action: string }[],
+): boolean => {
+  if (isPaidTicket(logs)) return false;
+  if (status === 'PAID' || status === 'CANCELLED') return false;
+  // A missing row is a newly received ticket, whose initial state is INCOMPLETE.
+  return status == null || FOREGROUND_STATUSES.has(status);
+};
 
 /**
  * Drop tickets whose newest log is older than the activity window. `now` is
  * the caller's offset-adjusted server time (injected — keeps this pure).
- *  `windowMs` defaults to the 36h cutoff; pass a smaller value to derive an
+ *  `windowMs` defaults to the 24h cutoff; pass a smaller value to derive an
  *  activity-window subset. Updates `summary` in place: total/active on every
  *  ticket, expired+pruned on drop (pass a throwaway summary for narrowed calls
  *  so counts don't double-count).
