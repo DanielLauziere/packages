@@ -79,11 +79,27 @@ export {
 export type {
   BucketHashes,
   BucketMap,
+  CompactTicketLog,
+  CompactTicketLogGroup,
+  CompactTicketBucketMap,
+  TicketLogBucketSyncRequest,
   TicketLogBucketSyncResponse,
   SyncPullBlock,
   SyncPullCursor,
   SyncPullRequest,
 } from "./syncBuckets.js";
+export {
+  TICKET_LOG_ACTION_IDS,
+  actionIdForTicketLog,
+  encodeTicketLogGroup,
+  decodeTicketLogGroup,
+  encodeTicketLogBuckets,
+  decodeTicketLogBuckets,
+} from "./ticketLogWire.js";
+export type {
+  TicketLogWireInput,
+  DecodedTicketLog,
+} from "./ticketLogWire.js";
 export { CUTOFF_MS, THIRTY_MINUTES, SERVER_TIMESTAMP_OFFSET, RETRY_BACKOFF_CAP_STEPS } from "./consts.js";
 export {
   getPriority,

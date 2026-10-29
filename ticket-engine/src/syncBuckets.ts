@@ -22,12 +22,40 @@ export type BucketMap<T extends { uuid: string } = { uuid: string }> = Record<
   Record<string, T[]>
 >;
 
+/** Wire row: uuid, stable numeric action ID, and payload. */
+export interface CompactTicketLog {
+  u: string;
+  a: number;
+  p: unknown;
+}
+
+/**
+ * Ticket-level wire envelope: `time_stamp` is the last time the ticket was
+ * adjusted, `admin_uuid` lists the unique admins that adjusted it (first-touch
+ * order), and `logs` holds the compact rows. Rows carry no timestamp or
+ * author — decoders stamp every row with the group's `time_stamp` and
+ * attribute it to `admin_uuid[0]`.
+ */
+export interface CompactTicketLogGroup {
+  time_stamp: number;
+  admin_uuid: string[];
+  logs: CompactTicketLog[];
+}
+
+export type CompactTicketBucketMap = Record<
+  number,
+  Record<string, CompactTicketLogGroup>
+>;
+
 /** Hash exchange request/response shared by both backend-sync clients. */
-export interface TicketLogBucketSyncResponse<
-  TLog extends { uuid: string } = { uuid: string },
-> {
+export interface TicketLogBucketSyncRequest {
   bucket_hashes: BucketHashes;
-  buckets: BucketMap<TLog & { uuid: string }>;
+  buckets: CompactTicketBucketMap;
+}
+
+export interface TicketLogBucketSyncResponse {
+  bucket_hashes: BucketHashes;
+  buckets: CompactTicketBucketMap;
   server_timestamp: number;
   /**
    * Present only when the request carried a `pull` block. Absent = legacy
