@@ -103,12 +103,14 @@ export const isForegroundTicket = (
 };
 
 /**
- * Drop tickets whose newest log is older than the activity window. `now` is
- * the caller's offset-adjusted server time (injected — keeps this pure).
- *  `windowMs` defaults to the 24h cutoff; pass a smaller value to derive an
- *  activity-window subset. Updates `summary` in place: total/active on every
- *  ticket, expired+pruned on drop (pass a throwaway summary for narrowed calls
- *  so counts don't double-count).
+ * Drop tickets whose retention anchor is older than the activity window. The
+ * anchor is the newest `SET_STATUS_COMPLETE` time when the ticket has
+ * completed (`completed_at + windowMs` rule), else the newest log — open
+ * tickets keep last-touch behavior. `now` is the caller's offset-adjusted
+ * server time (injected — keeps this pure). `windowMs` defaults to the 24h
+ * cutoff; pass a smaller value to derive an activity-window subset. Updates
+ * `summary` in place: total/active on every ticket, expired+pruned on drop
+ * (pass a throwaway summary for narrowed calls so counts don't double-count).
  */
 export const filterTicketsByActivity = <T extends SyncLogLike>(
   tickets: TicketsMapLike<T>,
@@ -125,7 +127,14 @@ export const filterTicketsByActivity = <T extends SyncLogLike>(
     summary.ticketsTotal++;
 
     const maxTs = Math.max(...logs.map((l) => Number(l.time_stamp)));
-    const age = now - maxTs;
+    let completedTs: number | undefined;
+    for (const log of logs) {
+      if (log.action === 'SET_STATUS_COMPLETE') {
+        const ts = Number(log.time_stamp);
+        completedTs = completedTs === undefined ? ts : Math.max(completedTs, ts);
+      }
+    }
+    const age = now - (completedTs ?? maxTs);
 
     if (age > windowMs) {
       summary.pruned++;

@@ -216,5 +216,47 @@ describe('compact ticket-log wire protocol', () => {
         },
       ]),
     ).toThrow('invalid ticket-log timestamp')
+
+    const group = encodeTicketLogGroup([
+      { uuid: 'known', action: 'SET_TABLE', payload: {}, time_stamp: 1 },
+    ])
+    expect(() =>
+      decodeTicketLogGroup('ticket', 'location', {
+        ...group,
+        completed_at: 2 ** 53,
+      }),
+    ).toThrow('invalid completed timestamp')
+  })
+
+  it('carries completed_at from the newest SET_STATUS_COMPLETE row', () => {
+    const wire = encodeTicketLogGroup([
+      {
+        uuid: 'done',
+        action: 'SET_STATUS_COMPLETE',
+        payload: {},
+        time_stamp: 300,
+      },
+      { uuid: 'print', action: 'PRINT_SUCCESS', payload: {}, time_stamp: 400 },
+      {
+        uuid: 'late',
+        action: 'SET_STATUS_COMPLETE',
+        payload: {},
+        time_stamp: 350,
+      },
+    ])
+    expect(wire.time_stamp).toBe(400)
+    expect(wire.completed_at).toBe(350)
+
+    // completed_at never stamps rows — row stamping stays on time_stamp.
+    const decoded = decodeTicketLogGroup('ticket', 'location', wire)
+    expect(decoded.every((row) => row.time_stamp === 400)).toBe(true)
+    expect(decoded.every((row) => !('completed_at' in row))).toBe(true)
+
+    // Never-completed groups omit the field entirely (compact wire).
+    const open = encodeTicketLogGroup([
+      { uuid: 'open', action: 'ADD_ITEM', payload: {}, time_stamp: 1 },
+    ])
+    expect(open).not.toHaveProperty('completed_at')
+    expect(JSON.stringify(open)).not.toContain('completed_at')
   })
 })

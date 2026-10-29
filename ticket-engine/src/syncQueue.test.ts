@@ -163,4 +163,36 @@ describe("filterTicketsByActivity (24h cutoff)", () => {
     expect(result).toEqual({});
     expect(summary.ticketsTotal).toBe(0);
   });
+
+  it("anchors completed tickets on SET_STATUS_COMPLETE, not the newest log", () => {
+    // Completed past the cutoff but touched recently (print/tip after
+    // completion): the completed_at + CUTOFF_MS rule drops it anyway.
+    const summary = makeSummary();
+    const logs = [
+      makeLog({
+        uuid: "done",
+        action: "SET_STATUS_COMPLETE",
+        time_stamp: now - CUTOFF_MS - 1000,
+      }),
+      makeLog({ uuid: "print", action: "PRINT_SUCCESS", time_stamp: now - 100 }),
+    ];
+    const result = filterTicketsByActivity({ "t-done": logs }, summary, now);
+    expect(result).toEqual({});
+    expect(summary.ticketsExpired).toBe(1);
+  });
+
+  it("keeps a completed ticket whose completion is inside the cutoff", () => {
+    const summary = makeSummary();
+    const logs = [
+      makeLog({ uuid: "old", action: "ADD_ITEM", time_stamp: now - CUTOFF_MS - 5000 }),
+      makeLog({
+        uuid: "done",
+        action: "SET_STATUS_COMPLETE",
+        time_stamp: now - 1000,
+      }),
+    ];
+    const result = filterTicketsByActivity({ "t-fresh": logs }, summary, now);
+    expect(result["t-fresh"]).toBe(logs);
+    expect(summary.ticketsActive).toBe(1);
+  });
 });

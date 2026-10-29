@@ -101,6 +101,7 @@ export const encodeTicketLogGroup = (
   const wireLogs: CompactTicketLog[] = []
   const adminUuids: string[] = []
   const seenAdmins = new Set<string>()
+  let completedAt: number | undefined
   for (const log of logs) {
     if (!Number.isSafeInteger(log.time_stamp)) {
       throw new Error(`invalid ticket-log timestamp: ${log.uuid}`)
@@ -110,6 +111,10 @@ export const encodeTicketLogGroup = (
       a: actionIdForTicketLog(log.action),
       p: log.payload,
     })
+
+    if (log.action === 'SET_STATUS_COMPLETE') {
+      completedAt = Math.max(completedAt ?? log.time_stamp, log.time_stamp)
+    }
 
     const adminUuid = log.admin_uuid
     if (adminUuid && !seenAdmins.has(adminUuid)) {
@@ -122,6 +127,7 @@ export const encodeTicketLogGroup = (
     time_stamp: logs[logs.length - 1]!.time_stamp,
     admin_uuid: adminUuids,
     logs: wireLogs,
+    ...(completedAt !== undefined ? { completed_at: completedAt } : {}),
   }
 }
 
@@ -132,6 +138,9 @@ export const decodeTicketLogGroup = (
 ): DecodedTicketLog[] => {
   if (!Number.isSafeInteger(group.time_stamp)) {
     throw new Error(`invalid ticket timestamp: ${ticketUuid}`)
+  }
+  if (group.completed_at != null && !Number.isSafeInteger(group.completed_at)) {
+    throw new Error(`invalid completed timestamp: ${ticketUuid}`)
   }
   if (!Array.isArray(group.logs) || group.logs.length === 0) {
     throw new Error(`invalid compact ticket-log group: ${ticketUuid}`)

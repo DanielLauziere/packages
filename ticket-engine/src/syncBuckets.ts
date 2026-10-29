@@ -35,11 +35,18 @@ export interface CompactTicketLog {
  * order), and `logs` holds the compact rows. Rows carry no timestamp or
  * author — decoders stamp every row with the group's `time_stamp` and
  * attribute it to `admin_uuid[0]`.
+ *
+ * `completed_at` (absent = never completed) is the time of the newest
+ * `SET_STATUS_COMPLETE` row. It never stamps rows; it anchors the
+ * `completed_at + CUTOFF_MS` retention rule that replaces last-touch
+ * anchoring (omni janitor, sync window, `filterTicketsByActivity`, client
+ * prunes).
  */
 export interface CompactTicketLogGroup {
   time_stamp: number;
   admin_uuid: string[];
   logs: CompactTicketLog[];
+  completed_at?: number;
 }
 
 export type CompactTicketBucketMap = Record<
