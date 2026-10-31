@@ -14,6 +14,12 @@ export type {
   TerminosData,
 } from './terminosData.js'
 
+export type {
+  TermsAcceptanceResponse,
+  AcceptTermsRequest,
+} from './acceptance.js'
+export { isTermsGateSatisfied } from './acceptance.js'
+
 import terminosDataEn from './terminos.en.json' with { type: 'json' }
 import terminosDataEs from './terminos.es.json' with { type: 'json' }
 import type { TerminosData } from './terminosData.js'

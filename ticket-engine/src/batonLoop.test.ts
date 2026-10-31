@@ -169,9 +169,10 @@ describe("runBatonPrint", () => {
   });
 
   it("original device (creator) sees alert when >60 s, reassign attempted, no success", async () => {
-    // Creator admin-1 is not capable (silent_print false), passes, then
-    // reassigns to admin-2 who also can't print. Ticket created >60s ago.
-    // The original device (admin-1) should get outcome 'alert'.
+    // Creator admin-1 is not capable (location group silent_print off → the
+    // client reports capable=false), passes, then reassigns to admin-2 who
+    // also can't print. Ticket created >60s ago. The original device
+    // (admin-1) should get outcome 'alert'.
     const { deps } = makeDeps({
       isKitchenCapable: () => false,
       getPrintRows: async () => [

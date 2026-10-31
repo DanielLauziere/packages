@@ -186,6 +186,11 @@ export type {
   TerminosSection,
   TerminosData,
 } from "./terminos/index.js";
+export type {
+  TermsAcceptanceResponse,
+  AcceptTermsRequest,
+} from "./terminos/index.js";
+export { isTermsGateSatisfied } from "./terminos/index.js";
 export {
   PLAN_NAMES,
   PLANS,
