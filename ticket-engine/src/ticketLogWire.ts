@@ -85,6 +85,33 @@ const actionNameForTicketLog = (id: number): string => {
   return action
 }
 
+/**
+ * The compact wire drops per-row timestamps — `decodeTicketLogGroup` stamps
+ * every row with the group's last-adjustment time. The completion time must
+ * therefore ride the payload: every SET_STATUS_COMPLETE that crosses the wire
+ * carries `p.timeStamp` (its own pre-wire row time), which is what the shared
+ * age-badge anchor (`TICKET_AGE_ANCHOR_SQL`) reads back. Existing payloads
+ * keep their value; only rows without a usable one are backfilled (legacy
+ * rows — the stored row time is the best completion value available).
+ */
+const withCompletionTimeStamp = (
+  payload: unknown,
+  time_stamp: number,
+): unknown => {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload))
+    return payload
+  const obj = payload as Record<string, unknown>
+  const existing = obj.timeStamp
+  if (
+    typeof existing === 'number' &&
+    Number.isSafeInteger(existing) &&
+    existing > 0
+  ) {
+    return payload
+  }
+  return { ...obj, timeStamp: time_stamp }
+}
+
 export const encodeTicketLogGroup = (
   sourceLogs: TicketLogWireInput[],
 ): CompactTicketLogGroup => {
@@ -109,7 +136,10 @@ export const encodeTicketLogGroup = (
     wireLogs.push({
       u: log.uuid,
       a: actionIdForTicketLog(log.action),
-      p: log.payload,
+      p:
+        log.action === 'SET_STATUS_COMPLETE'
+          ? withCompletionTimeStamp(log.payload, log.time_stamp)
+          : log.payload,
     })
 
     if (log.action === 'SET_STATUS_COMPLETE') {

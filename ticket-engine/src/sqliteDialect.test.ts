@@ -44,6 +44,7 @@ function engineSqlStatements(): string[] {
     'migrateSchema.ts',
     'calculateCombos.ts',
     'ticketLogLedger.ts',
+    'ticketAgeAnchor.ts',
     'reconcileSchema.ts',
     'seedCommon.ts',
   ]

@@ -131,7 +131,12 @@ async function appendPrintLog<Ticket extends { uuid: string; location_group_uuid
 }
 
 export async function runBatonPrint<
-  Ticket extends { uuid: string; admin_uuid?: string | null; location_group_uuid: string },
+  Ticket extends {
+    uuid: string
+    admin_uuid?: string | null
+    location_group_uuid: string
+    time_stamp?: string | number | null
+  },
   TLG,
   TAdmin extends { uuid: string },
 >(
@@ -156,6 +161,7 @@ export async function runBatonPrint<
       (r) => r.action === PRINT_REQUEST && r.author === me,
     );
     const now = Date.now() + offset;
+    const createdAt = Number(ticket.time_stamp) || undefined;
     // The cooldown is stored in local wall-clock (Date.now()); compare on that
     // same clock. Using the offset-adjusted `now` here shrinks every cooldown
     // by the server offset — with a skewed clock the device never enters
@@ -167,6 +173,7 @@ export async function runBatonPrint<
       capable,
       now,
       requestedAt: myRequest ? myRequest.time_stamp : null,
+      createdAt,
     });
 
     switch (decision.kind) {
@@ -229,6 +236,24 @@ export async function runBatonPrint<
 
       case 'stand-down':
         if (fold.terminal) return { outcome: 'printed' };
+        // Original device that already tried to print (reassign or local print
+        // failure) but hasn't reached the 60 s strand window yet: arm a timer
+        // to re-check so the alert surfaces promptly when it does.
+        if (
+          fold.chain.length > 0 &&
+          fold.chain[0] === me &&
+          !fold.terminal &&
+          createdAt != null &&
+          (fold.reassignAuthors.includes(me) || fold.printFailAuthors.includes(me))
+        ) {
+          const remaining = createdAt + PRINT_ALERT_MS - now;
+          if (remaining > 0 && remaining <= PRINT_ALERT_MS) {
+            return {
+              outcome: advanced ? 'advanced' : 'waiting',
+              alertInMs: remaining,
+            };
+          }
+        }
         return { outcome: advanced ? 'advanced' : 'waiting' };
 
       case 'wait': {
@@ -246,6 +271,24 @@ export async function runBatonPrint<
             outcome: advanced ? 'advanced' : 'waiting',
             alertInMs: Math.max(0, myRequest.time_stamp + PRINT_ALERT_MS - now),
           };
+        }
+        // Original device with a local print failure (no reassign): arm the
+        // 60 s (!) alert timer so the alert surfaces when the strand window
+        // elapses, even though decidePrint currently returns 'wait'.
+        if (
+          fold.chain.length > 0 &&
+          fold.chain[0] === me &&
+          !fold.terminal &&
+          fold.printFailAuthors.includes(me) &&
+          createdAt != null
+        ) {
+          const remaining = createdAt + PRINT_ALERT_MS - now;
+          if (remaining > 0 && remaining <= PRINT_ALERT_MS) {
+            return {
+              outcome: advanced ? 'advanced' : 'waiting',
+              alertInMs: remaining,
+            };
+          }
         }
         return { outcome: advanced ? 'advanced' : 'waiting' };
       }

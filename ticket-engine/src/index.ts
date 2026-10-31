@@ -101,6 +101,7 @@ export type {
   DecodedTicketLog,
 } from "./ticketLogWire.js";
 export { CUTOFF_MS, THIRTY_MINUTES, SERVER_TIMESTAMP_OFFSET, RETRY_BACKOFF_CAP_STEPS } from "./consts.js";
+export { TICKET_AGE_ANCHOR_SQL } from "./ticketAgeAnchor.js";
 export {
   getPriority,
   sortTicketLogs,

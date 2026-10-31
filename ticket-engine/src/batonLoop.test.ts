@@ -9,12 +9,13 @@ import {
   type BatonDeps,
 } from "./batonLoop.js";
 import type { PrintRow } from "./printProtocol.js";
-import { PRINT_SUCCESS } from "./printProtocol.js";
+import { PRINT_ALERT_MS, PRINT_SUCCESS } from "./printProtocol.js";
 
 const TICKET = {
   uuid: "t-1",
   admin_uuid: "admin-1",
   location_group_uuid: "lg-1",
+  time_stamp: 0,
 };
 
 function makeDeps(over: Partial<BatonDeps<typeof TICKET, object, { uuid: string }>> = {}) {
@@ -165,6 +166,89 @@ describe("runBatonPrint", () => {
       payload: { reason: "not_capable" },
     });
     expect(result.outcome).toBe("advanced");
+  });
+
+  it("original device (creator) sees alert when >60 s, reassign attempted, no success", async () => {
+    // Creator admin-1 is not capable (silent_print false), passes, then
+    // reassigns to admin-2 who also can't print. Ticket created >60s ago.
+    // The original device (admin-1) should get outcome 'alert'.
+    const { deps } = makeDeps({
+      isKitchenCapable: () => false,
+      getPrintRows: async () => [
+        { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: {} },
+        { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: {} },
+        { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: "admin-2" } },
+      ],
+    });
+    const createdAt = 100_000 - PRINT_ALERT_MS - 1; // >60s before now
+    const result = await runBatonPrint(deps, {
+      ...args,
+      ticket: { ...TICKET, time_stamp: createdAt },
+      admin: { uuid: "admin-1" },
+    });
+    expect(result.outcome).toBe("alert");
+  });
+
+  it("original device sees alert on local print failure alone (no reassign), >60 s, no success", async () => {
+    // Creator admin-1 tried to print, transport refused (PRINT_PASS
+    // print_failed). No other device requested, no reassign. After 60s
+    // the original device should get the alert.
+    const { deps } = makeDeps({
+      isKitchenCapable: () => false,
+      getPrintRows: async () => [
+        { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: "print_failed" } },
+      ],
+    });
+    const createdAt = 100_000 - PRINT_ALERT_MS - 1;
+    const result = await runBatonPrint(deps, {
+      ...args,
+      ticket: { ...TICKET, time_stamp: createdAt },
+      admin: { uuid: "admin-1" },
+    });
+    expect(result.outcome).toBe("alert");
+    expect(deps.appendLog).not.toHaveBeenCalled();
+    expect(deps.printTicket).not.toHaveBeenCalled();
+  });
+
+  it("original device with local print failure <60 s arms alertInMs timer", async () => {
+    const { deps } = makeDeps({
+      isKitchenCapable: () => false,
+      getPrintRows: async () => [
+        { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: "print_failed" } },
+      ],
+    });
+    const createdAt = 100_000 - 30_000;
+    // Distinct uuid: the send-failure cooldown from earlier tests is keyed by
+    // ticket uuid (module state) and would otherwise win the `wait` branch.
+    const result = await runBatonPrint(deps, {
+      ...args,
+      ticket: { ...TICKET, uuid: "t-alert-pf-pending", time_stamp: createdAt },
+      admin: { uuid: "admin-1" },
+    });
+    expect(result.outcome).toBe("waiting");
+    expect(result.alertInMs).toBeGreaterThan(0);
+    expect(result.alertInMs).toBeLessThanOrEqual(PRINT_ALERT_MS);
+  });
+
+  it("original device arms alertInMs timer before the 60 s window fires", async () => {
+    const { deps } = makeDeps({
+      isKitchenCapable: () => false,
+      getPrintRows: async () => [
+        { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: {} },
+        { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: {} },
+        { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: "admin-2" } },
+      ],
+    });
+    // Ticket created 30s ago — not yet 60s, so alert not yet active.
+    const createdAt = 100_000 - 30_000;
+    const result = await runBatonPrint(deps, {
+      ...args,
+      ticket: { ...TICKET, time_stamp: createdAt },
+      admin: { uuid: "admin-1" },
+    });
+    expect(result.outcome).toBe("waiting");
+    expect(result.alertInMs).toBeGreaterThan(0);
+    expect(result.alertInMs).toBeLessThanOrEqual(PRINT_ALERT_MS);
   });
 });
 

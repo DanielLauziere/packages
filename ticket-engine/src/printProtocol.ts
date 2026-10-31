@@ -30,6 +30,10 @@ export interface PrintFold {
   requests: (string | null)[]
   passAuthors: (string | null)[]
   reassignAuthors: (string | null)[]
+  /** Devices whose PRINT_PASS carried reason='print_failed' (a real transport
+   * attempt that was refused), distinct from 'not_capable' announces. Used
+   * by the original-device stranded-print alert. */
+  printFailAuthors: (string | null)[]
 }
 
 function pushByAuthor(map: Map<string | null, PrintRow[]>, author: string | null, row: PrintRow): void {
@@ -45,6 +49,7 @@ export function foldPrintBaton(rows: PrintRow[], creator: string | null): PrintF
   const requests: (string | null)[] = []
   const passAuthors: (string | null)[] = []
   const reassignAuthors: (string | null)[] = []
+  const printFailAuthors: (string | null)[] = []
   const successes: PrintRow[] = []
 
   for (const row of rows) {
@@ -54,6 +59,9 @@ export function foldPrintBaton(rows: PrintRow[], creator: string | null): PrintF
       case PRINT_PASS:
         pushByAuthor(passesBy, author, row)
         if (!passAuthors.includes(author)) passAuthors.push(author)
+        if (row.payload?.reason === 'print_failed' && !printFailAuthors.includes(author)) {
+          printFailAuthors.push(author)
+        }
         break
       case PRINT_REASSIGN:
         pushByAuthor(reassignsBy, author, row)
@@ -151,6 +159,7 @@ export function foldPrintBaton(rows: PrintRow[], creator: string | null): PrintF
     requests,
     passAuthors,
     reassignAuthors,
+    printFailAuthors,
   }
 }
 
@@ -159,6 +168,9 @@ export interface PrintDeviceContext {
   capable: boolean
   now: number
   requestedAt?: number | null
+  /** Ticket creation time (ms, server-adjusted) — for the original-device
+   * alert: a ticket created >60s with a reassign-but-no-success strand. */
+  createdAt?: number
 }
 
 export type PrintDecision =
@@ -176,7 +188,27 @@ export function decidePrint(fold: PrintFold, ctx: PrintDeviceContext): PrintDeci
 
   if (fold.terminal) return { kind: 'stand-down' }
   if (fold.state === 'conflict') return { kind: 'attention' }
-  if (fold.reassignAuthors.includes(me)) return { kind: 'stand-down' }
+
+  // Original-device stranded-print alert: this device is the creator (chain[0])
+  // and already tried to print — either it passed the baton (PRINT_REASSIGN)
+  // or it failed locally (PRINT_PASS with reason='print_failed') — but no
+  // PRINT_SUCCESS has landed and the ticket is past the 60 s strand window.
+  // Surface the alert so the original device can take manual action instead
+  // of standing down silently. Only the creator (fold.chain[0]) arms this.
+  if (
+    fold.chain.length > 0 &&
+    fold.chain[0] === me &&
+    !fold.terminal &&
+    ctx.createdAt != null &&
+    now - ctx.createdAt >= PRINT_ALERT_MS &&
+    (fold.reassignAuthors.includes(me) || fold.printFailAuthors.includes(me))
+  ) {
+    return { kind: 'alert' }
+  }
+
+  if (fold.reassignAuthors.includes(me)) {
+    return { kind: 'stand-down' }
+  }
 
   if (fold.holder === me) {
     if (capable) return { kind: 'send' }

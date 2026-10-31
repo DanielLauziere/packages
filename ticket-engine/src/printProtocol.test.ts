@@ -130,6 +130,24 @@ describe('foldPrintBaton — states', () => {
     expect(fold.state).toBe('printed')
     expect(fold.conflict).toEqual([])
   })
+
+  it('tracks printFailAuthors only for PRINT_PASS with reason=print_failed', () => {
+    const rows = [
+      row('PRINT_PASS', A, 1000, { reason: 'print_failed' }),
+      row('PRINT_PASS', B, 1100, { reason: 'not_capable' }),
+      row('PRINT_PASS', C, 1200, { reason: 'print_failed' }),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    expect(fold.printFailAuthors).toEqual([A, C])
+    expect(fold.passAuthors).toEqual([A, B, C])
+  })
+
+  it('printFailAuthors is empty when no PRINT_PASS has reason=print_failed', () => {
+    const rows = [row('PRINT_PASS', A, 1000, { reason: 'not_capable' })]
+    const fold = foldPrintBaton(rows, A)
+    expect(fold.printFailAuthors).toEqual([])
+    expect(fold.passAuthors).toEqual([A])
+  })
 })
 
 describe('foldPrintBaton — validation rules', () => {
@@ -465,6 +483,160 @@ describe('decidePrint — guards', () => {
     expect(decidePrint(afterReassign, { ...base, me: null, capable: false }).kind).toBe(
       'stand-down',
     )
+  })
+
+  it('original-device alert: creator sees alert (>60 s, reassign but no success)', () => {
+    // A created the ticket, passed the baton (PRINT_PASS), then reassigned to B.
+    // No PRINT_SUCCESS. Ticket created >60 s ago → A (the original device)
+    // should get the alert instead of silently standing down.
+    const rows = [
+      row('PRINT_PASS', A, 10),
+      row('PRINT_REQUEST', B, 20),
+      row('PRINT_REASSIGN', A, 30, { to: B }),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    expect(fold.reassignAuthors).toEqual([A])
+    expect(fold.chain[0]).toBe(A)
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('alert')
+  })
+
+  it('original-device alert does not fire before 60 s', () => {
+    const rows = [
+      row('PRINT_PASS', A, 10),
+      row('PRINT_REQUEST', B, 20),
+      row('PRINT_REASSIGN', A, 30, { to: B }),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    const createdAt = base.now - PRINT_ALERT_MS + 1
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('stand-down')
+  })
+
+  it('original-device alert does not fire when a non-creator device reassigned', () => {
+    // B reassigned (not the creator). Even if >60 s and no success, B should
+    // stand down — only the original device (creator) arms the alert.
+    const rows = [
+      row('PRINT_PASS', A, 10),
+      row('PRINT_REQUEST', C, 20),
+      row('PRINT_REASSIGN', A, 30, { to: B }),
+      row('PRINT_PASS', B, 40),
+      row('PRINT_REQUEST', C, 50),
+      row('PRINT_REASSIGN', B, 60, { to: C }),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    // B is a reassign author but NOT the creator (chain[0] = A).
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: B, capable: false, createdAt }).kind,
+    ).toBe('stand-down')
+  })
+
+  it('original-device alert self-clears when a SUCCESS arrives', () => {
+    const rows = [
+      row('PRINT_PASS', A, 10),
+      row('PRINT_REQUEST', B, 20),
+      row('PRINT_REASSIGN', A, 30, { to: B }),
+      row('PRINT_SUCCESS', B, 40, {}),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('stand-down')
+  })
+
+  it('original-device alert self-clears when a SUCCESS arrives via reassignment', async () => {
+    // A created, reassigned to B; B printed successfully. A is the original
+    // device but the fold is terminal → stand-down (alert clears).
+    const rows = [
+      row('PRINT_PASS', A, 10),
+      row('PRINT_REQUEST', B, 20),
+      row('PRINT_REASSIGN', A, 30, { to: B }),
+      row('PRINT_SUCCESS', B, 40, {}),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('stand-down')
+  })
+
+  it('original-device alert fires on local print failure (no reassign), >60 s', () => {
+    // A created the ticket, tried to print, the transport refused
+    // (PRINT_PASS reason=print_failed). No reassign, no SUCCESS. A is still
+    // the holder. Ticket created >60 s ago → A should get the alert.
+    const rows = [row('PRINT_PASS', A, 1000, { reason: 'print_failed' })]
+    const fold = foldPrintBaton(rows, A)
+    expect(fold.printFailAuthors).toEqual([A])
+    expect(fold.holder).toBe(A)
+    expect(fold.chain[0]).toBe(A)
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('alert')
+  })
+
+  it('original-device alert on local print failure does not fire before 60 s', () => {
+    const rows = [row('PRINT_PASS', A, 1000, { reason: 'print_failed' })]
+    const fold = foldPrintBaton(rows, A)
+    const createdAt = base.now - PRINT_ALERT_MS + 1
+    // <60 s: creator is still holder, has passed, no requests → wait (holder
+    // that already passed, decider with no requests to reassign to).
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('wait')
+  })
+
+  it('original-device local-print-fail alert does NOT fire for the non-creator', () => {
+    // B had a print failure, A is the creator. B is not the holder (A is), and
+    // B passing while not holder is a conflict → attention, not alert.
+    const rows = [row('PRINT_PASS', B, 1000, { reason: 'print_failed' })]
+    const fold = foldPrintBaton(rows, A)
+    expect(fold.state).toBe('conflict')
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: B, capable: false, createdAt }).kind,
+    ).toBe('attention')
+  })
+
+  it('original-device alert fires for either print_failed OR reassign (no SUCCESS)', () => {
+    // A created, failed print, AND reassigned — alert fires (covers AND of
+    // both evidence sources in the requirement).
+    const rows = [
+      row('PRINT_PASS', A, 1000, { reason: 'print_failed' }),
+      row('PRINT_REQUEST', B, 2000),
+      row('PRINT_REASSIGN', A, 3000, { to: B }),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('alert')
+  })
+
+  it('original-device local-print-fail alert self-clears on SUCCESS', () => {
+    const rows = [
+      row('PRINT_PASS', A, 1000, { reason: 'print_failed' }),
+      row('PRINT_SUCCESS', A, 2000, {}),
+    ]
+    const fold = foldPrintBaton(rows, A)
+    const createdAt = base.now - PRINT_ALERT_MS - 1
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('stand-down')
+  })
+
+  it('original-device alert on print_failed stays silent when the device is not capable but <60 s', () => {
+    const rows = [row('PRINT_PASS', A, 1000, { reason: 'print_failed' })]
+    const fold = foldPrintBaton(rows, A)
+    const createdAt = base.now - 30_000 // 30 s ago
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+    ).toBe('wait')
   })
 
   it('manual takeover is allowed only while unresolved', () => {

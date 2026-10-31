@@ -22,7 +22,14 @@ export type BucketMap<T extends { uuid: string } = { uuid: string }> = Record<
   Record<string, T[]>
 >;
 
-/** Wire row: uuid, stable numeric action ID, and payload. */
+/**
+ * Wire row: uuid, stable numeric action ID, and payload. The one exception
+ * to "rows carry no timestamp": `SET_STATUS_COMPLETE`'s payload carries
+ * `timeStamp` (the row's pre-wire time, backfilled at encode) — the client
+ * age-badge anchor reads it via `TICKET_AGE_ANCHOR_SQL`, since the group
+ * stamp would otherwise show every badge as 0 minutes after a wipe +
+ * re-pull.
+ */
 export interface CompactTicketLog {
   u: string;
   a: number;
