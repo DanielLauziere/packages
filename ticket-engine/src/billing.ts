@@ -64,6 +64,17 @@ export function centsToDollar(cents: number): string {
   return `$${formatCents(cents)}`;
 }
 
+/** Currency display with thousands grouping and the sign before the symbol
+ *  ($10,000.50, -$0.50) — the Start/analytics money format both clients use. */
+export function toDollars(cents: number): string {
+  const abs = Math.abs(cents);
+  const d = Math.floor(abs / 100);
+  const c = abs % 100;
+  return `${cents < 0 ? '-' : ''}$${d.toLocaleString()}.${c
+    .toString()
+    .padStart(2, '0')}`;
+}
+
 export function getPlanLabel(priceCents: number, lang: string): string {
   if (priceCents <= 0) return lang === 'es' ? 'Sin plan' : 'No plan'
   if (priceCents <= 1499) return PLAN_NAMES.starter[lang as 'en' | 'es'] ?? 'Starter'

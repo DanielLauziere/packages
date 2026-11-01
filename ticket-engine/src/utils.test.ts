@@ -3,6 +3,8 @@ import {
   coerceBools,
   days,
   daysLetter,
+  fillHourSeries,
+  getMenuItemPrice,
   getPrinterTypeName,
   getShortPermissionLabel,
   isEmail,
@@ -12,6 +14,7 @@ import {
   toPostgresTimestampTz,
   toSentenceCase,
   toTitleCase,
+  ymdToDmy,
 } from './utils.js'
 
 const ESCPOS = '102e9428-4e72-4439-a97a-4b8d32fc7626'
@@ -133,5 +136,127 @@ describe('days / daysLetter', () => {
   })
   it('has matching 3-letter codes', () => {
     expect(daysLetter).toEqual(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'])
+  })
+})
+
+describe('ymdToDmy', () => {
+  it('converts YYYY-MM-DD to DD-MM-YYYY', () => {
+    expect(ymdToDmy('2024-01-15')).toBe('15-01-2024')
+    expect(ymdToDmy('2024-12-31')).toBe('31-12-2024')
+  })
+  it('returns the input when the shape is unexpected', () => {
+    expect(ymdToDmy('not-a-date')).toBe('not-a-date')
+    expect(ymdToDmy('2024')).toBe('2024')
+  })
+})
+
+describe('getMenuItemPrice', () => {
+  const base = {
+    original_price_whole: 0,
+    original_price_hundredths: 0,
+    price_whole: 5,
+    price_hundredths: 0,
+  }
+
+  it('renders the plain price when there is no promo and no strike-through', () => {
+    expect(getMenuItemPrice(base)).toBe('$5.00')
+  })
+
+  it('omits the strike-through when original_price_* is undefined (treated as 0)', () => {
+    expect(getMenuItemPrice({ price_whole: 5, price_hundredths: 0 })).toBe('$5.00')
+  })
+
+  it('hides the original when it equals the sale price (no promo)', () => {
+    expect(
+      getMenuItemPrice({
+        ...base,
+        original_price_whole: 10,
+        original_price_hundredths: 50,
+        price_whole: 10,
+        price_hundredths: 50,
+      }),
+    ).toBe('$10.50')
+  })
+
+  it('strikes the original when it differs from the sale price (no promo)', () => {
+    expect(
+      getMenuItemPrice({
+        ...base,
+        original_price_whole: 6,
+        price_whole: 5,
+      }),
+    ).toBe('$6.00 $5.00')
+  })
+
+  it('renders a percentage promotion (0/1 web flag) as " - X% = price"', () => {
+    const out = getMenuItemPrice({
+      ...base,
+      original_price_whole: 10,
+      price_whole: 8,
+      applied_promotions: [
+        { promotion_is_percentage: 1, discount_percent: 20 },
+      ],
+    })
+    expect(out).toBe('$10.00 - 20% = $8.00')
+  })
+
+  it('renders a percentage promotion (RN boolean flag) as " - X% = price"', () => {
+    const out = getMenuItemPrice({
+      ...base,
+      applied_promotions: [
+        { promotion_is_percentage: true, discount_percent: 10 },
+      ],
+    })
+    expect(out).toContain(' - 10% = $5.00')
+    expect(out).not.toContain('$0.00')
+  })
+
+  it('renders a fixed-discount promotion as " - $W.HH = price"', () => {
+    const out = getMenuItemPrice({
+      ...base,
+      original_price_whole: 10,
+      price_whole: 8,
+      applied_promotions: [
+        { promotion_is_percentage: 0, discount_whole: 2, discount_hundredths: 0 },
+      ],
+    })
+    expect(out).toBe('$10.00 - $2.00 = $8.00')
+  })
+
+  it('excludes modifiers and the item note (receipts render them separately)', () => {
+    const out = getMenuItemPrice({
+      ...base,
+      applied_modifiers: [{ name: 'Extra cheese', price_whole: 1, price_hundredths: 50 }],
+      ticket_menu_item_note: 'Well done',
+    } as Parameters<typeof getMenuItemPrice>[0])
+    expect(out).toBe('$5.00')
+    expect(out).not.toContain('Extra cheese')
+    expect(out).not.toContain('Well done')
+  })
+
+  it('formats single-digit hundredths with a leading zero', () => {
+    expect(
+      getMenuItemPrice({ price_whole: 5, price_hundredths: 5 }),
+    ).toBe('$5.05')
+  })
+})
+
+describe('fillHourSeries', () => {
+  const point = (date: string, orders = 0) => ({ date, orders })
+
+  it('returns the empty input unchanged', () => {
+    expect(fillHourSeries([])).toEqual([])
+  })
+
+  it('expands sparse hours into 24 bars, keeping hours that had sales', () => {
+    const out = fillHourSeries([
+      point('2026-10-31 09:00', 3),
+      point('2026-10-31 23:00', 1),
+    ])
+    expect(out).toHaveLength(24)
+    expect(out[9]).toEqual({ date: '2026-10-31 09:00', orders: 3 })
+    expect(out[23]).toEqual({ date: '2026-10-31 23:00', orders: 1 })
+    expect(out[0]).toEqual({ date: '2026-10-31 00:00', orders: 0 })
+    expect(out[10]).toEqual({ date: '2026-10-31 10:00', orders: 0 })
   })
 })

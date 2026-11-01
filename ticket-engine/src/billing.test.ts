@@ -5,6 +5,7 @@ import {
   generateMonthlyInvoices,
   buildTimeline,
   centsToDollar,
+  toDollars,
 } from './billing.js'
 import type { BillingResponse, PlanChange } from './billing.js'
 
@@ -139,5 +140,14 @@ describe('buildTimeline', () => {
     expect([...times].sort((a, b) => a - b)).toEqual(times)
     expect(events.some((e) => e.type === 'payment')).toBe(true)
     expect(events.some((e) => e.type === 'plan_change')).toBe(true)
+  })
+})
+
+describe('toDollars', () => {
+  it('formats with grouping and the sign before the symbol', () => {
+    expect(toDollars(0)).toBe('$0.00')
+    expect(toDollars(12345)).toBe('$123.45')
+    expect(toDollars(-50)).toBe('-$0.50')
+    expect(toDollars(1000050)).toBe('$10,000.50')
   })
 })

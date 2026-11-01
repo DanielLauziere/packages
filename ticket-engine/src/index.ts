@@ -196,6 +196,7 @@ export {
   PLANS,
   formatCents,
   centsToDollar,
+  toDollars,
   getPlanLabel,
   getActivePriceOnDate,
   generateMonthlyInvoices,
@@ -275,4 +276,22 @@ export {
   toPostgresTimestampTz,
   days,
   daysLetter,
+  ymdToDmy,
+  getMenuItemPrice,
+  fillHourSeries,
 } from "./utils.js";
+export type { MenuItemPriceInput, HourlyPaidCount } from "./utils.js";
+export {
+  parseSemver,
+  isValidSemver,
+  compareSemver,
+} from "./semver.js";
+export {
+  TICKET_VIEW_TABLES,
+  TICKET_SCOPED_CHANGE_TABLES,
+  FLOOR_VIEW_TABLES,
+  DINING_TABLE_VIEW_TABLES,
+  TICKET_LOG_VIEW_TABLES,
+  TICKET_STATUS_VIEW_TABLES,
+  ticketChangeScope,
+} from "./changeScopes.js";

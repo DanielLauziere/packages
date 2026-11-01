@@ -153,3 +153,93 @@ export const days = [
 ];
 
 export const daysLetter = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/** `YYYY-MM-DD` → `DD-MM-YYYY`; returns the input unchanged when it does not
+ *  match the expected shape (fail safe for display). */
+export function ymdToDmy(ymd: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+    return ymd;
+  }
+
+  const [yyyy, mm, dd] = ymd.split('-') as [string, string, string];
+  return `${dd}-${mm}-${yyyy}`;
+}
+
+/** Structural input for the receipt price string: both clients' MenuItem is
+ *  assignable (web uses 0/1 promo flags, RN booleans — truthy either way). */
+export interface MenuItemPriceInput {
+  price_whole: number;
+  price_hundredths: number;
+  original_price_whole?: number | null;
+  original_price_hundredths?: number | null;
+  applied_promotions?: ReadonlyArray<{
+    promotion_is_percentage?: number | boolean | null;
+    discount_percent?: number | null;
+    discount_whole?: number | null;
+    discount_hundredths?: number | null;
+  }> | null;
+}
+
+/** Menu-item price line for receipts: optional strike-through original,
+ *  promo segment, then the sale price. Deliberately excludes modifiers and
+ *  the item note — receipts render those on their own rows. */
+export function getMenuItemPrice(mi: MenuItemPriceInput): string {
+  const finalPrice = `$${mi.price_whole}.${toCents(mi.price_hundredths)}`;
+  const originalWhole = mi.original_price_whole ?? 0;
+  const originalHundredths = mi.original_price_hundredths ?? 0;
+  const hasOriginal = originalWhole !== 0 || originalHundredths !== 0;
+  const promo = mi.applied_promotions?.[0];
+
+  // Strike the original only when there is something to strike: it exists,
+  // and either a promo applies to it or it differs from the sale price.
+  const differsFromFinal =
+    originalWhole !== mi.price_whole || originalHundredths !== mi.price_hundredths;
+  const showOriginal = hasOriginal && (Boolean(promo) || differsFromFinal);
+
+  let price = showOriginal
+    ? `$${originalWhole}.${toCents(originalHundredths)}`
+    : '';
+  if (promo) {
+    const discount = promo.promotion_is_percentage
+      ? `${promo.discount_percent ?? 0}%`
+      : `$${promo.discount_whole ?? 0}.${toCents(promo.discount_hundredths ?? 0)}`;
+    price += ` - ${discount} = `;
+  } else if (showOriginal) {
+    price += ' ';
+  }
+  price += finalPrice;
+  return price;
+}
+
+/** One sparse hourly paid-sales bucket returned by the local selectors. */
+export interface HourlyPaidCount {
+  date: string;
+  orders: number;
+}
+
+/** The local paid-sales selector returns only hours that had sales (sparse).
+ *  Expand them into the full day window — midnight to midnight
+ *  (00:00–23:59, 24 bars) — filling hours with no sales with zero orders.
+ *  Sales are bucketed by each ticket's first SET_STATUS_PAID log time. */
+export function fillHourSeries(
+  points: HourlyPaidCount[],
+  _now: Date = new Date(),
+): HourlyPaidCount[] {
+  if (points.length === 0) return points;
+  const hourKey = (p: HourlyPaidCount) => parseInt(p.date.slice(11, 13), 10);
+
+  const byHour = new Map<number, HourlyPaidCount>();
+  for (const p of points) byHour.set(hourKey(p), p);
+
+  const datePrefix = points[0]!.date.slice(0, 10);
+  const filled: HourlyPaidCount[] = [];
+  for (let h = 0; h < 24; h++) {
+    filled.push(
+      byHour.get(h) ?? {
+        date: `${datePrefix} ${`${h}`.padStart(2, '0')}:00`,
+        orders: 0,
+      },
+    );
+  }
+  return filled;
+}
