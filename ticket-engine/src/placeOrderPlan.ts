@@ -10,42 +10,27 @@
  *    table with no fulfillment implies eat-in. NOTE: every fresh draft is
  *    inserted with the EATIN placeholder fulfillment_uuid — that placeholder
  *    is NOT a known type and must never bypass the picker.
- * 2. Nothing enabled and no tables → complete as-is.
- * 3. Exactly one enabled fulfillment → auto-pick it (eat-in with exactly one
- *    local table also auto-assigns that table).
- * 4. Otherwise → open the fulfillment/table picker (which completes the
- *    ticket after the pick when the caller set a pending-complete flag).
+ * 2. Anything else opens the fulfillment/table picker — always, even when a
+ *    single fulfillment is enabled or nothing is enabled at all. Nothing is
+ *    set until staff picks, and the picker completes the ticket after the
+ *    pick (the caller sets a pending-complete flag).
  *
  * This module only plans; each client executes the plan through its own
- * DB/sync layer (updateTicket / updateTicketTable / appendLog / runSync).
+ * DB/sync layer (updateTicket / appendLog / runSync).
  */
 import { FULFILLMENT_UUID_EATIN } from './floorSprites.js'
-
-/** The three order-fulfillment features, in evaluation order: [feature uuid,
- *  fulfillment name]. Feature values are the server's Features enum uuids. */
-export const PLACE_ORDER_FEATURES = [
-  ['6ac646b5-b9bd-41ef-afe0-61e649de2e5d', 'DELIVERY'],
-  ['66f53a6e-6794-4fb5-bcc3-992b60edcbfe', 'CURBSIDE'],
-  ['0e97eefb-80ab-4185-b018-a96941b9f9d1', 'EATIN'],
-] as const satisfies ReadonlyArray<readonly [string, PlaceOrderFulfillment]>
 
 export type PlaceOrderFulfillment = 'DELIVERY' | 'CURBSIDE' | 'EATIN'
 
 export type PlaceOrderPlan =
-  /** Complete the ticket as-is (known type, or nothing to pick from). */
+  /** Complete the ticket as-is (known type). */
   | { kind: 'complete' }
   /** Set this fulfillment, then complete. */
   | { kind: 'set-fulfillment'; fulfillment: PlaceOrderFulfillment }
-  /** Exactly one local table: assign it + EATIN, then complete. */
-  | { kind: 'assign-single-table'; table_uuid: string }
-  /** Unknown type with a choice to make: open the picker. */
+  /** Nothing set yet: open the picker, which completes after the pick. */
   | { kind: 'pick' }
 
 export interface PlaceOrderPlanInput {
-  /** The location group's enabled features (Features enum values). */
-  features: readonly string[]
-  /** Local dining_table rows (for the single-table auto-assign). */
-  tables: ReadonlyArray<{ uuid: string }>
   /** The ticket's bound table, if any. */
   tableUuid?: string | null
   /** The ticket's fulfillment_uuid, if any (EATIN may be the draft placeholder). */
@@ -66,25 +51,7 @@ export function planPlaceOrder(input: PlaceOrderPlanInput): PlaceOrderPlan {
     return { kind: 'complete' }
   }
 
-  const enabled = PLACE_ORDER_FEATURES.filter(([featureUuid]) =>
-    input.features.includes(featureUuid),
-  ).map(([, fulfillment]) => fulfillment)
-  const tableCount = input.tables.length
-
-  if (enabled.length === 0 && tableCount === 0) {
-    return { kind: 'complete' }
-  }
-
-  if (enabled.length === 1) {
-    const only = enabled[0]
-    if (only === 'EATIN') {
-      if (tableCount === 1) {
-        return { kind: 'assign-single-table', table_uuid: input.tables[0]!.uuid }
-      }
-      return { kind: 'set-fulfillment', fulfillment: 'EATIN' }
-    }
-    return { kind: 'set-fulfillment', fulfillment: only }
-  }
-
+  // Nothing set yet → always ask. The pick is what places the ticket, so even
+  // a single enabled fulfillment (or none at all) goes through the picker.
   return { kind: 'pick' }
 }

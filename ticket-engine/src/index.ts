@@ -255,7 +255,6 @@ export {
   floorNewItemAt,
 } from "./floorMap.js";
 export {
-  PLACE_ORDER_FEATURES,
   planPlaceOrder,
 } from "./placeOrderPlan.js";
 export type {
