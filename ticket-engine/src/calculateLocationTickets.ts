@@ -35,6 +35,47 @@ export type LocationTicketMemo = Map<
   { signature: string; value: ReturnCompleteTicket }
 >
 
+/**
+ * The one ticket display order — tablero board, floor-map sheet, and every
+ * list built from calculateLocationTickets[Memoized]:
+ *   table (numbers first, empty table last) → ticket id → uuid.
+ *
+ * Never tie-break on `time_stamp`: it is device-local — the creating device
+ * stores its own clock while peers derive it from the first ticket_log they
+ * apply (ensureTicketExists) — so the same ticket sorts differently on each
+ * device. `id` = ticketIdFromUUID(uuid), a pure function of uuid, so it is
+ * identical on every device and engine; uuid resolves the rare id collision.
+ */
+export function compareTicketsForDisplay(
+  a: { table_name?: string; id: number; uuid: string },
+  b: { table_name?: string; id: number; uuid: string },
+): number {
+  const aName = a.table_name || ''
+  const bName = b.table_name || ''
+  if (aName === '' || bName === '') {
+    if (aName !== bName) return aName === '' ? 1 : -1
+  } else {
+    const ai = Number(aName)
+    const bi = Number(bName)
+    const aIsNum = !Number.isNaN(ai)
+    const bIsNum = !Number.isNaN(bi)
+    const textDiff =
+      aIsNum && bIsNum
+        ? ai - bi
+        : aIsNum
+          ? -1
+          : bIsNum
+            ? 1
+            : aName.localeCompare(bName)
+    if (textDiff !== 0) return textDiff
+  }
+  const idDiff = Number(a.id) - Number(b.id)
+  if (idDiff !== 0) return idDiff
+  if (a.uuid < b.uuid) return -1
+  if (a.uuid > b.uuid) return 1
+  return 0
+}
+
 export const calculateLocationTickets = ({
   tickets,
   ticket_menu_items,
@@ -357,21 +398,7 @@ export const calculateLocationTickets = ({
     returnTickets.push(ticket)
   }
 
-  returnTickets.sort((a, b) => {
-    const aName = a.table_name || ''
-    const bName = b.table_name || ''
-    if (aName === '' && bName === '') return 0
-    if (aName === '') return 1
-    if (bName === '') return -1
-    const ai = Number(aName)
-    const bi = Number(bName)
-    const aIsNum = !isNaN(ai)
-    const bIsNum = !isNaN(bi)
-    if (aIsNum && !bIsNum) return -1
-    if (!aIsNum && bIsNum) return 1
-    if (aIsNum && bIsNum) return ai - bi
-    return aName.localeCompare(bName)
-  })
+  returnTickets.sort(compareTicketsForDisplay)
 
   return returnTickets
 }
@@ -445,20 +472,6 @@ export function calculateLocationTicketsMemoized(
   for (const ticketUuid of cache.keys()) {
     if (!seen.has(ticketUuid)) cache.delete(ticketUuid)
   }
-  result.sort((a, b) => {
-    const aName = a.table_name || ''
-    const bName = b.table_name || ''
-    if (aName === '' && bName === '') return 0
-    if (aName === '') return 1
-    if (bName === '') return -1
-    const ai = Number(aName)
-    const bi = Number(bName)
-    const aIsNum = !isNaN(ai)
-    const bIsNum = !isNaN(bi)
-    if (aIsNum && !bIsNum) return -1
-    if (!aIsNum && bIsNum) return 1
-    if (aIsNum && bIsNum) return ai - bi
-    return aName.localeCompare(bName)
-  })
+  result.sort(compareTicketsForDisplay)
   return result
 }

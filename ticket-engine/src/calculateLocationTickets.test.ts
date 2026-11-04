@@ -485,16 +485,35 @@ describe('tables', () => {
     expect(ts[3]!.table_name).toBe('Patio-1')
   })
 
-  it('tiebreak with same table name', () => {
+  it('tiebreak with same table name by id, not input order', () => {
     const ts = run({
       tickets: [
-        makeTicket(1, { table_uuid: uSeq(51) }),
         makeTicket(2, { table_uuid: uSeq(51) }),
+        makeTicket(1, { table_uuid: uSeq(51) }),
       ],
       tables: [makeTable(51, 'Same')],
     })
-    expect(ts[0]!.table_name).toBe('Same')
-    expect(ts[1]!.table_name).toBe('Same')
+    expect(ts.map((t) => t.table_name)).toEqual(['Same', 'Same'])
+    expect(ts.map((t) => t.id)).toEqual([1001, 1002])
+  })
+
+  it('same table and id tiebreak by uuid, not input order', () => {
+    const ts = run({
+      tickets: [
+        makeTicket(2, { table_uuid: uSeq(51), id: 5555 }),
+        makeTicket(1, { table_uuid: uSeq(51), id: 5555 }),
+      ],
+      tables: [makeTable(51, 'Same')],
+    })
+    expect(ts.map((t) => t.uuid)).toEqual([uSeq(1), uSeq(2)])
+  })
+
+  it('no-table tickets tiebreak by id, not input order', () => {
+    const ts = run({
+      tickets: [makeTicket(2), makeTicket(1)],
+    })
+    expect(ts.map((t) => t.id)).toEqual([1001, 1002])
+    expect(ts.map((t) => t.table_name)).toEqual([undefined, undefined])
   })
 })
 
