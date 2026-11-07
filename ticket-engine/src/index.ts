@@ -52,9 +52,11 @@ export {
   PRINT_REASSIGN,
   PRINT_ACTIONS,
   PRINT_ALERT_MS,
+  PRINT_SPINNER_FAIL_MS,
   foldPrintBaton,
   decidePrint,
   manualTakeoverAllowed,
+  printSpinnerState,
 } from "./printProtocol.js";
 export type {
   PrintAction,
@@ -63,6 +65,7 @@ export type {
   PrintRow,
   PrintDeviceContext,
   PrintDecision,
+  PrintSpinnerState,
 } from "./printProtocol.js";
 export {
   NUM_BUCKETS,
@@ -96,11 +99,13 @@ export {
   encodeTicketLogBuckets,
   decodeTicketLogBuckets,
 } from "./ticketLogWire.js";
-export type {
-  TicketLogWireInput,
-  DecodedTicketLog,
-} from "./ticketLogWire.js";
-export { CUTOFF_MS, THIRTY_MINUTES, SERVER_TIMESTAMP_OFFSET, RETRY_BACKOFF_CAP_STEPS } from "./consts.js";
+export type { TicketLogWireInput, DecodedTicketLog } from "./ticketLogWire.js";
+export {
+  CUTOFF_MS,
+  THIRTY_MINUTES,
+  SERVER_TIMESTAMP_OFFSET,
+  RETRY_BACKOFF_CAP_STEPS,
+} from "./consts.js";
 export { TICKET_AGE_ANCHOR_SQL } from "./ticketAgeAnchor.js";
 export {
   getPriority,
@@ -112,16 +117,24 @@ export {
   filterTicketsByActivity,
 } from "./syncQueue.js";
 export type { SyncLogLike, SyncSummary, TicketsMapLike } from "./syncQueue.js";
-export {
-  switchLocationGroup,
-} from "./locationGroupSwitch.js";
+export { switchLocationGroup } from "./locationGroupSwitch.js";
 export type {
   VenueRef,
   SwitchResult,
   SwitchDeps,
 } from "./locationGroupSwitch.js";
-export { appendLog, insertLog, applyLog, applyTicketGroup } from "./ticketLogLedger.js";
-export type { LedgerDeps, LedgerLogger, TicketLogRow, TicketGroupDeps } from "./ticketLogLedger.js";
+export {
+  appendLog,
+  insertLog,
+  applyLog,
+  applyTicketGroup,
+} from "./ticketLogLedger.js";
+export type {
+  LedgerDeps,
+  LedgerLogger,
+  TicketLogRow,
+  TicketGroupDeps,
+} from "./ticketLogLedger.js";
 export {
   DEFAULT_POD_URL,
   POD_URL_STORAGE_KEY,
@@ -254,9 +267,7 @@ export {
   stepFloorSize,
   floorNewItemAt,
 } from "./floorMap.js";
-export {
-  planPlaceOrder,
-} from "./placeOrderPlan.js";
+export { planPlaceOrder } from "./placeOrderPlan.js";
 export type {
   PlaceOrderFulfillment,
   PlaceOrderPlan,
@@ -280,11 +291,7 @@ export {
   fillHourSeries,
 } from "./utils.js";
 export type { MenuItemPriceInput, HourlyPaidCount } from "./utils.js";
-export {
-  parseSemver,
-  isValidSemver,
-  compareSemver,
-} from "./semver.js";
+export { parseSemver, isValidSemver, compareSemver } from "./semver.js";
 export {
   TICKET_VIEW_TABLES,
   TICKET_SCOPED_CHANGE_TABLES,
