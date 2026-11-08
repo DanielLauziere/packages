@@ -171,7 +171,10 @@ describe("runBatonPrint", () => {
   });
 
   it("send failure announces PRINT_PASS and returns (advanced via next round → waiting)", async () => {
-    const { deps, appendLog, printTicket } = makeDeps();
+    const { deps, appendLog, printTicket } = makeDeps(
+      { getChainSeedRow: async () => seedCreatorRow(DEVICE_A) },
+      DEVICE_A,
+    );
     printTicket.mockResolvedValueOnce(false);
     const result = await runBatonPrint(deps, args);
     // pass appended once (passAuthors empty), then next iteration is still
@@ -203,6 +206,7 @@ describe("runBatonPrint", () => {
           { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
           { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
         ],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
         isKitchenCapable: () => true,
       },
       DEVICE_B,
@@ -210,16 +214,15 @@ describe("runBatonPrint", () => {
     const result = await runBatonPrint(deps, {
       ...args,
       admin: { uuid: "admin-2" },
-          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-});
+    });
     expect(result).toEqual({ outcome: "alert" });
   });
 
   it("non-capable creator passes the baton", async () => {
     const { deps, appendLog, printTicket } = makeDeps({
       isKitchenCapable: () => false,
-          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-});
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+    });
     const result = await runBatonPrint(deps, args);
     expect(printTicket).not.toHaveBeenCalled();
     expect(appendLog.mock.calls[0]![0]).toMatchObject({
@@ -358,14 +361,13 @@ describe("same admin, two devices", () => {
   it("only the reassigned device sends — exactly one physical print", async () => {
     // DEVICE_B is the printer of record: it sends.
     const holder = makeDeps(
-      { getPrintRows: async () => rows, getChainSeedRow: async () => seedCreatorRow(DEVICE_B) },
+      { getPrintRows: async () => rows, getChainSeedRow: async () => seedCreatorRow(DEVICE_A) },
       DEVICE_B,
     );
     const holderResult = await runBatonPrint(holder.deps, {
       ...args,
       admin: { uuid: "admin-1" },
-          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-});
+    });
     expect(holder.printTicket).toHaveBeenCalledTimes(1);
     expect(holderResult).toEqual({ outcome: "printed" });
 
