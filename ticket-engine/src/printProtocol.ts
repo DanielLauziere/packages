@@ -29,6 +29,17 @@ export interface PrintRow {
   author: string | null;
   time_stamp: number;
   payload?: any;
+  /** Device that acted on this PRINT_* row (`payload.device_id`). The baton's
+   *  identity is the device, not the admin — `author` (admin_uuid) stays the
+   *  acting admin for logging. Absent on rows written before the device
+   *  change; the fold falls back to `author` for those. */
+  device_id?: string | null;
+}
+
+/** Read the acting device from a PRINT_* row's payload. */
+function deviceIdOf(row: PrintRow): string | null {
+  const id = row.device_id ?? row.payload?.device_id;
+  return typeof id === 'string' && id ? id : null;
 }
 
 export interface PrintFold {
@@ -72,7 +83,10 @@ export function foldPrintBaton(
 
   for (const row of rows) {
     if (!PRINT_ACTION_SET.has(row.action)) continue;
-    const author = row.author ?? null;
+    // Identity is the device: `payload.device_id` on rows written since the
+    // device change, else the legacy admin author. `row.author` itself stays
+    // the admin for logging.
+    const author = deviceIdOf(row) ?? row.author ?? null;
     switch (row.action) {
       case PRINT_PASS:
         pushByAuthor(passesBy, author, row);
@@ -155,7 +169,10 @@ export function foldPrintBaton(
   const manual = successes.filter((s) => s.payload?.manual === true);
   const auto = successes.filter((s) => s.payload?.manual !== true);
   for (const s of auto) {
-    if ((s.author ?? null) !== current)
+    // Identity is the device (payload.device_id), same as every other actor
+    // check — comparing the raw admin author here would flag every device
+    // success written since the device-identity change (backlog item 4).
+    if ((deviceIdOf(s) ?? s.author ?? null) !== current)
       conflicts.push("AUTO_SUCCESS_FROM_NON_HOLDER");
   }
 

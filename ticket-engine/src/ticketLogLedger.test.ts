@@ -175,6 +175,66 @@ describe("appendLog", () => {
     expect(order).toEqual(["lock-in", "apply", "lock-out"]);
   });
 
+  // Backlog item 4: the ticket's FIRST staff row carries `payload.device_id`
+  // once — the channel peers and the server read to seed chain[0]
+  // (`ticket.device_uuid`).
+  it("stamps device_id on the ticket's first staff row", async () => {
+    const ctx = makeDeps();
+    // 1st query: no prior rows → 2nd query: this device's id.
+    ctx.setQueryResults([], [{ value: "dev-9" }]);
+    const entry = await appendLog(ctx.deps, {
+      ticket_uuid: "t-1",
+      location_group_uuid: "lg-1",
+      action: "ADD_ITEM",
+      payload: { menu_item_uuid: "m-1" },
+      time_stamp: 0 as any,
+      admin_uuid: "admin-1",
+    });
+    expect(entry.payload).toEqual({ menu_item_uuid: "m-1", device_id: "dev-9" });
+  });
+
+  it("does not stamp once the ticket already has rows", async () => {
+    const ctx = makeDeps();
+    ctx.setQueryResults([{ 1: 1 }]); // prior row exists → no device lookup
+    const entry = await appendLog(ctx.deps, {
+      ticket_uuid: "t-1",
+      location_group_uuid: "lg-1",
+      action: "ADD_ITEM",
+      payload: { menu_item_uuid: "m-1" },
+      time_stamp: 0 as any,
+      admin_uuid: "admin-1",
+    });
+    expect(entry.payload).toEqual({ menu_item_uuid: "m-1" });
+    expect(ctx.queries).toHaveLength(1);
+  });
+
+  it("never stamps guest/anonymous appends (no admin) — guest tickets stay device-less", async () => {
+    const ctx = makeDeps();
+    const entry = await appendLog(ctx.deps, {
+      ticket_uuid: "t-1",
+      location_group_uuid: "lg-1",
+      action: "SET_GUEST",
+      payload: { guest_user_name: "g" },
+      time_stamp: 0 as any,
+    });
+    expect(entry.payload).toEqual({ guest_user_name: "g" });
+    expect(ctx.queries).toHaveLength(0);
+  });
+
+  it("keeps an explicit payload device_id untouched (baton rows)", async () => {
+    const ctx = makeDeps();
+    const entry = await appendLog(ctx.deps, {
+      ticket_uuid: "t-1",
+      location_group_uuid: "lg-1",
+      action: "PRINT_SUCCESS",
+      payload: { device_id: "dev-1" },
+      time_stamp: 0 as any,
+      admin_uuid: "admin-1",
+    });
+    expect(entry.payload).toEqual({ device_id: "dev-1" });
+    expect(ctx.queries).toHaveLength(0);
+  });
+
 });
 
 describe("insertLog", () => {

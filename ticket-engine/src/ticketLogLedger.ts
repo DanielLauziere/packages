@@ -103,12 +103,35 @@ export async function appendLog(
     const offset = await deps.serverOffsetMs();
     const now = Date.now() + offset;
 
+    // `device_id` rides the payload (no schema change). The baton passes the
+    // acting device with its own row; otherwise the ticket's FIRST staff row
+    // is stamped once with this device — that row is how peers and the server
+    // learn the creating device that seeds the print chain's chain[0] via
+    // `ticket.device_uuid` (backlog item 4). Guest/anonymous appends (no
+    // admin) never stamp, so guest tickets stay device-less.
+    let payload = sanitizePayload(input.payload);
+    if (!payload?.device_id && input.admin_uuid) {
+      const prior = await deps.query(
+        `SELECT 1 FROM ticket_log WHERE ticket_uuid = ? LIMIT 1`,
+        [input.ticket_uuid],
+      );
+      if (!prior?.length) {
+        const rows = await deps.query(
+          `SELECT value FROM key_value WHERE key = 'device_uuid' LIMIT 1`,
+        );
+        const deviceId = rows?.[0]?.value;
+        if (typeof deviceId === 'string' && deviceId) {
+          payload = { ...payload, device_id: deviceId };
+        }
+      }
+    }
+
     const entry: TicketLogEntry = {
       uuid: deps.newUuid(),
       ticket_uuid: input.ticket_uuid,
       location_group_uuid: input.location_group_uuid,
       action: input.action,
-      payload: sanitizePayload(input.payload),
+      payload,
       time_stamp: now,
       admin_uuid: input.admin_uuid,
     };

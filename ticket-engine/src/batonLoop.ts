@@ -38,6 +38,18 @@ export const PRINT_ROWS_SQL = `SELECT action, payload, "time_stamp", admin_uuid
        AND action IN ('PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN')
      ORDER BY "time_stamp", uuid`;
 
+/**
+ * SQL for the chain seed: the ticket's FIRST log row of ANY action. That row
+ * carries `payload.device_id` (stamped once by the ticket-create path) and is
+ * what chain[0] is seeded from. PRINT_ROWS_SQL deliberately filters to the
+ * four print actions, so the seed needs its own query.
+ */
+export const CHAIN_SEED_SQL = `SELECT action, payload, "time_stamp", admin_uuid
+     FROM ticket_log
+     WHERE ticket_uuid = ?
+     ORDER BY "time_stamp", uuid
+     LIMIT 1`;
+
 export function parsePrintPayload(raw: string | null): Record<string, unknown> {
   if (!raw) return {};
   if (typeof raw === 'object') return raw as Record<string, unknown>;
@@ -57,23 +69,42 @@ export function mapPrintRows(
     admin_uuid: string | null;
   }[],
 ): PrintRow[] {
-  return (rows ?? []).map((r) => ({
-    action: r.action,
-    author: r.admin_uuid || null,
-    time_stamp: Number(r.time_stamp),
-    payload: parsePrintPayload(r.payload),
-  }));
+  return (rows ?? []).map((r) => {
+    const payload = parsePrintPayload(r.payload);
+    return {
+      action: r.action,
+      author: r.admin_uuid || null,
+      time_stamp: Number(r.time_stamp),
+      payload,
+      // The acting device, read straight from the row payload (the fold also
+      // falls back to `payload.device_id` for rows mapped elsewhere).
+      device_id: (payload?.device_id as string) || null,
+    };
+  });
+}
+
+/** Device of a seed row: payload.device_id, else the acting admin. */
+export function seedDeviceOf(row: PrintRow | null): string | null {
+  if (!row) return null;
+  return (
+    row.device_id ??
+    (row.payload?.device_id as string | undefined) ??
+    row.author ??
+    null
+  );
 }
 
 /** Fold = engine foldPrintBaton over the ticket's PRINT_* rows. */
 export async function readPrintFold<
-  Ticket extends { uuid: string; admin_uuid?: string | null },
+  Ticket extends { uuid: string; admin_uuid?: string | null; device_uuid?: string | null },
 >(
   getRows: (ticket_uuid: string) => Promise<PrintRow[]>,
   ticket: Ticket,
+  getSeedRow?: (ticket_uuid: string) => Promise<PrintRow | null>,
 ): Promise<{ fold: PrintFold; rows: PrintRow[] }> {
   const rows = await getRows(ticket.uuid);
-  const fold = foldPrintBaton(rows, ticket.admin_uuid ?? null);
+  const seedRow = getSeedRow ? await getSeedRow(ticket.uuid) : null;
+  const fold = foldPrintBaton(rows, seedDeviceOf(seedRow));
   return { fold, rows };
 }
 
@@ -85,9 +116,17 @@ const MAX_ITERATIONS = 10;
 const sendCooldownUntil = new Map<string, number>();
 const sendFailures = new Map<string, number>();
 
+/** Test-only: clear the per-ticket send-failure session state. */
+export function _resetBatonSendStateForTests(): void {
+  sendCooldownUntil.clear();
+  sendFailures.clear();
+}
+
 export interface BatonDeps<Ticket, TLG, TAdmin> {
   /** Load the ticket's PRINT_* baton rows (client reads its real DB). */
   getPrintRows(ticket_uuid: string): Promise<PrintRow[]>;
+  /** Load the ticket's first log row (any action) — the chain seed. */
+  getChainSeedRow(ticket_uuid: string): Promise<PrintRow | null>;
   /** Write a PRINT_* log (client wraps its appendLog: lock/offset/notify). */
   appendLog(input: {
     ticket_uuid: string;
@@ -99,15 +138,22 @@ export interface BatonDeps<Ticket, TLG, TAdmin> {
   }): Promise<unknown>;
   /** Server-clock offset in ms for decidePrint's `now`. */
   getServerOffset(): Promise<number>;
+  /** This device's stable id (`device_uuid`) — the baton's identity. */
+  deviceUuid(): string;
   /** Config-level capability (silent mode + printer configured for this
    *  platform). Re-checked each iteration; cooldown handled by the loop. */
   isKitchenCapable(): boolean;
-  /** Deliver the ticket bytes — the client's print transport. */
+  /** Deliver the ticket bytes — the client's print transport.
+   *  `job_id` is the baton's idempotent-retry marker (ticket_uuid). The
+   *  relay transport sends it so a retried send after a lost response does
+   *  not produce a second physical print. Manual reprints (the client's own
+   *  print buttons) never go through here and carry no job_id. */
   printTicket(args: {
     ticket: Ticket;
     locationGroup: TLG;
     admin: TAdmin;
     translations: string[];
+    job_id: string;
   }): Promise<boolean>;
   /** Optional error sink (RN routes to its file logger). Default console. */
   logError?(msg: string, err?: unknown): void;
@@ -125,7 +171,9 @@ async function appendPrintLog<Ticket extends { uuid: string; location_group_uuid
     location_group_uuid: ticket.location_group_uuid,
     action,
     time_stamp: Date.now(),
-    payload,
+    // The acting device rides in the payload — `admin_uuid` stays the admin
+    // (backlog item 4). The fold reads this key to identify actors.
+    payload: { ...payload, device_id: deps.deviceUuid() },
     admin_uuid,
   });
 }
@@ -134,6 +182,7 @@ export async function runBatonPrint<
   Ticket extends {
     uuid: string
     admin_uuid?: string | null
+    device_uuid?: string | null
     location_group_uuid: string
     time_stamp?: string | number | null
   },
@@ -149,16 +198,26 @@ export async function runBatonPrint<
   },
 ): Promise<BatonResult> {
   const { ticket, locationGroup, admin, translations } = args;
-  const me = admin.uuid;
+  // Identity is the device, not the admin: two devices on one admin must not
+  // both believe they hold the ticket (backlog item 4). `admin` stays in the
+  // args for the transports and for logging.
+  const me = deps.deviceUuid();
   const offset = await deps.getServerOffset();
   const logError = deps.logError ?? ((msg: string, err?: unknown) => console.error(msg, err));
   let advanced = false;
 
+  // chain[0] is the device of the ticket's first log row (any action), which
+  // carries payload.device_id (backlog item 4).
+  const seed = seedDeviceOf(await deps.getChainSeedRow(ticket.uuid));
+
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const rows = await deps.getPrintRows(ticket.uuid);
-    const fold = foldPrintBaton(rows, ticket.admin_uuid ?? null);
+    const fold = foldPrintBaton(rows, seed);
     const myRequest = rows.find(
-      (r) => r.action === PRINT_REQUEST && r.author === me,
+      (r) =>
+        r.action === PRINT_REQUEST &&
+        (r.device_id ?? (r.payload?.device_id as string | undefined) ?? null) ===
+          me,
     );
     const now = Date.now() + offset;
     const createdAt = Number(ticket.time_stamp) || undefined;
@@ -185,6 +244,7 @@ export async function runBatonPrint<
             locationGroup,
             admin,
             translations,
+            job_id: ticket.uuid,
           });
         } catch (err) {
           logError(`❌ Print failed ${ticket.uuid}`, err);
@@ -194,14 +254,14 @@ export async function runBatonPrint<
         if (printed) {
           sendCooldownUntil.delete(ticket.uuid);
           sendFailures.delete(ticket.uuid);
-          await appendPrintLog(deps, ticket, me, PRINT_SUCCESS, {});
+          await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, {});
           return { outcome: 'printed' };
         }
 
         // Transport refused — announce so capable peers can take the baton
         // (doc scenario 3), then back off on a cooldown.
         if (!fold.passAuthors.includes(me)) {
-          await appendPrintLog(deps, ticket, me, PRINT_PASS, {
+          await appendPrintLog(deps, ticket, admin.uuid, PRINT_PASS, {
             reason: 'print_failed',
           });
           advanced = true;
@@ -214,17 +274,17 @@ export async function runBatonPrint<
       }
 
       case 'pass':
-        await appendPrintLog(deps, ticket, me, PRINT_PASS, { reason: 'not_capable' });
+        await appendPrintLog(deps, ticket, admin.uuid, PRINT_PASS, { reason: 'not_capable' });
         advanced = true;
         continue;
 
       case 'request':
-        await appendPrintLog(deps, ticket, me, PRINT_REQUEST, {});
+        await appendPrintLog(deps, ticket, admin.uuid, PRINT_REQUEST, {});
         advanced = true;
         continue;
 
       case 'reassign':
-        await appendPrintLog(deps, ticket, me, PRINT_REASSIGN, { to: decision.to });
+        await appendPrintLog(deps, ticket, admin.uuid, PRINT_REASSIGN, { to: decision.to });
         advanced = true;
         continue;
 
@@ -301,7 +361,12 @@ export async function runBatonPrint<
 // The (!) press: re-validate the fold at press time, then take the ticket
 // terminal for everyone. Returns false when truth already resolved it.
 export async function manualTakeover<
-  Ticket extends { uuid: string; admin_uuid?: string | null; location_group_uuid: string },
+  Ticket extends {
+    uuid: string
+    admin_uuid?: string | null
+    device_uuid?: string | null
+    location_group_uuid: string
+  },
   TLG,
   TAdmin extends { uuid: string },
 >(
@@ -310,7 +375,8 @@ export async function manualTakeover<
   admin: TAdmin,
 ): Promise<boolean> {
   const rows = await deps.getPrintRows(ticket.uuid);
-  const fold = foldPrintBaton(rows, ticket.admin_uuid ?? null);
+  const seed = await deps.getChainSeedRow(ticket.uuid);
+  const fold = foldPrintBaton(rows, seedDeviceOf(seed));
   if (!manualTakeoverAllowed(fold)) return false;
   await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, { manual: true });
   return true;

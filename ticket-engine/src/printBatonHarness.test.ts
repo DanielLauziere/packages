@@ -22,6 +22,9 @@ const SERVER = null
 
 interface HarnessDevice {
   id: string | null
+  /** Signed-in admin — item 4: two devices may share ONE admin_uuid while
+   *  their device ids stay distinct; the baton must key on the device. */
+  admin: string | null
   capable: boolean
   broken: boolean
   crashed: boolean
@@ -61,6 +64,7 @@ function mulberry32(seed: number): () => number {
 function device(id: string | null, opts: Partial<HarnessDevice> = {}): HarnessDevice {
   return {
     id,
+    admin: opts.admin ?? null,
     capable: opts.capable ?? false,
     broken: opts.broken ?? false,
     crashed: opts.crashed ?? false,
@@ -438,6 +442,52 @@ describe('Appendix A — every print flow', () => {
     expect(totalPrints(w)).toBe(1)
     expect(w.rows.filter((r) => r.action === 'PRINT_PASS')).toHaveLength(0)
     expect(fullFold(w).state).toBe('printed')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Item 4 — device-level print identity: the baton keys on device_uuid, not
+// admin_uuid. Two fake devices share ONE admin_uuid with distinct device
+// ids; chain[0] is seeded from `ticket.device_uuid` (the creator device).
+// ---------------------------------------------------------------------------
+describe('Item 4 — same admin, two devices', () => {
+  const ADMIN = 'admin-shared'
+
+  it('creator device prints; the same-admin peer stands down → exactly one physical print', () => {
+    const w = world(
+      [
+        device('dev-1', { capable: true, admin: ADMIN }),
+        device('dev-2', { capable: true, admin: ADMIN }),
+      ],
+      'dev-1', // ticket.device_uuid — the creating device seeds chain[0]
+    )
+    run(w, mulberry32(41))
+    expect(totalPrints(w)).toBe(1)
+    expect(dev(w, 'dev-1').prints).toBe(1)
+    expect(dev(w, 'dev-2').prints).toBe(0)
+    expect(dev(w, 'dev-2').sends).toHaveLength(0)
+    expect(fullFold(w).state).toBe('printed')
+    expect(fullFold(w).chain[0]).toBe('dev-1')
+    expectI3(w)
+  })
+
+  it('creator device dies → the same-admin peer does NOT inherit the hold', () => {
+    const w = world(
+      [
+        device('dev-1', { capable: true, admin: ADMIN, crashed: true }),
+        device('dev-2', { capable: true, admin: ADMIN }),
+      ],
+      'dev-1',
+    )
+    run(w, mulberry32(42))
+    // Safety over liveness: the hold belongs to the creator device alone.
+    // A live same-admin peer never opens a send — it waits (the spinner
+    // surfaces the strand), so a dead creator can never become a double
+    // print when the device comes back.
+    expect(totalPrints(w)).toBe(0)
+    expect(dev(w, 'dev-2').sends).toHaveLength(0)
+    expect(foldOf(w, 'dev-2').holder).toBe('dev-1')
+    expectI3(w)
   })
 })
 

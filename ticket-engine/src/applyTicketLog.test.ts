@@ -610,6 +610,53 @@ describe('applyTicketLog', () => {
       expect(adapter.findRun('SET time_stamp')).toBeUndefined()
     })
   })
+
+  // Backlog item 4: `ticket.device_uuid` is the print chain's chain[0] seed.
+  describe('device seed (ticket.device_uuid)', () => {
+    it('implicit creation writes device_uuid from the first row payload', async () => {
+      await applyTicketLog(
+        adapter,
+        entry({
+          action: 'SET_ANONYMOUS_ADDRESS',
+          payload: { anonymous_address: 'x', device_id: 'dev-7' },
+        }),
+      )
+      const ins = adapter.findRun('INSERT INTO "ticket"')
+      expect(ins).toBeDefined()
+      expect(ins!.sql).toContain('device_uuid')
+      expect(ins!.params![5]).toBe('dev-7')
+    })
+
+    it('fills device_uuid when the ticket row arrived before the device row', async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      await applyTicketLog(
+        adapter,
+        entry({
+          action: 'SET_ANONYMOUS_ADDRESS',
+          payload: { anonymous_address: 'x', device_id: 'dev-7' },
+        }),
+      )
+      const upd = adapter.findRun('UPDATE "ticket" SET device_uuid')
+      expect(upd).toBeDefined()
+      expect(upd!.params).toEqual(['dev-7', 'ticket-001'])
+      // First writer wins — never overwrites an existing seed.
+      expect(upd!.sql).toContain('device_uuid IS NULL')
+    })
+
+    it('rows without a device (guest/legacy) leave device_uuid NULL', async () => {
+      await applyTicketLog(
+        adapter,
+        entry({
+          action: 'SET_ANONYMOUS_ADDRESS',
+          payload: { anonymous_address: 'x' },
+        }),
+      )
+      const ins = adapter.findRun('INSERT INTO "ticket"')
+      expect(ins).toBeDefined()
+      expect(ins!.params![5]).toBeNull()
+      expect(adapter.findRun('UPDATE "ticket" SET device_uuid')).toBeUndefined()
+    })
+  })
 })
 
 describe('applyLogsBatch', () => {

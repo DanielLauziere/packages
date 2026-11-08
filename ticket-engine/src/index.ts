@@ -154,6 +154,7 @@ export type {
 } from "./podClient.js";
 export {
   PRINT_ROWS_SQL,
+  CHAIN_SEED_SQL,
   parsePrintPayload,
   mapPrintRows,
   readPrintFold,
