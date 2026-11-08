@@ -11,7 +11,7 @@ import {
   type BatonDeps,
 } from "./batonLoop.js";
 import type { PrintRow } from "./printProtocol.js";
-import { PRINT_ALERT_MS, PRINT_SUCCESS, foldPrintBaton } from "./printProtocol.js";
+import { PRINT_ALERT_MS, PRINT_REASON_STRANDED, PRINT_SUCCESS, foldPrintBaton } from "./printProtocol.js";
 
 // The ticket's creating device comes from its FIRST log row (any action) —
 // the chain[0] seed
@@ -170,20 +170,21 @@ describe("runBatonPrint", () => {
     });
   });
 
-  it("send failure announces PRINT_PASS and returns (advanced via next round → waiting)", async () => {
+  it("send failure hands over immediately: PRINT_PASS stranded, no retry", async () => {
     const { deps, appendLog, printTicket } = makeDeps(
       { getChainSeedRow: async () => seedCreatorRow(DEVICE_A) },
       DEVICE_A,
     );
     printTicket.mockResolvedValueOnce(false);
     const result = await runBatonPrint(deps, args);
-    // pass appended once (passAuthors empty), then next iteration is still
-    // holder+capable → send refused again … bounded by MAX_ITERATIONS →
-    // outcome advanced (a log was written this run).
+    // Failover (item 9): one refused send → a `stranded` pass that opens the
+    // floor. The device does not retry itself.
     expect(result.outcome).toBe("advanced");
+    expect(printTicket).toHaveBeenCalledTimes(1);
+    expect(appendLog).toHaveBeenCalledTimes(1);
     expect(appendLog.mock.calls[0]![0]).toMatchObject({
       action: "PRINT_PASS",
-      payload: { reason: "print_failed" },
+      payload: { reason: PRINT_REASON_STRANDED },
     });
   });
 
@@ -244,8 +245,8 @@ describe("runBatonPrint", () => {
         { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
         { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
       ],
-          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-});
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+    });
     const createdAt = 100_000 - PRINT_ALERT_MS - 1; // >60s before now
     const result = await runBatonPrint(deps, {
       ...args,
@@ -264,12 +265,34 @@ describe("runBatonPrint", () => {
       getPrintRows: async () => [
         { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: "print_failed", device_id: DEVICE_A } },
       ],
-          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-});
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+    });
     const createdAt = 100_000 - PRINT_ALERT_MS - 1;
     const result = await runBatonPrint(deps, {
       ...args,
       ticket: { ...TICKET, time_stamp: createdAt },
+      admin: { uuid: "admin-1" },
+    });
+    expect(result.outcome).toBe("alert");
+    expect(deps.appendLog).not.toHaveBeenCalled();
+    expect(deps.printTicket).not.toHaveBeenCalled();
+  });
+
+  it("original device sees alert after its one failed send wrote a stranded pass", async () => {
+    // Failover (item 9): the creator's send was refused, so it wrote a
+    // `stranded` pass (not print_failed). With no peer capable the fold ends
+    // stranded; after 60 s the creator must still get the alert.
+    const { deps } = makeDeps({
+      isKitchenCapable: () => false,
+      getPrintRows: async () => [
+        { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A } },
+      ],
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+    });
+    const createdAt = 100_000 - PRINT_ALERT_MS - 1;
+    const result = await runBatonPrint(deps, {
+      ...args,
+      ticket: { ...TICKET, uuid: "t-stranded-alert", time_stamp: createdAt },
       admin: { uuid: "admin-1" },
     });
     expect(result.outcome).toBe("alert");
@@ -283,11 +306,9 @@ describe("runBatonPrint", () => {
       getPrintRows: async () => [
         { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: "print_failed", device_id: DEVICE_A } },
       ],
-          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-});
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+    });
     const createdAt = 100_000 - 30_000;
-    // Distinct uuid: the send-failure cooldown from earlier tests is keyed by
-    // ticket uuid (module state) and would otherwise win the `wait` branch.
     const result = await runBatonPrint(deps, {
       ...args,
       ticket: { ...TICKET, uuid: "t-alert-pf-pending", time_stamp: createdAt },
@@ -306,8 +327,8 @@ describe("runBatonPrint", () => {
         { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
         { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
       ],
-          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-});
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+    });
     // Ticket created 30s ago — not yet 60s, so alert not yet active.
     const createdAt = 100_000 - 30_000;
     const result = await runBatonPrint(deps, {
@@ -444,5 +465,71 @@ describe("same admin, two devices", () => {
     });
     expect(printTicket).not.toHaveBeenCalled();
     expect(result.outcome).not.toBe("printed");
+  });
+});
+
+describe("failover — a refused holder hands the baton off (item 9)", () => {
+  const strandedRows: PrintRow[] = [
+    { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A } },
+  ];
+
+  it("a capable peer requests over a stranded pass (the old assigned-fold lock-out)", async () => {
+    // Before item 9 T3 could never request: the fold was `assigned` and the
+    // request branch required `solicit`. Now the stranded pass opens the floor.
+    const { deps, appendLog, printTicket } = makeDeps(
+      { getPrintRows: async () => strandedRows, getChainSeedRow: async () => seedCreatorRow(DEVICE_A) },
+      DEVICE_B,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-1" } });
+    expect(result.outcome).toBe("advanced");
+    expect(printTicket).not.toHaveBeenCalled();
+    expect(appendLog.mock.calls[0]![0]).toMatchObject({ action: "PRINT_REQUEST" });
+  });
+
+  it("the stranded holder reassigns to the first requester and is out", async () => {
+    const rows: PrintRow[] = [
+      ...strandedRows,
+      { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
+    ];
+    const { deps, appendLog, printTicket } = makeDeps(
+      { getPrintRows: async () => rows, getChainSeedRow: async () => seedCreatorRow(DEVICE_A) },
+      DEVICE_A,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-1" } });
+    expect(result.outcome).toBe("advanced");
+    expect(printTicket).not.toHaveBeenCalled();
+    expect(appendLog.mock.calls[0]![0]).toMatchObject({
+      action: "PRINT_REASSIGN",
+      payload: { to: DEVICE_B },
+    });
+  });
+
+  it("a non-capable peer stays out of a stranded fold", async () => {
+    const { deps, appendLog, printTicket } = makeDeps(
+      {
+        isKitchenCapable: () => false,
+        getPrintRows: async () => strandedRows,
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-1" } });
+    expect(printTicket).not.toHaveBeenCalled();
+    expect(appendLog).not.toHaveBeenCalled();
+    expect(result.outcome).not.toBe("printed");
+  });
+
+  it("fold.stranded is false for a not_capable pass and true only for a stranded one", () => {
+    const notCapable = foldPrintBaton(
+      [{ action: "PRINT_PASS", author: "admin-1", time_stamp: 1, payload: { reason: "not_capable", device_id: DEVICE_A } }],
+      DEVICE_A,
+    );
+    expect(notCapable.stranded).toBe(false);
+    expect(notCapable.state).toBe("solicit");
+
+    const stranded = foldPrintBaton(strandedRows, DEVICE_A);
+    expect(stranded.stranded).toBe(true);
+    expect(stranded.holder).toBe(DEVICE_A);
+    expect(stranded.decider).toBe(true);
   });
 });

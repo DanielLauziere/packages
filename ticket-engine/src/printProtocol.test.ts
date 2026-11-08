@@ -741,3 +741,96 @@ describe("printSpinnerState — silent-print spinner", () => {
     expect(printSpinnerState({ ...trying, ageMs: 0 })).toBe("trying");
   });
 });
+
+describe("foldPrintBaton — stranded failover (item 9)", () => {
+  it("a stranded pass marks the fold stranded; not_capable does not", () => {
+    const stranded = foldPrintBaton(
+      [row("PRINT_PASS", A, 10, { reason: "stranded" })],
+      A,
+    );
+    expect(stranded.stranded).toBe(true);
+    expect(stranded.decider).toBe(true);
+
+    const notCapable = foldPrintBaton(
+      [row("PRINT_PASS", A, 10, { reason: "not_capable" })],
+      A,
+    );
+    expect(notCapable.stranded).toBe(false);
+  });
+
+  it("a reassign after the stranded pass clears the flag", () => {
+    const fold = foldPrintBaton(
+      [
+        row("PRINT_PASS", A, 10, { reason: "stranded" }),
+        row("PRINT_REASSIGN", A, 20, { to: B }),
+      ],
+      A,
+    );
+    expect(fold.stranded).toBe(false);
+    expect(fold.holder).toBe(B);
+  });
+
+  it("printFailAuthors counts a stranded pass (the creator alert must arm)", () => {
+    const fold = foldPrintBaton(
+      [row("PRINT_PASS", A, 10, { reason: "stranded" })],
+      A,
+    );
+    expect(fold.printFailAuthors).toEqual([A]);
+  });
+});
+
+describe("decidePrint — stranded failover (item 9)", () => {
+  const base = { now: 1000000 };
+
+  function strandedFold() {
+    return foldPrintBaton([row("PRINT_PASS", A, 10, { reason: "stranded" })], A);
+  }
+
+  it("a stranded holder never sends — even when capable", () => {
+    const fold = strandedFold();
+    expect(decidePrint(fold, { ...base, me: A, capable: true })).toEqual({
+      kind: "wait",
+    });
+  });
+
+  it("a stranded holder reassigns to the first requester", () => {
+    const fold = foldPrintBaton(
+      [
+        row("PRINT_PASS", A, 10, { reason: "stranded" }),
+        row("PRINT_REQUEST", B, 20, {}),
+      ],
+      A,
+    );
+    expect(decidePrint(fold, { ...base, me: A, capable: true })).toEqual({
+      kind: "reassign",
+      to: B,
+    });
+  });
+
+  it("a capable peer requests over a stranded pass (the old assigned-fold lock-out)", () => {
+    const fold = strandedFold();
+    expect(decidePrint(fold, { ...base, me: B, capable: true }).kind).toBe(
+      "request",
+    );
+  });
+
+  it("a non-capable peer does not request over a stranded pass", () => {
+    const fold = strandedFold();
+    expect(decidePrint(fold, { ...base, me: B, capable: false }).kind).toBe(
+      "wait",
+    );
+  });
+
+  it("a device that already requested does not request again", () => {
+    const fold = foldPrintBaton(
+      [
+        row("PRINT_PASS", A, 10, { reason: "stranded" }),
+        row("PRINT_REQUEST", B, 20, {}),
+      ],
+      A,
+    );
+    expect(decidePrint(fold, { ...base, me: B, capable: true }).kind).toBe(
+      "wait",
+    );
+  });
+});

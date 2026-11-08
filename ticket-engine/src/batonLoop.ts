@@ -16,6 +16,7 @@ import {
   manualTakeoverAllowed,
   PRINT_ALERT_MS,
   PRINT_PASS,
+  PRINT_REASON_STRANDED,
   PRINT_REASSIGN,
   PRINT_REQUEST,
   PRINT_SUCCESS,
@@ -25,9 +26,9 @@ import {
 
 export interface BatonResult {
   outcome: 'printed' | 'advanced' | 'alert' | 'conflict' | 'waiting';
-  // Arm/re-arm local timers: retryInMs = sender cooldown before another
-  // attempt; alertInMs = time until my own PRINT_REQUEST strands (60 s (!)).
-  retryInMs?: number;
+  // Arm/re-arm local timers: alertInMs = time until my own PRINT_REQUEST
+  // strands (60 s (!)). No retryInMs — a refused send now fails over
+  // immediately (item 9) instead of retrying on a cooldown.
   alertInMs?: number;
 }
 
@@ -110,17 +111,13 @@ export async function readPrintFold<
 
 const MAX_ITERATIONS = 10;
 
-// Per-ticket send-failure state (session memory): a refused send flips this
-// device non-capable for a cooldown so the fold can announce/reassign instead
-// of hot-retrying. Cleared on success.
-const sendCooldownUntil = new Map<string, number>();
-const sendFailures = new Map<string, number>();
-
-/** Test-only: clear the per-ticket send-failure session state. */
-export function _resetBatonSendStateForTests(): void {
-  sendCooldownUntil.clear();
-  sendFailures.clear();
-}
+/**
+ * Test-only: clear per-ticket baton session state. Kept for the suites that
+ * reset module state between cases; there is no send-failure cooldown anymore
+ * (item 9 replaced retry-with-backoff with immediate failover), so this is a
+ * no-op retained for API stability.
+ */
+export function _resetBatonSendStateForTests(): void {}
 
 export interface BatonDeps<Ticket, TLG, TAdmin> {
   /** Load the ticket's PRINT_* baton rows (client reads its real DB). */
@@ -221,12 +218,7 @@ export async function runBatonPrint<
     );
     const now = Date.now() + offset;
     const createdAt = Number(ticket.time_stamp) || undefined;
-    // The cooldown is stored in local wall-clock (Date.now()); compare on that
-    // same clock. Using the offset-adjusted `now` here shrinks every cooldown
-    // by the server offset — with a skewed clock the device never enters
-    // the non-capable window, hot-loops failed sends, and can never reassign.
-    const cooldownRemaining = (sendCooldownUntil.get(ticket.uuid) ?? 0) - Date.now();
-    const capable = deps.isKitchenCapable() && cooldownRemaining <= 0;
+    const capable = deps.isKitchenCapable();
     const decision = decidePrint(fold, {
       me,
       capable,
@@ -252,25 +244,23 @@ export async function runBatonPrint<
         }
 
         if (printed) {
-          sendCooldownUntil.delete(ticket.uuid);
-          sendFailures.delete(ticket.uuid);
           await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, {});
           return { outcome: 'printed' };
         }
 
-        // Transport refused — announce so capable peers can take the baton
-        // (doc scenario 3), then back off on a cooldown.
-        if (!fold.passAuthors.includes(me)) {
-          await appendPrintLog(deps, ticket, admin.uuid, PRINT_PASS, {
-            reason: 'print_failed',
-          });
-          advanced = true;
-        }
-        const failures = (sendFailures.get(ticket.uuid) ?? 0) + 1;
-        sendFailures.set(ticket.uuid, failures);
-        const backoffMs = Math.min(failures, 6) * 2000;
-        sendCooldownUntil.set(ticket.uuid, Date.now() + backoffMs);
-        continue;
+        // Transport refused. Failover (item 9): this device does NOT retry —
+        // a refused send is treated as a dead printer (wrong IP, offline,
+        // wrong port), and retrying the same device never fixes that. Write a
+        // `stranded` pass that opens the floor, so a capable peer requests and
+        // this holder reassigns to it. If no peer is capable the fold ends
+        // stranded and the 60 s alert fires.
+        await appendPrintLog(deps, ticket, admin.uuid, PRINT_PASS, {
+          reason: PRINT_REASON_STRANDED,
+        });
+        // Stop here: this device is out of the chain. Re-iterating would
+        // re-read the fold, see itself as holder with an open pass and no
+        // requests, and send again — the exact retry this replaces.
+        return { outcome: 'advanced' };
       }
 
       case 'pass':
@@ -317,14 +307,6 @@ export async function runBatonPrint<
         return { outcome: advanced ? 'advanced' : 'waiting' };
 
       case 'wait': {
-        // Recently-failed holder: retry after the cooldown instead of
-        // blocking this device's print queue.
-        if (cooldownRemaining > 0 && fold.holder === me && !fold.terminal) {
-          return {
-            outcome: advanced ? 'advanced' : 'waiting',
-            retryInMs: cooldownRemaining,
-          };
-        }
         // Waiter on my own request: arm the 60 s (!) alert timer.
         if (myRequest && !fold.terminal && fold.holder !== me) {
           return {

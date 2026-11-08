@@ -18,6 +18,9 @@ const A = 'admin-a'
 const B = 'admin-b'
 const C = 'admin-c'
 const D = 'admin-d'
+const T1 = 'dev-t1'
+const T2 = 'dev-t2'
+const T3 = 'dev-t3'
 const SERVER = null
 
 interface HarnessDevice {
@@ -123,6 +126,9 @@ function step(w: World, id: string | null): string {
   switch (decision.kind) {
     case 'send':
       if (d.broken) {
+        // Failover (item 9): a refused send is a `stranded` pass, not a
+        // silent capability flip — the payload reason is what opens the floor.
+        append(w, 'PRINT_PASS', id, { reason: 'stranded' })
         d.capable = false
         break
       }
@@ -250,7 +256,7 @@ describe('Appendix A — every print flow', () => {
     expect(dev(w, SERVER).sends).toHaveLength(0)
   })
 
-  it('row 3: broken creator → PASS → B,C REQUEST → REASSIGN{first seen} → successor prints', () => {
+  it('row 3: broken creator → stranded PASS → B,C REQUEST → REASSIGN{first seen} → successor prints', () => {
     const w = world(
       [
         device(A, { capable: true, broken: true }),
@@ -259,8 +265,10 @@ describe('Appendix A — every print flow', () => {
       ],
       A,
     )
-    expect(step(w, A)).toBe('send') // refused → capability flips off
-    expect(step(w, A)).toBe('pass')
+    // Failover (item 9): the refused send IS the stranded pass — no second
+    // step, no retry. The pass payload is what opens the floor.
+    expect(step(w, A)).toBe('send')
+    expect(w.rows.at(-1)).toMatchObject({ action: 'PRINT_PASS', payload: { reason: 'stranded' } })
     expect(step(w, C)).toBe('request')
     expect(step(w, B)).toBe('request')
     expect(step(w, A)).toBe('reassign') // first request seen: C
@@ -285,7 +293,7 @@ describe('Appendix A — every print flow', () => {
     expectI1LoudOrPrinted(w)
   })
 
-  it('row 5: chain hop — reassigned C also broken → reannounce → REASSIGN{B} → B prints', () => {
+  it('row 5: chain hop — reassigned C also broken → stranded PASS → REASSIGN{B} → B prints', () => {
     const w = world(
       [
         device(A, { capable: false }),
@@ -298,8 +306,11 @@ describe('Appendix A — every print flow', () => {
     expect(step(w, C)).toBe('request')
     expect(step(w, B)).toBe('request')
     expect(step(w, A)).toBe('reassign') // first seen: C
-    expect(step(w, C)).toBe('send') // refused → flips off
-    expect(step(w, C)).toBe('pass') // holder re-announces (decider seat)
+    // C's one send is refused → stranded pass (same step, no retry) → C is
+    // still the decider, so it reassigns to the next requester (B), skipping
+    // its own backlog request.
+    expect(step(w, C)).toBe('send')
+    expect(w.rows.at(-1)).toMatchObject({ action: 'PRINT_PASS', payload: { reason: 'stranded' } })
     expect(step(w, C)).toBe('reassign') // skips its own backlog request → B
     expect(step(w, B)).toBe('send')
     const fold = fullFold(w)
@@ -598,5 +609,76 @@ describe('randomized interleavings (seeded) — I1/I2/I3', () => {
         throw new Error(`${(e as Error).message} [seed ${seed}]`)
       }
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Item 9 — stranded-baton failover
+
+describe('item 9 — a refused holder hands the baton off', () => {
+  it('broken holder + capable spare: one send, one stranded pass, spare prints — no 60s wait', () => {
+    // The exact case the item exists for: T1 creates (no printer), T2's
+    // printer is broken, T3's works. Before item 9 T2 retried forever and T3
+    // could never request (the fold was `assigned`, not `solicit`).
+    const w = world(
+      [
+        device(T1, { capable: false }),
+        device(T2, { capable: true, broken: true }),
+        device(T3, { capable: true }),
+      ],
+      T1,
+    )
+    expect(step(w, T1)).toBe('pass') // T1 has no printer → not_capable
+    expect(step(w, T2)).toBe('request')
+    expect(step(w, T1)).toBe('reassign') // → T2
+    expect(step(w, T2)).toBe('send') // T2's one send is refused
+    expect(w.rows.at(-1)).toMatchObject({ action: 'PRINT_PASS', payload: { reason: 'stranded' } })
+
+    // T3 could NOT request before item 9; now the stranded pass opens the floor.
+    expect(foldOf(w, T3).stranded).toBe(true)
+    expect(step(w, T3)).toBe('request')
+    expect(step(w, T2)).toBe('reassign') // T2 hands off to T3
+    expect(step(w, T3)).toBe('send')
+
+    expect(totalPrints(w)).toBe(1)
+    expect(fullFold(w).state).toBe('printed')
+    // The ticket printed on the first attempt — no 60 s alert, no human.
+    expect(w.devices.every((d) => !d.alertShown)).toBe(true)
+    expect(w.devices.every((d) => d.sends.length <= 1)).toBe(true)
+  })
+
+  it('a stranded holder never sends twice, even across many rounds', () => {
+    const w = world(
+      [device(T1, { capable: true, broken: true }), device(T2, { capable: true })],
+      T1,
+    )
+    run(w, mulberry32(9), { rounds: 40 })
+    const t1 = dev(w, T1)
+    expect(t1.sends.length).toBe(0) // T1 never printed (broken)
+    expect(totalPrints(w)).toBe(1)
+    expect(fullFold(w).state).toBe('printed')
+    // T1 never printed; its only rows are the stranded pass and the handoff.
+    expect(w.rows.filter((r) => r.author === T1)).toHaveLength(2)
+    expect(w.rows.find((r) => r.author === T1)).toMatchObject({
+      action: 'PRINT_PASS',
+      payload: { reason: 'stranded' },
+    })
+    expect(w.rows.filter((r) => r.author === T1).map((r) => r.action)).toEqual([
+      'PRINT_PASS',
+      'PRINT_REASSIGN',
+    ])
+  })
+
+  it('no capable spare → the fold ends stranded and the alert still fires', () => {
+    const w = world(
+      [device(T1, { capable: true, broken: true }), device(T2, { capable: false })],
+      T1,
+    )
+    run(w, mulberry32(10), { rounds: 20 })
+    const fold = fullFold(w)
+    expect(fold.state).not.toBe('printed')
+    expect(fold.stranded).toBe(true)
+    expect(totalPrints(w)).toBe(0)
+    expectI1LoudOrPrinted(w)
   })
 })

@@ -16,6 +16,13 @@ const PRINT_ACTION_SET: ReadonlySet<string> = new Set(PRINT_ACTIONS);
 
 export const PRINT_ALERT_MS = 60000;
 
+// Silent-print failover (backlog item 9): a holder whose send is refused hands
+// the baton off instead of retrying forever. A `stranded` pass is that handoff
+// — it opens the floor so any capable device not already in the chain can
+// request, and the holder reassigns to the first requester. The retry-then-
+// reassign cooldown is gone for a refused send; the device is out permanently.
+export const PRINT_REASON_STRANDED = "stranded";
+
 // Silent-print spinner: the icon spins from the moment a printable ticket
 // enters the feed until PRINT_SUCCESS lands, then flips to the failed state
 // once the ticket is this old with no success (5 minutes).
@@ -56,6 +63,10 @@ export interface PrintFold {
    * attempt that was refused), distinct from 'not_capable' announces. Used
    * by the original-device stranded-print alert. */
   printFailAuthors: (string | null)[];
+  /** True when the current holder's latest pass is a failover handoff
+   * (`reason='stranded'`) and it has not reassigned yet. Any capable device
+   * not already in the chain may request (backlog item 9). */
+  stranded: boolean;
 }
 
 function pushByAuthor(
@@ -93,6 +104,15 @@ export function foldPrintBaton(
         if (!passAuthors.includes(author)) passAuthors.push(author);
         if (
           row.payload?.reason === "print_failed" &&
+          !printFailAuthors.includes(author)
+        ) {
+          printFailAuthors.push(author);
+        }
+        // Failover (item 9): a `stranded` pass is also a real refused send, so
+        // it counts for the creator strand alert. Without this the creator
+        // would never arm the alert after its one failed send.
+        if (
+          row.payload?.reason === PRINT_REASON_STRANDED &&
           !printFailAuthors.includes(author)
         ) {
           printFailAuthors.push(author);
@@ -185,6 +205,13 @@ export function foldPrintBaton(
   );
   const decider = openPass && holderReassigns.length === 0;
 
+  // Failover (item 9): the holder's latest pass is a `stranded` handoff and
+  // it has not reassigned yet → the floor is open for any capable device not
+  // already in the chain.
+  const stranded =
+    holderReassigns.length === 0 &&
+    holderPasses.some((p) => p.payload?.reason === PRINT_REASON_STRANDED);
+
   const terminal = successes.length > 0;
 
   let state: PrintFoldState;
@@ -206,6 +233,7 @@ export function foldPrintBaton(
     passAuthors,
     reassignAuthors,
     printFailAuthors,
+    stranded,
   };
 }
 
@@ -260,6 +288,15 @@ export function decidePrint(
   }
 
   if (fold.holder === me) {
+    // Failover (item 9): a stranded pass means this device already had its one
+    // send and it was refused. Never send again — reassign or wait.
+    if (fold.stranded) {
+      if (fold.decider) {
+        const to = fold.requests.find((r) => r !== null && r !== me);
+        if (to) return { kind: "reassign", to };
+      }
+      return { kind: "wait" };
+    }
     if (capable) return { kind: "send" };
     if (!fold.passAuthors.includes(me)) return { kind: "pass" };
     if (fold.decider) {
@@ -269,7 +306,13 @@ export function decidePrint(
     return { kind: "wait" };
   }
 
-  if (capable && fold.state === "solicit" && !fold.requests.includes(me)) {
+  // Failover (item 9): a stranded holder's floor is open — a capable device
+  // not already in the chain may request, same as an open solicit.
+  if (
+    capable &&
+    !fold.requests.includes(me) &&
+    (fold.state === "solicit" || fold.stranded)
+  ) {
     return { kind: "request" };
   }
 
