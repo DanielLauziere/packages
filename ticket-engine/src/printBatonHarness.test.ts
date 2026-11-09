@@ -35,6 +35,16 @@ interface HarnessDevice {
   sends: { held: boolean; manual?: boolean }[]
   requestedAt: number | null
   alertShown: boolean
+  /**
+   * Production parity: `appendPrintLog` stamps `payload.device_id` with the
+   * acting device (`batonLoop.ts`), and the fold reads identity from that key
+   * (`deviceIdOf` → `payload.device_id` → `author`). A harness that appends
+   * rows with only `author` silently exercises the legacy admin-as-identity
+   * fallback instead, so two same-admin devices collapse into one and every
+   * "peer stands down" assertion inverts. Rows are stamped with the device,
+   * exactly as the client does.
+   */
+  stampDeviceId: boolean
 }
 
 interface World {
@@ -75,6 +85,9 @@ function device(id: string | null, opts: Partial<HarnessDevice> = {}): HarnessDe
     sends: [],
     requestedAt: null,
     alertShown: false,
+    // Default to production parity (stamp the device). Opt OUT explicitly for
+    // the legacy-row cases that assert the admin fallback.
+    stampDeviceId: opts.stampDeviceId ?? true,
   }
 }
 
@@ -96,6 +109,30 @@ function append(w: World, action: string, author: string | null, payload?: any):
   w.rows.push(makeRow(action, author, payload))
   for (const d of w.devices) {
     if (!d.crashed && !w.hold.has(d.id)) w.view.set(d.id, w.rows.length)
+  }
+}
+
+/**
+ * Append a row exactly the way the client's `appendPrintLog` does: the acting
+ * **admin** in `author`, the acting **device** in `payload.device_id`. The
+ * harness's `append` above leaves the payload untouched, so callers that
+ * write device-stamped rows use this instead.
+ */
+function appendDeviceRow(
+  w: World,
+  action: string,
+  d: HarnessDevice,
+  payload: Record<string, unknown> = {},
+): void {
+  const stamped = d.stampDeviceId ? { ...payload, device_id: d.id } : payload
+  w.rows.push({
+    action,
+    author: d.admin,
+    time_stamp: ++seq,
+    payload: stamped,
+  })
+  for (const other of w.devices) {
+    if (!other.crashed && !w.hold.has(other.id)) w.view.set(other.id, w.rows.length)
   }
 }
 
@@ -128,23 +165,23 @@ function step(w: World, id: string | null): string {
       if (d.broken) {
         // Failover (item 9): a refused send is a `stranded` pass, not a
         // silent capability flip — the payload reason is what opens the floor.
-        append(w, 'PRINT_PASS', id, { reason: 'stranded' })
+        appendDeviceRow(w, 'PRINT_PASS', d, { reason: 'stranded' })
         d.capable = false
         break
       }
       d.prints++
       d.sends.push({ held: fold.holder === id })
-      append(w, 'PRINT_SUCCESS', id, {})
+      appendDeviceRow(w, 'PRINT_SUCCESS', d)
       break
     case 'pass':
-      append(w, 'PRINT_PASS', id, {})
+      appendDeviceRow(w, 'PRINT_PASS', d)
       break
     case 'request':
       d.requestedAt = w.now
-      append(w, 'PRINT_REQUEST', id, {})
+      appendDeviceRow(w, 'PRINT_REQUEST', d)
       break
     case 'reassign':
-      append(w, 'PRINT_REASSIGN', id, { to: decision.to })
+      appendDeviceRow(w, 'PRINT_REASSIGN', d, { to: decision.to })
       break
     case 'alert':
       d.alertShown = true
@@ -152,7 +189,7 @@ function step(w: World, id: string | null): string {
       if (!d.broken) {
         d.prints++
         d.sends.push({ held: false, manual: true })
-        append(w, 'PRINT_SUCCESS', id, { manual: true })
+        appendDeviceRow(w, 'PRINT_SUCCESS', d, { manual: true })
       }
       break
     default:
@@ -658,15 +695,15 @@ describe('item 9 — a refused holder hands the baton off', () => {
     expect(totalPrints(w)).toBe(1)
     expect(fullFold(w).state).toBe('printed')
     // T1 never printed; its only rows are the stranded pass and the handoff.
-    expect(w.rows.filter((r) => r.author === T1)).toHaveLength(2)
-    expect(w.rows.find((r) => r.author === T1)).toMatchObject({
+    // Identity is the DEVICE (payload.device_id), not the admin — the rows
+    // are stamped the way the client's `appendPrintLog` stamps them.
+    const t1Rows = w.rows.filter((r) => (r.payload as any)?.device_id === T1)
+    expect(t1Rows).toHaveLength(2)
+    expect(t1Rows[0]).toMatchObject({
       action: 'PRINT_PASS',
-      payload: { reason: 'stranded' },
+      payload: { reason: 'stranded', device_id: T1 },
     })
-    expect(w.rows.filter((r) => r.author === T1).map((r) => r.action)).toEqual([
-      'PRINT_PASS',
-      'PRINT_REASSIGN',
-    ])
+    expect(t1Rows.map((r) => r.action)).toEqual(['PRINT_PASS', 'PRINT_REASSIGN'])
   })
 
   it('no capable spare → the fold ends stranded and the alert still fires', () => {

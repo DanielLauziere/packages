@@ -434,3 +434,418 @@ describe("item 5 — two replicas over the real wire codec, server killed mid-ch
     expect(foldTwo.conflict).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The fleet-convergence scenarios: N admin apps, one capable non-broken
+// printer, repeated. Each scenario runs REPEATS times with a different seed
+// so the interleaving race is exercised, not just one lucky order.
+//
+// Every replica keeps its own row set and its own device id; rows travel
+// through the real compact codec. A "print" is a real transport call in the
+// sense the loop makes it: the device decided `send` and its transport
+// accepted. The assertion per repeat: exactly one physical print, by the
+// device that actually has a working printer, terminal fold, identical chain
+// on every replica (I4), and only the holder ever opens a send (I3).
+// ---------------------------------------------------------------------------
+
+const REPEATS = 20;
+
+/** A PRINT_* row as the wire carries it: PrintRow plus the row uuid (identity). */
+interface FleetRow extends PrintRow {
+  uuid: string;
+}
+
+interface FleetDevice {
+  id: string;
+  admin: string;
+  /** No kitchen printer configured → never capable, announces and exits. */
+  configured: boolean;
+  /** Printer configured but broken → the one send is refused (stranded). */
+  broken: boolean;
+  rows: FleetRow[];
+  prints: number;
+  sends: { held: boolean }[];
+  requestedAt: number | null;
+  /** True once this device has written a PRINT_REASSIGN (staleness probe). */
+  reassigned: boolean;
+}
+
+function fleetDevice(id: string, admin: string, opts: Partial<FleetDevice> = {}): FleetDevice {
+  return {
+    id,
+    admin,
+    configured: opts.configured ?? true,
+    broken: opts.broken ?? false,
+    rows: [],
+    prints: 0,
+    sends: [],
+    requestedAt: null,
+    reassigned: false,
+  };
+}
+
+const capableOf = (d: FleetDevice) => d.configured && !d.broken;
+
+/** Append a PRINT_* row the way the client does: admin in author, device in payload. */
+function fleetPush(
+  d: FleetDevice,
+  action: string,
+  payload: Record<string, unknown>,
+  ts: number,
+): void {
+  d.rows.push({
+    uuid: `${action}-${d.id}-${ts}`,
+    action,
+    author: d.admin,
+    time_stamp: ts,
+    payload: { ...payload, device_id: d.id },
+  });
+}
+
+/** Move every row both replicas have produced, over the real compact codec. */
+function fleetExchange(
+  a: FleetDevice,
+  b: FleetDevice,
+  ticketUuid: string,
+  lg: string,
+): void {
+  for (const [from, to] of [
+    [a, b],
+    [b, a],
+  ] as const) {
+    if (from.rows.length === 0) continue;
+    const group = encodeTicketLogGroup(
+      from.rows.map((r) => ({
+        uuid: r.uuid,
+        action: r.action,
+        payload: r.payload ?? {},
+        time_stamp: r.time_stamp,
+        admin_uuid: r.author,
+      })),
+    );
+    for (const row of decodeTicketLogGroup(ticketUuid, lg, group)) {
+      if (to.rows.some((r) => r.uuid === row.uuid)) continue;
+      to.rows.push({
+        uuid: row.uuid,
+        action: row.action,
+        author: row.admin_uuid ?? null,
+        time_stamp: row.time_stamp,
+        payload: row.payload,
+      });
+    }
+  }
+}
+
+/** Converge a whole fleet: every pair exchanges until no row count changes. */
+function fleetConverge(fleet: FleetDevice[], ticketUuid: string, lg: string): void {
+  for (let pass = 0; pass < fleet.length; pass++) {
+    const before = fleet.map((d) => d.rows.length).join(",");
+    for (let i = 0; i < fleet.length; i++) {
+      for (let j = i + 1; j < fleet.length; j++) {
+        fleetExchange(fleet[i]!, fleet[j]!, ticketUuid, lg);
+      }
+    }
+    if (fleet.map((d) => d.rows.length).join(",") === before) return;
+  }
+}
+
+/**
+ * One step for one device, mirroring `runBatonPrint`'s decision→effect. A
+ * fresh `now` (no createdAt) keeps the 60 s strand alerts out of the
+ * scenario's path — these scenarios must resolve in milliseconds.
+ */
+function fleetStep(d: FleetDevice, creator: string, now: number): string {
+  const fold = foldPrintBaton(d.rows, creator);
+  const myRequest = d.rows.find(
+    (r) =>
+      r.action === "PRINT_REQUEST" &&
+      (r.payload?.device_id as string | undefined) === d.id,
+  );
+  const decision = decidePrint(fold, {
+    me: d.id,
+    capable: capableOf(d),
+    now,
+    requestedAt: myRequest ? myRequest.time_stamp : null,
+  });
+  switch (decision.kind) {
+    case "send":
+      if (d.broken) {
+        fleetPush(d, "PRINT_PASS", { reason: "stranded" }, now);
+        break;
+      }
+      d.prints++;
+      d.sends.push({ held: fold.holder === d.id });
+      fleetPush(d, "PRINT_SUCCESS", {}, now);
+      break;
+    case "pass":
+      fleetPush(d, "PRINT_PASS", {}, now);
+      break;
+    case "request":
+      d.requestedAt = now;
+      fleetPush(d, "PRINT_REQUEST", {}, now);
+      break;
+    case "reassign":
+      d.reassigned = true;
+      fleetPush(d, "PRINT_REASSIGN", { to: decision.to }, now);
+      break;
+    default:
+      break;
+  }
+  return decision.kind;
+}
+
+/**
+ * Run one scenario to resolution: shuffle the fleet each round (seeded),
+ * step every device, converge. Stops when the fold is terminal or a round
+ * produces no new rows and no print.
+ *
+ * `partialViews` additionally runs a pass where devices step WITHOUT a full
+ * converge between them — so a stale holder can act on a chain that is in
+ * flight (the guard `reassignAuthors.includes(me)` is only reachable when a
+ * holder observes its own reassign after the fact). Without this pass the
+ * tests would never execute that branch.
+ */
+function runFleet(
+  fleet: FleetDevice[],
+  creator: string,
+  rng: () => number,
+  ticketUuid: string,
+  lg: string,
+  opts: { partialViews?: boolean } = {},
+): void {
+  let now = 1_000_000;
+  for (let round = 0; round < 200; round++) {
+    const order = fleet.map((d) => d.id);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [order[i], order[j]] = [order[j]!, order[i]!];
+    }
+    const beforeRows = fleet.map((d) => d.rows.length).join(",");
+    const beforePrints = fleet.reduce((n, d) => n + d.prints, 0);
+    for (const id of order) {
+      fleetStep(fleet.find((d) => d.id === id)!, creator, now);
+    }
+    if (opts.partialViews) {
+      // Only the creator/holder pair exchanges — a partial view, not a
+      // converge. The stale holder can now see its own reassign in flight.
+      fleetPairExchange(fleet, creator, ticketUuid, lg);
+    } else {
+      fleetConverge(fleet, ticketUuid, lg);
+    }
+    now += 1000;
+    const fold = foldPrintBaton(fleet[0]!.rows, creator);
+    if (fold.terminal) return;
+    const afterRows = fleet.map((d) => d.rows.length).join(",");
+    const afterPrints = fleet.reduce((n, d) => n + d.prints, 0);
+    if (afterRows === beforeRows && afterPrints === beforePrints) return;
+  }
+}
+
+/** Exchange only the rows of the device that currently holds (partial view). */
+function fleetPairExchange(
+  fleet: FleetDevice[],
+  creator: string,
+  ticketUuid: string,
+  lg: string,
+): void {
+  const fold = foldPrintBaton(fleet[0]!.rows, creator);
+  const holder = fleet.find((d) => d.id === fold.holder);
+  if (!holder) return;
+  for (const other of fleet) {
+    if (other === holder) continue;
+    fleetExchange(holder, other, ticketUuid, lg);
+  }
+}
+
+function expectFleetResolved(fleet: FleetDevice[], creator: string): void {
+  const total = fleet.reduce((n, d) => n + d.prints, 0);
+  expect(total, "physical prints").toBe(1);
+  const printers = fleet.filter((d) => d.prints > 0);
+  expect(printers).toHaveLength(1);
+  expect(printers[0]!.broken, "the printer that printed must not be broken").toBe(false);
+  expect(printers[0]!.configured, "the printer that printed must be configured").toBe(true);
+
+  // Only the holder ever opens a send (I3).
+  for (const d of fleet) {
+    for (const s of d.sends) {
+      expect(s.held, `device ${d.id} opened a send without holding the baton`).toBe(true);
+    }
+  }
+
+  // Every replica folds to the identical terminal chain (I4).
+  const folds = fleet.map((d) => foldPrintBaton(d.rows, creator));
+  for (const f of folds) {
+    expect(f.state).toBe("printed");
+    expect(f.terminal).toBe(true);
+    expect(f.conflict).toEqual([]);
+  }
+  const chain = JSON.stringify(folds[0]!.chain);
+  for (const f of folds) {
+    expect(JSON.stringify(f.chain)).toBe(chain);
+  }
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Scenario 1 — guest ticket, 3 admin apps. The server is device A (the
+// holder): no printer, so it announces. Admin #2's printer is broken,
+// admin #3's works.
+// ---------------------------------------------------------------------------
+
+describe("fleet scenario 1 — guest ticket, 3 admins, one working printer", () => {
+  for (let i = 0; i < REPEATS; i++) {
+    it(`repeat ${i + 1}/${REPEATS}`, () => {
+      const lg = `lg-s1-${i}`;
+      const ticket = `t-s1-${i}`;
+      const rng = mulberry32(1000 + i);
+
+      // The server replica (device A) is the creator/holder — it has no
+      // printer, so it announces and reassigns like any non-capable holder.
+      const server = fleetDevice("server", "", { configured: false });
+      const admin1 = fleetDevice("dev-1", "adm-1", { configured: false });
+      const admin2 = fleetDevice("dev-2", "adm-2", { configured: true, broken: true });
+      const admin3 = fleetDevice("dev-3", "adm-3", { configured: true });
+      const fleet = [server, admin1, admin2, admin3];
+
+      // The server announces at completion (guest ticket → server is holder).
+      fleetPush(server, "PRINT_PASS", {}, 1000);
+      fleetConverge(fleet, ticket, lg);
+
+      // Two passes: a clean converge, then a partial-view pass where a stale
+      // holder can observe its own reassign in flight (the stand-down guard).
+      runFleet(fleet, "server", rng, ticket, lg);
+      if (!foldPrintBaton(fleet[0]!.rows, "server").terminal) {
+        runFleet(fleet, "server", rng, ticket, lg, { partialViews: true });
+      }
+      expectFleetResolved(fleet, "server");
+      // The stand-down guard was actually reachable in this run.
+      expect(fleet.some((d) => d.reassigned), "no device reassigned — guard not exercised").toBe(
+        true,
+      );
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 2 — admin ticket created on admin account #1, 3 apps. Admin #1
+// has no printer, #2's is broken, #3's works. This is NOT a guest ticket:
+// the creator's device is chain[0], so the server never participates.
+// ---------------------------------------------------------------------------
+
+describe("fleet scenario 2 — admin ticket (creator admin #1), 3 apps", () => {
+  for (let i = 0; i < REPEATS; i++) {
+    it(`repeat ${i + 1}/${REPEATS}`, () => {
+      const lg = `lg-s2-${i}`;
+      const ticket = `t-s2-${i}`;
+      const rng = mulberry32(2000 + i);
+
+      const admin1 = fleetDevice("dev-1", "adm-1", { configured: false });
+      const admin2 = fleetDevice("dev-2", "adm-2", { configured: true, broken: true });
+      const admin3 = fleetDevice("dev-3", "adm-3", { configured: true });
+      const fleet = [admin1, admin2, admin3];
+
+      // chain[0] = the creating device (dev-1); no announce row needed — the
+      // holder's own loop announces when it cannot print.
+      runFleet(fleet, "dev-1", rng, ticket, lg);
+      expectFleetResolved(fleet, "dev-1");
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 4 — the stale-holder guard. A holder that already reassigned must
+// stand down when it comes back online and sees its own reassign. This is the
+// branch that a fast-converging fleet never reaches (the holder acts before it
+// ever observes the reassign), so it is driven directly: the creator
+// reassigns, then acts again with the reassign visible.
+// ---------------------------------------------------------------------------
+
+describe("fleet scenario 4 — a stale holder stands down after its own reassign", () => {
+  it("the reassigned creator never sends again", () => {
+    const lg = "lg-s4";
+    const ticket = "t-s4";
+
+    // A genuinely stale creator: it reassigns but the successor has NOT
+    // printed yet (no terminal row), then comes back online. It is capable
+    // again (its printer was fixed) and still chain[0] — the ONLY thing that
+    // may stop it sending is the stand-down guard. A terminal short-circuit
+    // cannot mask the guard here because no PRINT_SUCCESS exists yet.
+    //
+    // Built from scratch on one ticket: the creator announces, the successor
+    // requests, the creator reassigns, nobody prints.
+    const creator = fleetDevice("dev-1", "adm-1", { configured: false });
+    const successor = fleetDevice("dev-2", "adm-2", { configured: true });
+    const fleet = [creator, successor];
+
+    // The creator announces (it held, no printer).
+    fleetStep(creator, "dev-1", 1_000_000);
+    expect(creator.rows.at(-1)?.action).toBe("PRINT_PASS");
+    fleetConverge(fleet, ticket, lg);
+
+    // The successor requests; the creator reassigns to it and is out.
+    fleetStep(successor, "dev-1", 1_000_001);
+    expect(successor.rows.at(-1)?.action).toBe("PRINT_REQUEST");
+    fleetConverge(fleet, ticket, lg);
+
+    fleetStep(creator, "dev-1", 1_000_002);
+    expect(creator.rows.at(-1)?.action).toBe("PRINT_REASSIGN");
+    expect(creator.reassigned).toBe(true);
+    fleetConverge(fleet, ticket, lg);
+
+    // No success yet — the successor has not printed. The creator returns
+    // capable (printer fixed) with its reassign visible: it must stand down.
+    const staleFold = foldPrintBaton(creator.rows, "dev-1");
+    expect(staleFold.terminal).toBe(false);
+    expect(staleFold.reassignAuthors).toContain("dev-1");
+    const decision = decidePrint(staleFold, {
+      me: creator.id,
+      capable: true,
+      now: 1_000_003,
+    });
+    expect(decision.kind).toBe("stand-down");
+    expect(creator.sends).toHaveLength(0);
+
+    // The successor prints; exactly one physical print for the ticket.
+    fleetStep(successor, "dev-1", 1_000_004);
+    fleetConverge(fleet, ticket, lg);
+    expectFleetResolved(fleet, "dev-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 3 — admin ticket on admin #1, 10 apps. #1 has no printer,
+// #2–#8 are broken, #10 works.
+// ---------------------------------------------------------------------------
+
+describe("fleet scenario 3 — admin ticket (creator admin #1), 10 apps", () => {
+  for (let i = 0; i < REPEATS; i++) {
+    it(`repeat ${i + 1}/${REPEATS}`, () => {
+      const lg = `lg-s3-${i}`;
+      const ticket = `t-s3-${i}`;
+      const rng = mulberry32(3000 + i);
+
+      const fleet: FleetDevice[] = [
+        fleetDevice("dev-1", "adm-1", { configured: false }),
+        ...Array.from({ length: 7 }, (_, k) =>
+          fleetDevice(`dev-${k + 2}`, `adm-${k + 2}`, { configured: true, broken: true }),
+        ),
+        // dev-9: no printer (configured: false) — an extra non-capable peer.
+        fleetDevice("dev-9", "adm-9", { configured: false }),
+        fleetDevice("dev-10", "adm-10", { configured: true }),
+      ];
+
+      runFleet(fleet, "dev-1", rng, ticket, lg);
+      expectFleetResolved(fleet, "dev-1");
+    });
+  }
+});
