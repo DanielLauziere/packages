@@ -147,7 +147,14 @@ export const encodeTicketLogGroup = (
     }
 
     const adminUuid = log.admin_uuid
-    if (adminUuid && !seenAdmins.has(adminUuid)) {
+    // The author list carries the acting admin per row. The server's rows
+    // have no admin: they are read back with COALESCE(admin_uuid::text, '')
+    // (print_baton.go) — the empty string IS the server's device id in the
+    // baton fold. A truthiness check here would drop it, the peer would decode
+    // the row with no author at all (null), and the fold would flag the
+    // server's own announce as PASS_FROM_NON_HOLDER → conflict. So keep every
+    // defined author, including ''.
+    if (adminUuid != null && !seenAdmins.has(adminUuid)) {
       seenAdmins.add(adminUuid)
       adminUuids.push(adminUuid)
     }
@@ -181,6 +188,9 @@ export const decodeTicketLogGroup = (
   ) {
     throw new Error(`invalid compact ticket-log group: ${ticketUuid}`)
   }
+  // `admin_uuid[0]` is the creator. Keep it even when it is the empty string
+  // (a server-authored row) — dropping it would decode as `null` and the fold
+  // would not recognise the server as the row's author.
   const creator = group.admin_uuid[0]
 
   return group.logs.map((log) => {
@@ -199,7 +209,7 @@ export const decodeTicketLogGroup = (
       action: actionNameForTicketLog(log.a),
       payload: log.p,
       time_stamp: group.time_stamp,
-      ...(creator ? { admin_uuid: creator } : {}),
+      ...(creator != null ? { admin_uuid: creator } : {}),
     }
   })
 }

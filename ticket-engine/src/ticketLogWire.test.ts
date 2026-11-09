@@ -260,3 +260,37 @@ describe('compact ticket-log wire protocol', () => {
     expect(JSON.stringify(open)).not.toContain('completed_at')
   })
 })
+
+describe('server-authored rows (empty-string admin)', () => {
+  it('the empty-string author survives the round-trip (item 5 regression)', () => {
+    // The server's rows are read back with COALESCE(admin_uuid::text, '') —
+    // the empty string IS the server's device id in the baton fold. A
+    // truthiness check would drop it, and the peer would fold the server's own
+    // announce as PASS_FROM_NON_HOLDER → conflict.
+    const wire = encodeTicketLogGroup([
+      { uuid: 's1', action: 'PRINT_PASS', payload: {}, time_stamp: 1000, admin_uuid: '' },
+    ])
+    expect(wire.admin_uuid).toEqual([''])
+
+    const decoded = decodeTicketLogGroup('ticket', 'location', wire)
+    expect(decoded[0]!.admin_uuid).toBe('')
+  })
+
+  it('a null/undefined author is still omitted', () => {
+    const wire = encodeTicketLogGroup([
+      { uuid: 's1', action: 'PRINT_PASS', payload: {}, time_stamp: 1000 },
+    ])
+    expect(wire.admin_uuid).toEqual([])
+    const decoded = decodeTicketLogGroup('ticket', 'location', wire)
+    expect(decoded[0]!.admin_uuid).toBeUndefined()
+  })
+
+  it('mixed authors keep their order and include the server', () => {
+    const wire = encodeTicketLogGroup([
+      { uuid: 'a', action: 'PRINT_PASS', payload: {}, time_stamp: 1000, admin_uuid: '' },
+      { uuid: 'b', action: 'PRINT_REQUEST', payload: {}, time_stamp: 1100, admin_uuid: 'adm-1' },
+      { uuid: 'c', action: 'PRINT_REASSIGN', payload: {}, time_stamp: 1200, admin_uuid: 'adm-1' },
+    ])
+    expect(wire.admin_uuid).toEqual(['', 'adm-1'])
+  })
+})
