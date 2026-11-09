@@ -90,6 +90,45 @@
           "body": "El Tablero de pedidos es tu centro de comando en vivo. Todos los pedidos entrantes aparecen aquí en tiempo real, organizados por estado. Puedes ver detalles del pedido, actualizar estados, modificar artículos, procesar pagos e imprimir recibos, todo desde una sola pantalla."
         },
         {
+          "type": "heading",
+          "body": "Ciclo de Vida del Ticket"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un ticket avanza por cuatro estados activos más dos finales. El personal pulsa el botón de avanzar en un ticket para moverlo hacia adelante; el pago de un cliente o un pedido creado por el personal lo inicia en el primer estado activo:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "NUEVO (INCOMPLETE) — el ticket existe pero el pedido aún no se ha enviado a la cocina. No se prepara nada a partir de él.",
+            "COMPLETE — el pedido está realizado y se puede imprimir el ticket de cocina. El cliente lo ve como confirmado.",
+            "ACCEPTED — la cocina ha tomado el pedido y lo está preparando.",
+            "READY — el pedido está terminado y puede recogerse o entregarse. El cliente recibe una notificación automática.",
+            "PAID — se ha cobrado el pago. El ticket sale del tablero en vivo y pasa a Informes.",
+            "CANCELADO — el ticket fue cancelado."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "El botón de avanzar sigue el mismo orden en ambas aplicaciones: COMPLETE → ACCEPTED → READY → PAID. Si se pulsa cuando el ticket ya está en PAID, se abre la pantalla de pago en lugar de avanzar más."
+        },
+        {
+          "type": "heading",
+          "body": "Actualizaciones de Estado al Cliente"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando un ticket avanza, el cliente recibe una notificación automática. El cliente que hizo el pedido en línea ve los pasos de progreso — confirmado, en preparación, listo — y recibe una notificación push cuando el pedido está listo, incluso si cerró la página de pedidos."
+        },
+        {
+          "type": "heading",
+          "body": "Indicador de Antigüedad del Ticket"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cada ticket del tablero muestra un indicador de antigüedad. Cuenta desde el momento en que se completó el ticket si ya se completó, y desde el momento en que se creó si aún no. El indicador cambia de color a medida que el ticket envejece y comienza a parpadear cuando lleva mucho tiempo esperando, para que los tickets más antiguos sean fáciles de detectar."
+        },
+        {
           "type": "breadcrumb",
           "body": "Cómo encontrar esta función: Side menu → Orders (web)  |  Bottom nav → Pedidos (móvil)",
           "devices": {
@@ -98,16 +137,14 @@
           }
         },
         {
-          "type": "heading",
-          "body": "Estados de Pedido"
-        },
-        {
           "type": "list",
           "items": [
-            "NUEVO — El pedido se ha realizado y está esperando tu acción. Una notificación de sonido suena y el tablero parpadea.",
-            "ACEPTADO — Has aceptado el pedido y estás trabajando en él.",
-            "COMPLETADO — El pedido ha sido recogido o entregado.",
-            "CANCELADO — El pedido fue cancelado."
+            "NUEVO (INCOMPLETE) — el ticket existe pero el pedido aún no se ha enviado a la cocina.",
+            "COMPLETE — el pedido está realizado y se puede imprimir el ticket de cocina. El cliente lo ve como confirmado.",
+            "ACCEPTED — la cocina ha tomado el pedido y lo está preparando.",
+            "READY — el pedido está terminado y puede recogerse o entregarse.",
+            "PAID — se ha cobrado el pago. El ticket sale del tablero en vivo.",
+            "CANCELADO — el ticket fue cancelado."
           ]
         },
         {
@@ -770,6 +807,18 @@
           "body": "Modo de Contingencia"
         },
         {
+          "type": "heading",
+          "body": "Cómo Elegir Tus Códigos de Dirección"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los campos de Departamento, Municipio y Distrito se seleccionan de los catálogos oficiales de Hacienda. Departamento ofrece la lista completa de departamentos de El Salvador; Municipio se reduce a los municipios del departamento que elegiste; Distrito se reduce de nuevo a los distritos de ese municipio. Cada campo puede dejarse en blanco si tu dirección no lo usa."
+        },
+        {
+          "type": "note",
+          "body": "Los códigos ofrecidos son los oficiales, por lo que las listas ya coinciden con el catálogo de Hacienda — elige de ellas en lugar de escribir un código a mano."
+        },
+        {
           "type": "paragraph",
           "body": "Si tu conexión a internet se cae cuando intentas emitir un DTE, el documento se almacena localmente y se pone en cola. Cuando se restablece la conectividad, los documentos pendientes se envían automáticamente. Si un DTE permanece pendiente por un período prolongado, puedes usar el botón Vaciar Contingencia para enviar forzadamente todos los documentos en cola."
         }
@@ -913,6 +962,57 @@
           "body": "La sección de Impresoras te permite conectar impresoras de red para que los tickets se impriman directamente en la cocina o donde los necesites."
         },
         {
+          "type": "heading",
+          "body": "Dos Espacios para Impresoras"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cada restaurante tiene dos espacios para impresoras, y cada impresora que agregues puede asignarse a cualquiera de los dos. Ambos espacios son ajustes por dispositivo: cada tableta u ordenador elige qué impresora usa para cada espacio, de modo que la caja y la cocina pueden imprimir en dispositivos distintos."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Impresora de cocina — la impresora que recibe los tickets de cocina automáticamente. Es la impresora que usa el interruptor de impresión silenciosa. Toca el interruptor junto a una impresora para convertirla en la impresora de cocina de este dispositivo.",
+            "Impresora de clientes — la impresora que recibe el recibo del cliente al cerrar la venta. Toca el interruptor junto a una impresora para convertirla en la impresora de clientes de este dispositivo."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Impresión Silenciosa (Interruptor del Restaurante)"
+        },
+        {
+          "type": "paragraph",
+          "body": "La impresión silenciosa es un interruptor a nivel del restaurante en Ajustes → Impresoras. Cuando está activada, cada dispositivo que puede alcanzar físicamente una impresora de cocina imprime los tickets de cocina por sí mismo tan pronto se realiza un pedido — sin botones, sin cuadros de diálogo de impresión. Cuando está desactivada, nada se imprime automáticamente y el personal imprime manualmente. Los botones de impresión manual siempre funcionan independientemente del interruptor."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Deciden los Dispositivos Quién Imprime"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando la impresión silenciosa está activada, los dispositivos se coordinan para que se imprima exactamente un ticket de cocina por pedido. El dispositivo que creó el pedido lo intenta primero; si no tiene impresora de cocina, pide ayuda y el ticket se entrega al primer dispositivo que pueda imprimirlo. Si una impresora rechaza el trabajo, ese dispositivo queda fuera y otro toma el relevo — una dirección IP incorrecta o una impresora apagada nunca bloquean la cocina."
+        },
+        {
+          "type": "heading",
+          "body": "Estado de Impresión en Cada Ticket"
+        },
+        {
+          "type": "paragraph",
+          "body": "Mientras un pedido espera para imprimirse, el ticket muestra un pequeño indicador giratorio. Sigue girando hasta que la impresora de cocina confirma el ticket, y luego desaparece. Si nada confirma después de cinco minutos, el indicador pasa a un estado de advertencia para que veas qué pedidos nunca llegaron a la impresora."
+        },
+        {
+          "type": "heading",
+          "body": "Problemas de Impresión"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cuando un ticket no se puede imprimir, la tarjeta del pedido muestra un aviso de \"La impresión no funcionó\" después de un minuto. Imprimir el ticket manualmente desde el pedido lo limpia — la impresión manual confirma el ticket para todos los dispositivos. El aviso también puede significar que la impresora está apagada, que la dirección IP es incorrecta o que falta papel, así que revisa la impresora primero."
+        },
+        {
+          "type": "note",
+          "body": "La impresión silenciosa necesita una impresora de red (ESC/POS por tu Wi-Fi) o el servicio de relé de DirectEatz. Un navegador normal que imprima con el cuadro de diálogo del ordenador nunca puede ser la impresora de cocina automática."
+        },
+        {
           "type": "breadcrumb",
           "body": "Cómo encontrar esta función: Side menu → Settings → Printers (web)  |  Bottom nav → Settings → Printers (móvil)",
           "devices": {
@@ -992,6 +1092,14 @@
         {
           "type": "summary",
           "body": "La sección de Informes muestra el historial de ventas y pedidos. Filtra por rango de fechas para revisar la actividad pasada."
+        },
+        {
+          "type": "paragraph",
+          "body": "La sección de Informes también es donde revisas los tickets anteriores. El permiso que controla si los pedidos pasados pueden reabrirse y modificarse aquí es AJUSTAR PEDIDOS — el personal que no lo tiene obtiene una vista de solo lectura. El mismo permiso es lo que hace que el elemento de menú Informes aparezca para un miembro del personal."
+        },
+        {
+          "type": "paragraph",
+          "body": "El permiso VER TOTALES controla si los montos de ingresos aparecen en estos informes. El personal que no lo tiene sigue viendo la lista de pedidos y los detalles del ticket, pero las columnas de dinero quedan ocultas."
         },
         {
           "type": "breadcrumb",
@@ -1219,6 +1327,42 @@
         },
         {
           "type": "heading",
+          "body": "Tres Formas en que los Dispositivos se Mantienen Sincronizados"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tus dispositivos se mantienen actualizados entre sí mediante tres rutas independientes, y cualquiera de ellas es suficiente por sí sola:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Sincronización con el servidor — la ruta normal. Cada dispositivo intercambia tickets con el servidor de DirectEatz, que es el único lugar donde se liquidan los pedidos de los clientes, los pagos y la lealtad.",
+            "Dispositivo a dispositivo por Wi-Fi (P2P) — cuando los dispositivos están en la misma red Wi-Fi se encuentran entre sí e intercambian tickets directamente, sin internet y sin servidor.",
+            "Relé entre redes (RTC pod) — los dispositivos en redes distintas, por ejemplo el local en Wi-Fi y la tableta del dueño en casa con datos móviles, siguen sincronizando a través de un servicio de relé cuando no se puede alcanzar el servidor."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Las tres transportan los mismos tickets en el mismo formato, por lo que no importa qué ruta tomó un ticket en particular — todos los dispositivos terminan con el mismo estado."
+        },
+        {
+          "type": "heading",
+          "body": "Qué Se Sincroniza y Qué No"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los tickets, los cambios de menú, la configuración, la configuración de impresoras y los cambios de personal se sincronizan. Las cosas orientadas al cliente — recibir un pedido en línea, liquidar un pago, los puntos de lealtad — siempre pasan por el servidor, porque ahí es de donde viene realmente el pedido del cliente."
+        },
+        {
+          "type": "heading",
+          "body": "Qué Tan Rápido Aparecen los Cambios"
+        },
+        {
+          "type": "paragraph",
+          "body": "Con una buena conexión, un cambio hecho en un dispositivo aparece en otro en unos segundos. En una conexión lenta puede tardar más, y cuando un dispositivo está fuera de línea sus cambios aparecen cuando se reconecta. El indicador del encabezado muestra el estado actual."
+        },
+        {
+          "type": "heading",
           "body": "Cómo Funciona la Sincronización"
         },
         {
@@ -1389,7 +1533,13 @@
         },
         {
           "type": "list",
-          "body": "Ingresos Totales - El monto total de ventas para el período seleccionado\\nPedidos - El número total de pedidos realizados\\nValor Promedio del Pedido - El monto promedio gastado por pedido\\nArtículos Vendidos - El número total de artículos del menú vendidos\\nClientes Únicos - El número de diferentes clientes que realizaron pedidos"
+          "items": [
+            "Ingresos Totales — el monto total de ventas para el período seleccionado.",
+            "Pedidos — el número total de pedidos realizados.",
+            "Valor Promedio del Pedido — el monto promedio gastado por pedido.",
+            "Artículos Vendidos — el número total de artículos del menú vendidos.",
+            "Clientes Únicos — el número de clientes distintos que realizaron pedidos."
+          ]
         },
         {
           "type": "heading",
@@ -1479,7 +1629,12 @@
         },
         {
           "type": "list",
-          "body": "Categorías — Agrupa artículos relacionados (ej: Aperitivos, Platos Fuertes, Postres)\\nSubcategorías — Organiza aún más los artículos dentro de una categoría\\nArtículos — Artículos individuales del menú con nombre, precio, descripción e imagen\\nCombos — Agrupa múltiples artículos juntos a un precio especial"
+          "items": [
+            "Categorías — agrupa artículos relacionados (ej. Aperitivos, Platos Fuertes, Postres).",
+            "Subcategorías — organiza aún más los artículos dentro de una categoría.",
+            "Artículos — artículos individuales del menú con nombre, precio, descripción e imagen.",
+            "Combos — agrupa varios artículos juntos a un precio especial."
+          ]
         },
         {
           "type": "heading",
@@ -1512,6 +1667,280 @@
             "PCI Express → Administración del estado de enlace → Desactivado",
             "Suspensión → Nunca (con corriente conectada)"
           ]
+        }
+      ]
+    },
+    {
+      "id": "floorMap",
+      "title": "Plano del Salón",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "El Plano del Salón muestra tu comedor tal como es — mesas, paredes, el bar y las decoraciones colocadas según el espacio físico — y también es una vista en vivo de qué mesas tienen pedidos abiertos."
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Menú lateral → Plano del Salón",
+            "mobile": "Menú lateral → Plano del Salón"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Modo Vista"
+        },
+        {
+          "type": "paragraph",
+          "body": "El plano muestra cada mesa que has creado, en su posición y tamaño reales. Una mesa con pedidos abiertos se resalta, y cada mesa muestra cuántos tickets abiertos tiene. Toca una mesa para abrir su hoja de tickets: puedes ver los tickets abiertos de esa mesa, iniciar un nuevo pedido para ella o imprimir su tarjeta QR."
+        },
+        {
+          "type": "heading",
+          "body": "Modo Edición"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cambia al modo de edición para colocar tus muebles. El salón es un cuadrado fijo de 8 × 8 metros, por lo que todo lo que coloques debe caber dentro."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Mesas — siete tamaños de mesa cuadrada, de dos a ocho asientos. Arrastra para mover, usa el control de tamaño para escalar y rota para adaptarte al salón.",
+            "Barra — una pieza de mostrador larga.",
+            "Paredes — cuatro longitudes (1, 2, 3 y 4 metros) para marcar los bordes del salón.",
+            "Plantas — pequeñas y grandes, puramente decorativas."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Al agregar una mesa se coloca automáticamente en el espacio libre más cercano; desde ahí la arrastras a su lugar. Las mesas se pueden redimensionar y rotar sin salir nunca del salón, y una mesa nueva puede vincularse a un nombre de mesa existente o dejarse sin asignar."
+        },
+        {
+          "type": "heading",
+          "body": "Iniciar un Pedido desde una Mesa"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tocar una mesa e iniciar un nuevo pedido hace dos cosas a la vez: adjunta la mesa al ticket y lo marca como un pedido para comer en el salón. El ticket de cocina lleva entonces el número de mesa, para que el personal sepa dónde llevarlo."
+        },
+        {
+          "type": "heading",
+          "body": "Imprimir Tarjetas QR de Mesa"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cada mesa tiene su propio código QR. Imprime la tarjeta desde la hoja de tickets de la mesa y colócala en la mesa para que los clientes puedan escanear, ver el menú y pedir desde sus asientos."
+        }
+      ]
+    },
+    {
+      "id": "appSettings",
+      "title": "Ajustes de la Aplicación",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Los ajustes de la aplicación son personales del dispositivo que tienes en la mano — no cambian cómo se ve el restaurante para los clientes, y no se comparten con el resto del personal."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Encontrar Esto"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Web: el icono de engranaje en el encabezado del tablero abre los Ajustes de la aplicación.",
+            "Móvil: menú lateral → Ajustes de la aplicación."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Notificaciones"
+        },
+        {
+          "type": "paragraph",
+          "body": "Activa o desactiva las alertas de sonido para nuevos pedidos. Es el mismo control de silencio que aparece en el encabezado del tablero, y es por dispositivo — silenciar la caja no silencia la cocina."
+        },
+        {
+          "type": "heading",
+          "body": "Mantener la Pantalla Encendida"
+        },
+        {
+          "type": "paragraph",
+          "body": "Mantiene la pantalla activa mientras la aplicación está en primer plano, para que un tablero ocupado no se bloquee en medio del servicio. En un ordenador con Windows esto funciona junto con los ajustes de energía de Windows descritos en la sección Configuración de Windows."
+        },
+        {
+          "type": "heading",
+          "body": "Modo Oscuro"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cambia la aplicación de administración entre apariencia clara y oscura. Esto cambia solo tu dispositivo."
+        },
+        {
+          "type": "heading",
+          "body": "Tamaño de Letra"
+        },
+        {
+          "type": "paragraph",
+          "body": "Ajusta el tamaño del texto en toda la aplicación. Esto cambia solo tu dispositivo."
+        },
+        {
+          "type": "heading",
+          "body": "Cambiar de Local"
+        },
+        {
+          "type": "paragraph",
+          "body": "Solo el personal que pertenece a más de un restaurante ve esto. Cambia para qué restaurante opera este dispositivo. El cambio ocurre solo en línea, y todos los tickets almacenados localmente del restaurante actual se envían al servidor antes de que el dispositivo cambie y recargue el nuevo restaurante."
+        },
+        {
+          "type": "heading",
+          "body": "Dispositivos Conectados"
+        },
+        {
+          "type": "paragraph",
+          "body": "Muestra los otros dispositivos en tu red Wi-Fi que ejecutan DirectEatz para el mismo restaurante. Los dispositivos se encuentran automáticamente e intercambian tickets directamente, por lo que el servicio sigue funcionando aunque se caiga el internet. Si no aparecen dispositivos, verifica que todos estén en la misma red Wi-Fi."
+        },
+        {
+          "type": "heading",
+          "body": "RTC Pod"
+        },
+        {
+          "type": "paragraph",
+          "body": "Muestra si este dispositivo está conectado al servicio de relé que permite que dispositivos en redes distintas — por ejemplo el local en Wi-Fi y la tableta del dueño en casa con datos móviles — mantengan sus tickets sincronizados cuando no se puede alcanzar el servidor. El estado de la conexión se muestra aquí y en el encabezado."
+        },
+        {
+          "type": "heading",
+          "body": "Cuenta"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cambia tu contraseña, cierra sesión o elimina tu cuenta. Cerrar sesión no borra nada: los tickets que aún no se han sincronizado permanecen en el dispositivo y se suben la próxima vez que inicies sesión."
+        }
+      ]
+    },
+    {
+      "id": "startScreen",
+      "title": "Pantalla de Inicio",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "La pantalla de Inicio es la vista en vivo del restaurante — qué está pasando ahora mismo, cómo va el día y la forma más rápida de entrar a las tareas más comunes."
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Menú lateral → Inicio",
+            "mobile": "Menú lateral → Inicio"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "El Día de un Vistazo"
+        },
+        {
+          "type": "paragraph",
+          "body": "La fila de tarjetas en la parte superior muestra los números que importan durante el servicio:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Mesas ocupadas — cuántas de tus mesas tienen actualmente un pedido abierto, con una barra que muestra qué tan lleno está el salón.",
+            "Pedidos activos — pedidos que se han realizado pero aún no se han pagado.",
+            "Tiempo promedio de preparación — cuánto tardan los pedidos desde que la cocina los acepta hasta que los marca como listos, en promedio de los pedidos de hoy.",
+            "Ingresos de hoy — el total recibido hasta ahora hoy.",
+            "Pedidos retrasados — pedidos que se realizaron hace más de 20 minutos y que la cocina aún no ha aceptado. Estos se resaltan en rojo para que reciban atención primero."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Ventas de Hoy"
+        },
+        {
+          "type": "paragraph",
+          "body": "Un gráfico de barras de los pedidos pagados de hoy por hora, para que puedas ver el patrón de afluencia y cuándo estuvo más ocupado el salón."
+        },
+        {
+          "type": "heading",
+          "body": "Consejo"
+        },
+        {
+          "type": "paragraph",
+          "body": "Una lectura breve y en lenguaje sencillo sobre el estado actual del salón — si la cocina se está atrasando, si los tiempos de preparación se están alargando, o si es un buen momento para revisar el menú o las promociones. Cada consejo tiene un atajo directo a la pantalla correspondiente."
+        },
+        {
+          "type": "heading",
+          "body": "Acciones Rápidas"
+        },
+        {
+          "type": "paragraph",
+          "body": "Atajos a las pantallas más comunes: pedidos, nuevo pedido, informes, facturación y ajustes. La lista se adapta a lo que tus permisos permiten — el personal que no puede ver facturación no ve el atajo de facturación."
+        },
+        {
+          "type": "heading",
+          "body": "Actividad Reciente"
+        },
+        {
+          "type": "paragraph",
+          "body": "Los últimos eventos de tickets en todo el restaurante: un pedido que se confirma, que la cocina acepta, que se marca como listo, que se paga o un ticket que se imprime con éxito. Cada entrada muestra quién lo hizo y hace cuánto tiempo."
+        }
+      ]
+    },
+    {
+      "id": "terms",
+      "title": "Aceptación de Términos y Condiciones",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz presenta los Términos y Condiciones del restaurante una vez, antes de usar la aplicación de administración. Un dueño que los acepta cubre todo el restaurante."
+        },
+        {
+          "type": "heading",
+          "body": "Cómo Funciona"
+        },
+        {
+          "type": "paragraph",
+          "body": "La primera vez que se abre la aplicación — y de nuevo cada vez que se actualizan los términos — aparece la pantalla de aceptación y la aplicación no se puede usar hasta que alguien acepte. Cualquier cuenta con nivel de dueño puede aceptar; la aceptación se registra contra el restaurante, no contra la persona."
+        },
+        {
+          "type": "paragraph",
+          "body": "Una vez que un dueño ha aceptado, a nadie más se le pregunta de nuevo por esa versión. Cuando los términos cambian, la nueva versión debe aceptarse una vez más."
+        },
+        {
+          "type": "heading",
+          "body": "Qué Cubre"
+        },
+        {
+          "type": "paragraph",
+          "body": "El texto completo se muestra en la propia pantalla de aceptación, en el idioma en que está configurado el dispositivo. Al aceptar se registran la versión y la hora, y todos los dispositivos del restaurante ven el mismo estado de aceptación."
+        }
+      ]
+    },
+    {
+      "id": "multiVenue",
+      "title": "Varios Restaurantes en un Dispositivo",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "Un miembro del personal puede estar vinculado a más de un restaurante. Cuando eso sucede, el dispositivo puede cambiar entre ellos desde los Ajustes de la aplicación."
+        },
+        {
+          "type": "heading",
+          "body": "Cambiar de Restaurante"
+        },
+        {
+          "type": "paragraph",
+          "body": "Abre los Ajustes de la aplicación y usa Cambiar de local. La lista muestra cada restaurante al que pertenece esta cuenta; toca el que quieras. El cambio ocurre solo en línea, y solo después de que el dispositivo confirma el cambio."
+        },
+        {
+          "type": "heading",
+          "body": "Qué Pasa con Tus Tickets"
+        },
+        {
+          "type": "paragraph",
+          "body": "Cambiar no mezcla restaurantes. Cada ticket almacenado localmente del restaurante que estás dejando se envía al servidor primero; solo cuando esa subida tiene éxito el dispositivo borra sus datos locales y recarga el restaurante que elegiste. Si la subida falla, no se borra nada y te quedas donde estás."
+        },
+        {
+          "type": "note",
+          "body": "Por eso el cambio necesita una conexión a internet: de otro modo sería posible perder tickets que se tomaron sin conexión y que nunca se subieron."
         }
       ]
     }

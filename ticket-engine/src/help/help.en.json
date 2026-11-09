@@ -90,6 +90,45 @@
           "body": "The Order Board, or Tablero, is your live command center. All incoming orders appear here in real time, organized by status. You can view order details, update statuses, modify items, process payments, and print receipts — all from one screen."
         },
         {
+          "type": "heading",
+          "body": "Ticket Lifecycle"
+        },
+        {
+          "type": "paragraph",
+          "body": "A ticket moves through four active states plus two endings. Staff press the advance button on a ticket to move it forward; a guest check-out or a staff-created order starts it at the first active state:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "NEW (INCOMPLETE) — the ticket exists but the order has not been sent to the kitchen yet. Nothing is prepared from it.",
+            "COMPLETE — the order is placed and the kitchen ticket can be printed. Customers see it as confirmed.",
+            "ACCEPTED — the kitchen has taken the order and is preparing it.",
+            "READY — the order is finished and can be picked up or delivered. The customer is notified automatically.",
+            "PAID — payment has been taken. The ticket leaves the live board and moves into Reporting.",
+            "CANCELLED — the ticket was cancelled."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "The advance button follows the same order in both apps: COMPLETE → ACCEPTED → READY → PAID. Pressing it while a ticket is at PAID opens the payment screen instead of advancing further."
+        },
+        {
+          "type": "heading",
+          "body": "Customer Status Updates"
+        },
+        {
+          "type": "paragraph",
+          "body": "When a ticket advances, the customer is notified automatically. A customer who placed the order online sees the progress steps — confirmed, preparing, ready — and receives a push notification when the order is ready, even if they closed the ordering page."
+        },
+        {
+          "type": "heading",
+          "body": "Ticket Age Badge"
+        },
+        {
+          "type": "paragraph",
+          "body": "Each ticket on the board carries an age badge. It counts from the moment the ticket was completed for a ticket that has completed, and from the moment it was created for one that has not. The badge changes color as the ticket gets older and starts flashing when it has been waiting a long time, so the oldest tickets are easy to spot."
+        },
+        {
           "type": "breadcrumb",
           "body": "How to find this: Side menu → Orders (web)  |  Bottom nav → Pedidos (mobile)",
           "devices": {
@@ -98,16 +137,14 @@
           }
         },
         {
-          "type": "heading",
-          "body": "Order Statuses"
-        },
-        {
           "type": "list",
           "items": [
-            "NEW — The order has been placed and is waiting for your action. A sound notification plays and the board flashes.",
-            "ACCEPTED — You have accepted the order and are working on it.",
-            "COMPLETED — The order has been picked up or delivered.",
-            "CANCELLED — The order was cancelled."
+            "NEW (INCOMPLETE) — the ticket exists but the order has not been sent to the kitchen yet.",
+            "COMPLETE — the order is placed and the kitchen ticket can be printed. Customers see it as confirmed.",
+            "ACCEPTED — the kitchen has taken the order and is preparing it.",
+            "READY — the order is finished and can be picked up or delivered.",
+            "PAID — payment has been taken. The ticket leaves the live board.",
+            "CANCELLED — the ticket was cancelled."
           ]
         },
         {
@@ -770,6 +807,18 @@
           "body": "Contingency Mode"
         },
         {
+          "type": "heading",
+          "body": "Choosing Your Address Codes"
+        },
+        {
+          "type": "paragraph",
+          "body": "The Department, Municipality and District fields pick from the official Hacienda catalogs. Department offers the full list of El Salvador's departments; Municipality narrows to the municipalities of the department you chose; District narrows again to the districts of that municipality. Each field can be left blank if your address does not use it."
+        },
+        {
+          "type": "note",
+          "body": "The codes offered are the official ones, so the lists already match the Hacienda catalog — pick from them rather than typing a code by hand."
+        },
+        {
           "type": "paragraph",
           "body": "If your internet connection is down when you try to emit a DTE, the document is stored locally and queued. When connectivity is restored, the pending documents are sent automatically. If a DTE remains pending for an extended period, you can use the Flush Contingency button to force-send all queued documents."
         }
@@ -913,6 +962,57 @@
           "body": "The Printers section lets you connect network printers so tickets print directly in the kitchen or wherever you need them."
         },
         {
+          "type": "heading",
+          "body": "Two Printer Slots"
+        },
+        {
+          "type": "paragraph",
+          "body": "Every restaurant has two printer slots, and every printer you add can be assigned to either one. Both slots are per-device settings — each tablet or computer chooses which printer it uses for each slot, so the front counter and the kitchen can print to different devices."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Kitchen printer — the printer that receives kitchen tickets automatically. This is the printer the silent-print switch uses. Tap the switch next to a printer to make it this device's kitchen printer.",
+            "Guest printer — the printer that receives the customer receipt at check-out. Tap the switch next to a printer to make it this device's guest printer."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Silent Print (Restaurant-wide Switch)"
+        },
+        {
+          "type": "paragraph",
+          "body": "Silent print is a restaurant-level switch in Settings → Printers. When it is on, every device that can physically reach a kitchen printer prints kitchen tickets by itself as soon as an order is placed — no buttons, no print dialogs. When it is off, nothing prints automatically and staff print manually. Manual print buttons always work regardless of the switch."
+        },
+        {
+          "type": "heading",
+          "body": "How the Devices Decide Who Prints"
+        },
+        {
+          "type": "paragraph",
+          "body": "When silent print is on, the devices coordinate so exactly one kitchen ticket prints per order. The device that created the order tries first; if it has no kitchen printer, it asks for help and the ticket is handed to the first device that can print it. If a printer refuses the job, that device steps out and another takes over — a wrong IP address or a powered-off printer never blocks the kitchen."
+        },
+        {
+          "type": "heading",
+          "body": "Print Status on Every Ticket"
+        },
+        {
+          "type": "paragraph",
+          "body": "While an order is waiting to print, the ticket shows a small spinning indicator. It keeps spinning until the kitchen printer confirms the ticket, then it clears. If nothing confirms after five minutes, the indicator turns into a warning state so you can see which orders never reached the printer."
+        },
+        {
+          "type": "heading",
+          "body": "Print Problems"
+        },
+        {
+          "type": "paragraph",
+          "body": "When a ticket cannot be printed, the order card shows a \"Print did not work\" notice after a minute. Printing the ticket manually from the order clears it — the manual print confirms the ticket for every device. The notice can also mean the printer is off, the IP address is wrong, or the paper is out, so check the printer itself first."
+        },
+        {
+          "type": "note",
+          "body": "Silent print needs a network printer (ESC/POS over your Wi-Fi) or the DirectEatz relay service. A plain browser printing through the computer's print dialog can never be the automatic kitchen printer."
+        },
+        {
           "type": "breadcrumb",
           "body": "How to find this: Side menu → Settings → Printers (web)  |  Bottom nav → Settings → Printers (mobile)",
           "devices": {
@@ -992,6 +1092,14 @@
         {
           "type": "summary",
           "body": "The Reports section shows your sales and order history. Filter by date range to review past activity."
+        },
+        {
+          "type": "paragraph",
+          "body": "The Reports section is also where you review past tickets. The permission that controls whether past orders can be reopened and changed here is ADJUST ORDERS — staff without it get a read-only view. The same permission is what makes the Reporting menu item appear for a staff member."
+        },
+        {
+          "type": "paragraph",
+          "body": "The SEE TOTALS permission controls whether the revenue amounts appear in these reports. Staff without it still see the order list and ticket details, but the money columns are hidden."
         },
         {
           "type": "breadcrumb",
@@ -1219,6 +1327,42 @@
         },
         {
           "type": "heading",
+          "body": "Three Ways Devices Stay in Sync"
+        },
+        {
+          "type": "paragraph",
+          "body": "Your devices keep each other up to date through three independent routes, and any one of them is enough on its own:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Server sync — the normal route. Every device exchanges tickets with the DirectEatz server, which is the only place guest orders, payments and loyalty are settled.",
+            "Wi-Fi device-to-device (P2P) — when devices are on the same Wi-Fi network they find each other and exchange tickets directly, with no internet and no server at all.",
+            "Cross-network relay (RTC pod) — devices on different networks, such as the store on Wi-Fi and an owner's tablet on cellular, keep syncing through a relay service when the server cannot be reached."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "All three carry the same tickets in the same format, so it does not matter which route a particular ticket took — every device ends up with the same state."
+        },
+        {
+          "type": "heading",
+          "body": "What Syncs and What Does Not"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tickets, menu changes, settings, printer setup and staff changes all sync. Guest-facing things — taking an online order, settling a payment, loyalty points — always go through the server, because that is where the customer's order actually comes from."
+        },
+        {
+          "type": "heading",
+          "body": "How Quickly Changes Appear"
+        },
+        {
+          "type": "paragraph",
+          "body": "On a good connection, a change made on one device appears on another within a few seconds. On a slow connection it can take longer, and when a device is offline its changes appear once it reconnects. The header indicator shows the current state."
+        },
+        {
+          "type": "heading",
           "body": "How Sync Works"
         },
         {
@@ -1389,7 +1533,13 @@
         },
         {
           "type": "list",
-          "body": "Total Revenue - The total sales amount for the selected period\\nOrders - The total number of orders placed\\nAverage Order Value - The average amount spent per order\\nItems Sold - The total number of menu items sold\\nUnique Guests - The number of different customers who placed orders"
+          "items": [
+            "Total Revenue — the total sales amount for the selected period.",
+            "Orders — the total number of orders placed.",
+            "Average Order Value — the average amount spent per order.",
+            "Items Sold — the total number of menu items sold.",
+            "Unique Guests — the number of different customers who placed orders."
+          ]
         },
         {
           "type": "heading",
@@ -1479,7 +1629,12 @@
         },
         {
           "type": "list",
-          "body": "Categories — Group related items together (e.g., Appetizers, Mains, Desserts)\\nSubcategories — Further organize items within a category\\nItems — Individual menu items with name, price, description, and image\\nCombos — Bundle multiple items together at a special price"
+          "items": [
+            "Categories — group related items together (e.g. Appetizers, Mains, Desserts).",
+            "Subcategories — organize items further inside a category.",
+            "Items — individual menu items with name, price, description and image.",
+            "Combos — bundle several items together at a special price."
+          ]
         },
         {
           "type": "heading",
@@ -1512,6 +1667,280 @@
             "PCI Express → Link State Power Management → Off",
             "Sleep → Never (when plugged in)"
           ]
+        }
+      ]
+    },
+    {
+      "id": "floorMap",
+      "title": "Floor Map",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Floor Map shows your dining room the way it really is — tables, walls, the bar and decorations placed to match the physical space — and doubles as a live view of which tables have open orders."
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Side menu → Floor Map",
+            "mobile": "Side menu → Floor Map"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "View Mode"
+        },
+        {
+          "type": "paragraph",
+          "body": "The map shows every table you have created, at its real position and size. A table with open orders is highlighted, and each table shows how many open tickets it has. Tap a table to open its ticket sheet: you can see the open tickets for that table, start a new order for it, or print its QR card."
+        },
+        {
+          "type": "heading",
+          "body": "Edit Mode"
+        },
+        {
+          "type": "paragraph",
+          "body": "Switch to edit mode to place your furniture. The room is a fixed 8 × 8 metre square, so everything you place has to fit inside it."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Tables — seven square table sizes, from two seats up to eight. Drag to move, use the size control to scale, and rotate to match the room.",
+            "Bar — a long counter piece.",
+            "Walls — four lengths (1, 2, 3 and 4 metres) for marking the edges of the room.",
+            "Plants — small and large, purely decorative."
+          ]
+        },
+        {
+          "type": "paragraph",
+          "body": "Adding a table places it on the nearest free spot automatically; from there you drag it into place. Tables can be resized and rotated without ever leaving the room, and a new table can be bound to an existing table name or left unassigned."
+        },
+        {
+          "type": "heading",
+          "body": "Starting an Order from a Table"
+        },
+        {
+          "type": "paragraph",
+          "body": "Tapping a table and starting a new order does two things at once: it attaches the table to the ticket and marks it as an eat-in order. The kitchen ticket then carries the table number, so staff know where to take it."
+        },
+        {
+          "type": "heading",
+          "body": "Printing Table QR Cards"
+        },
+        {
+          "type": "paragraph",
+          "body": "Each table has its own QR code. Print the card from the table's ticket sheet and place it on the table so guests can scan, see the menu and order from their seats."
+        }
+      ]
+    },
+    {
+      "id": "appSettings",
+      "title": "App Settings",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "App settings are personal to the device you are holding — they do not change how the restaurant looks to customers, and they are not shared with other staff."
+        },
+        {
+          "type": "heading",
+          "body": "How to Find This"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Web: the gear icon in the tablero header opens App Settings.",
+            "Mobile: side menu → App settings."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Notifications"
+        },
+        {
+          "type": "paragraph",
+          "body": "Turn sound alerts for new orders on or off. This is the same mute control that appears in the tablero header, and it is per device — muting the front counter does not mute the kitchen."
+        },
+        {
+          "type": "heading",
+          "body": "Keep Screen On"
+        },
+        {
+          "type": "paragraph",
+          "body": "Keeps the screen awake while the app is in the foreground, so a busy board does not lock itself in the middle of service. On a Windows computer this works together with the Windows power settings described in the Windows Setup section."
+        },
+        {
+          "type": "heading",
+          "body": "Dark Mode"
+        },
+        {
+          "type": "paragraph",
+          "body": "Switches the admin app between light and dark appearance. This changes only your device."
+        },
+        {
+          "type": "heading",
+          "body": "Font Size"
+        },
+        {
+          "type": "paragraph",
+          "body": "Adjusts the text size across the app. This changes only your device."
+        },
+        {
+          "type": "heading",
+          "body": "Switch Venue"
+        },
+        {
+          "type": "paragraph",
+          "body": "Only staff who belong to more than one restaurant see this. It changes which restaurant this device is operating for. The switch happens online only, and every locally stored ticket for the current restaurant is pushed to the server before the device switches and reloads the new restaurant."
+        },
+        {
+          "type": "heading",
+          "body": "Connected Devices"
+        },
+        {
+          "type": "paragraph",
+          "body": "Shows the other devices on your Wi-Fi network that are running DirectEatz for the same restaurant. Devices find each other automatically and exchange tickets directly, so service keeps running even if the internet goes down. If no devices appear, check that all devices are on the same Wi-Fi network."
+        },
+        {
+          "type": "heading",
+          "body": "RTC Pod"
+        },
+        {
+          "type": "paragraph",
+          "body": "Shows whether this device is connected to the relay service that lets devices on different networks — for example the store on Wi-Fi and an owner's tablet at home on cellular — keep their tickets in sync when the server cannot be reached. The connection status is shown here and in the header."
+        },
+        {
+          "type": "heading",
+          "body": "Account"
+        },
+        {
+          "type": "paragraph",
+          "body": "Change your password, log out, or delete your account. Logging out does not delete anything: tickets that have not synced yet stay on the device and are uploaded the next time you log in."
+        }
+      ]
+    },
+    {
+      "id": "startScreen",
+      "title": "Start Screen",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "The Start screen is the restaurant's live overview — what is happening right now, how today is going, and the fastest way into the most common tasks."
+        },
+        {
+          "type": "breadcrumb",
+          "devices": {
+            "web": "Side menu → Start",
+            "mobile": "Side menu → Start"
+          }
+        },
+        {
+          "type": "heading",
+          "body": "Today at a Glance"
+        },
+        {
+          "type": "paragraph",
+          "body": "The row of cards at the top shows the numbers that matter during service:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Occupied tables — how many of your tables currently have an open order, with a bar showing how full the room is.",
+            "Active orders — orders that have been placed but not paid yet.",
+            "Average preparation time — how long orders take from the kitchen accepting them to marking them ready, averaged over today's orders.",
+            "Today's revenue — the total taken so far today.",
+            "Delayed orders — orders that were placed more than 20 minutes ago and have still not been accepted by the kitchen. These are highlighted in red so they get attention first."
+          ]
+        },
+        {
+          "type": "heading",
+          "body": "Today's Sales"
+        },
+        {
+          "type": "paragraph",
+          "body": "A bar chart of today's paid orders by hour, so you can see the rush pattern and when the room was busiest."
+        },
+        {
+          "type": "heading",
+          "body": "Insight"
+        },
+        {
+          "type": "paragraph",
+          "body": "A short, plain-language read on the current state of the room — whether the kitchen is falling behind, whether preparation times are running long, or whether it is a good moment to review the menu or promotions. Each insight has a shortcut straight to the relevant screen."
+        },
+        {
+          "type": "heading",
+          "body": "Quick Actions"
+        },
+        {
+          "type": "paragraph",
+          "body": "Shortcuts to the most common screens: orders, new order, reporting, billing and settings. The list adapts to what your permissions allow — staff who cannot see billing do not see the billing shortcut."
+        },
+        {
+          "type": "heading",
+          "body": "Recent Activity"
+        },
+        {
+          "type": "paragraph",
+          "body": "The latest ticket events across the restaurant: an order being confirmed, accepted by the kitchen, marked ready, paid, or a ticket printing successfully. Each entry shows who did it and how long ago."
+        }
+      ]
+    },
+    {
+      "id": "terms",
+      "title": "Terms & Conditions Acceptance",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "DirectEatz presents the restaurant's Terms & Conditions once, before the admin app is used. One owner accepting them covers the whole restaurant."
+        },
+        {
+          "type": "heading",
+          "body": "How It Works"
+        },
+        {
+          "type": "paragraph",
+          "body": "The first time the app is opened — and again whenever the terms are updated — the acceptance screen appears and the app cannot be used until somebody accepts. Any owner-level account can accept; the acceptance is recorded against the restaurant, not the person."
+        },
+        {
+          "type": "paragraph",
+          "body": "Once one owner has accepted, nobody else is asked again for that version. When the terms change, the new version has to be accepted once more."
+        },
+        {
+          "type": "heading",
+          "body": "What It Covers"
+        },
+        {
+          "type": "paragraph",
+          "body": "The full wording is shown on the acceptance screen itself, in the language the device is set to. Accepting records the version and the time, and every device in the restaurant sees the same acceptance status."
+        }
+      ]
+    },
+    {
+      "id": "multiVenue",
+      "title": "Multiple Restaurants on One Device",
+      "blocks": [
+        {
+          "type": "summary",
+          "body": "A staff member can be linked to more than one restaurant. When that happens, the device can switch between them from App Settings."
+        },
+        {
+          "type": "heading",
+          "body": "Switching Restaurants"
+        },
+        {
+          "type": "paragraph",
+          "body": "Open App Settings and use Switch Venue. The list shows every restaurant this account belongs to; tap the one you want. The switch happens online only, and only after the device confirms the switch."
+        },
+        {
+          "type": "heading",
+          "body": "What Happens to Your Tickets"
+        },
+        {
+          "type": "paragraph",
+          "body": "Switching does not mix restaurants. Every locally stored ticket for the restaurant you are leaving is pushed to the server first; only when that upload succeeds does the device wipe its local data and reload the restaurant you chose. If the upload fails, nothing is wiped and you stay where you are."
+        },
+        {
+          "type": "note",
+          "body": "This is why switching needs an internet connection: it would otherwise be possible to lose tickets that were taken offline and never uploaded."
         }
       ]
     }
