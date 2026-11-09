@@ -95,19 +95,15 @@ async function ensureTicketExists(
   adapter: DbAdapter,
   entry: TicketLogEntry,
 ): Promise<void> {
-  // The creating device rides the first row's payload (`payload.device_id`,
+  // The creating device rides the first row's PAYLOAD (`payload.device_id`,
   // stamped by appendLog) — it seeds the print chain's chain[0] via
-  // `ticket.device_uuid` (backlog item 4). No FK, no admin dependency: guest
-  // rows simply never carry it and the column stays NULL.
-  const rawDevice = entry.payload?.device_id;
-  const deviceId =
-    typeof rawDevice === 'string' && rawDevice ? rawDevice : null;
-
+  // `CHAIN_SEED_SQL`. There is no `ticket.device_uuid` column; nothing to
+  // write here.
   if (!(await exists(adapter, `SELECT uuid FROM ticket WHERE uuid = ? LIMIT 1`, [entry.ticket_uuid]))) {
     await adapter.run(
-      `INSERT INTO "ticket" (uuid, id, time_stamp, location_group_uuid, admin_uuid, device_uuid, status, price_whole, price_hundredths, is_dirty, is_local)
-       VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), ?, 'INCOMPLETE', 0, 0, 1, 1)`,
-      [entry.ticket_uuid, ticketIdFromUUID(entry.ticket_uuid), entry.time_stamp, entry.location_group_uuid, entry.admin_uuid ?? null, deviceId],
+      `INSERT INTO "ticket" (uuid, id, time_stamp, location_group_uuid, admin_uuid, status, price_whole, price_hundredths, is_dirty, is_local)
+       VALUES (?, ?, ?, ?, (SELECT uuid FROM admin WHERE uuid = ?), 'INCOMPLETE', 0, 0, 1, 1)`,
+      [entry.ticket_uuid, ticketIdFromUUID(entry.ticket_uuid), entry.time_stamp, entry.location_group_uuid, entry.admin_uuid ?? null],
     )
     return
   }
@@ -116,14 +112,6 @@ async function ensureTicketExists(
     `UPDATE "ticket" SET time_stamp = ? WHERE uuid = ? AND ? < time_stamp`,
     [entry.time_stamp, entry.ticket_uuid, entry.time_stamp],
   )
-  // Fill the seed if the ticket row arrived before the device-carrying row
-  // (out-of-order apply). First writer wins; never overwrites.
-  if (deviceId) {
-    await adapter.run(
-      `UPDATE "ticket" SET device_uuid = ? WHERE uuid = ? AND device_uuid IS NULL`,
-      [deviceId, entry.ticket_uuid],
-    )
-  }
 }
 
 function priorityCaseSql(actionCol: string): string {

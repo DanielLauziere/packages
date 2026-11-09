@@ -103,12 +103,12 @@ export async function appendLog(
     const offset = await deps.serverOffsetMs();
     const now = Date.now() + offset;
 
-    // `device_id` rides the payload (no schema change). The baton passes the
-    // acting device with its own row; otherwise the ticket's FIRST staff row
-    // is stamped once with this device — that row is how peers and the server
-    // learn the creating device that seeds the print chain's chain[0] via
-    // `ticket.device_uuid` (backlog item 4). Guest/anonymous appends (no
-    // admin) never stamp, so guest tickets stay device-less.
+    // `device_id` rides the row's PAYLOAD (no schema change). The baton
+    // passes the acting device with its own row; otherwise the ticket's FIRST
+    // staff row is stamped once with this device — that row is how peers and
+    // the server learn the creating device that seeds the print chain's
+    // chain[0] via `CHAIN_SEED_SQL` (backlog item 4). Guest/anonymous appends
+    // (no admin) never stamp, so guest tickets stay device-less.
     let payload = sanitizePayload(input.payload);
     if (!payload?.device_id && input.admin_uuid) {
       const prior = await deps.query(

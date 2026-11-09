@@ -611,9 +611,12 @@ describe('applyTicketLog', () => {
     })
   })
 
-  // Backlog item 4: `ticket.device_uuid` is the print chain's chain[0] seed.
-  describe('device seed (ticket.device_uuid)', () => {
-    it('implicit creation writes device_uuid from the first row payload', async () => {
+  // Backlog item 4: the creating device rides the first row's payload; the
+  // print chain's chain[0] seed comes from CHAIN_SEED_SQL. No ticket column.
+  describe('device seed (payload-only, no ticket column)', () => {
+    it('implicit creation does NOT write a device column (payload-only, item 4)', async () => {
+      // The creating device rides the row's payload (`payload.device_id`),
+      // not a ticket column — the seed comes from CHAIN_SEED_SQL.
       await applyTicketLog(
         adapter,
         entry({
@@ -623,11 +626,11 @@ describe('applyTicketLog', () => {
       )
       const ins = adapter.findRun('INSERT INTO "ticket"')
       expect(ins).toBeDefined()
-      expect(ins!.sql).toContain('device_uuid')
-      expect(ins!.params![5]).toBe('dev-7')
+      expect(ins!.sql).not.toContain('device_uuid')
+      expect(adapter.findRun('UPDATE "ticket" SET device_uuid')).toBeUndefined()
     })
 
-    it('fills device_uuid when the ticket row arrived before the device row', async () => {
+    it('an existing ticket row is never patched with a device column', async () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       await applyTicketLog(
         adapter,
@@ -636,14 +639,12 @@ describe('applyTicketLog', () => {
           payload: { anonymous_address: 'x', device_id: 'dev-7' },
         }),
       )
-      const upd = adapter.findRun('UPDATE "ticket" SET device_uuid')
-      expect(upd).toBeDefined()
-      expect(upd!.params).toEqual(['dev-7', 'ticket-001'])
-      // First writer wins — never overwrites an existing seed.
-      expect(upd!.sql).toContain('device_uuid IS NULL')
+      // Only the time_stamp bump runs on the existing row.
+      expect(adapter.findRun('UPDATE "ticket" SET device_uuid')).toBeUndefined()
+      expect(adapter.findRun('UPDATE "ticket" SET time_stamp')).toBeDefined()
     })
 
-    it('rows without a device (guest/legacy) leave device_uuid NULL', async () => {
+    it('rows without a device (guest/legacy) still create the ticket', async () => {
       await applyTicketLog(
         adapter,
         entry({
@@ -653,8 +654,7 @@ describe('applyTicketLog', () => {
       )
       const ins = adapter.findRun('INSERT INTO "ticket"')
       expect(ins).toBeDefined()
-      expect(ins!.params![5]).toBeNull()
-      expect(adapter.findRun('UPDATE "ticket" SET device_uuid')).toBeUndefined()
+      expect(ins!.sql).not.toContain('device_uuid')
     })
   })
 })
