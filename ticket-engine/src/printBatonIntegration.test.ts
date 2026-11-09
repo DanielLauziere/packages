@@ -410,4 +410,27 @@ describe("item 5 — two replicas over the real wire codec, server killed mid-ch
     expect(fold.stranded).toBe(true);
     expect(fold.holder).toBe("dev-1");
   });
+
+  it("a manual takeover crosses the wire and is terminal on the peer's fold", () => {
+    const one = replica("dev-1", "adm-1", { capable: false });
+    const two = replica("dev-2", "adm-2", { capable: false });
+
+    // Replica A takes the human override — exactly the row manualTakeover
+    // appends: PRINT_SUCCESS {manual:true} stamped with the acting device.
+    push(one, "PRINT_SUCCESS", { manual: true }, 3000);
+    exchange(one, two, TICKET, LG);
+
+    // The payload survives the codec byte-for-byte.
+    const received = two.rows.find((r) => r.action === "PRINT_SUCCESS");
+    expect(received?.payload).toEqual({ manual: true, device_id: "dev-1" });
+
+    // B's fold is terminal and printed — the takeover resolves for everyone,
+    // with no AUTO_SUCCESS conflict against the non-holder.
+    const foldOne = foldOf(one, "dev-1");
+    const foldTwo = foldOf(two, "dev-1");
+    expect(foldOne.terminal).toBe(true);
+    expect(foldTwo.terminal).toBe(true);
+    expect(foldTwo.state).toBe("printed");
+    expect(foldTwo.conflict).toEqual([]);
+  });
 });

@@ -135,6 +135,29 @@ describe("foldPrintBaton — states", () => {
     expect(foldPrintBaton(rows, A).requests).toEqual([B]);
   });
 
+  it("duplicate passes from one author dedupe passAuthors", () => {
+    const rows = [row("PRINT_PASS", A, 1000), row("PRINT_PASS", A, 1100)];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.passAuthors).toEqual([A]);
+    expect(fold.passAuthors).toHaveLength(1);
+    // The holder's own repeated passes are legal — no conflict.
+    expect(fold.conflict).toEqual([]);
+  });
+
+  it("duplicate reassigns from one author dedupe reassignAuthors", () => {
+    const rows = [
+      row("PRINT_PASS", A, 1000),
+      row("PRINT_REASSIGN", A, 1100, { to: B }),
+      row("PRINT_REASSIGN", A, 1200, { to: C }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    // Two reassigns still flag MULTIPLE_REASSIGN, but the author list itself
+    // holds one seat.
+    expect(fold.reassignAuthors).toEqual([A]);
+    expect(fold.reassignAuthors).toHaveLength(1);
+    expect(fold.conflict).toContain("MULTIPLE_REASSIGN");
+  });
+
   it("non-print actions are ignored", () => {
     const rows = [row("ADD_ITEM", B, 900), row("PRINT_SUCCESS", A, 1000)];
     const fold = foldPrintBaton(rows, A);
@@ -249,6 +272,41 @@ describe("foldPrintBaton — validation rules", () => {
     expect(fold.conflict).toEqual([]);
   });
 
+  it("rule 3: two auto SUCCESSes from the same non-holder each flag the conflict", () => {
+    const rows = [
+      row("PRINT_SUCCESS", B, 1000, {}),
+      row("PRINT_SUCCESS", B, 1100, {}),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    // One entry per offending row — the conflict list is not deduped.
+    expect(fold.conflict).toEqual([
+      "AUTO_SUCCESS_FROM_NON_HOLDER",
+      "AUTO_SUCCESS_FROM_NON_HOLDER",
+    ]);
+    expect(fold.state).toBe("conflict");
+    expect(fold.terminal).toBe(true);
+  });
+
+  it("rule 3: only manual === true is manual — false, 1 and {} are auto successes", () => {
+    for (const manual of [false, 1, {}]) {
+      // From a non-holder an auto success conflicts…
+      const fromNonHolder = foldPrintBaton(
+        [row("PRINT_SUCCESS", B, 1000, { manual })],
+        A,
+      );
+      expect(fromNonHolder.conflict).toEqual(["AUTO_SUCCESS_FROM_NON_HOLDER"]);
+      expect(fromNonHolder.state).toBe("conflict");
+
+      // …from the holder it is a plain auto print.
+      const fromHolder = foldPrintBaton(
+        [row("PRINT_SUCCESS", A, 1000, { manual })],
+        A,
+      );
+      expect(fromHolder.conflict).toEqual([]);
+      expect(fromHolder.state).toBe("printed");
+    }
+  });
+
   it("manual SUCCESS resolves an otherwise conflicted fold", () => {
     const rows = [
       row("PRINT_PASS", D, 1000),
@@ -288,6 +346,45 @@ describe("foldPrintBaton — validation rules", () => {
       expect(fold.terminal).toBe(true);
       expect(fold.state).toBe("printed");
       expect(fold.conflict).toEqual([]);
+    }
+  });
+});
+
+describe("foldPrintBaton — device id precedence (deviceIdOf)", () => {
+  it("top-level row.device_id beats payload.device_id", () => {
+    // If the fold read payload.device_id it would see dev-2 ≠ creator dev-1
+    // and flag AUTO_SUCCESS_FROM_NON_HOLDER on a perfectly valid print.
+    const rows: PrintRow[] = [
+      {
+        action: "PRINT_SUCCESS",
+        author: "admin-1",
+        time_stamp: 1000,
+        device_id: "dev-1",
+        payload: { device_id: "dev-2" },
+      },
+    ];
+    const fold = foldPrintBaton(rows, "dev-1");
+    expect(fold.conflict).toEqual([]);
+    expect(fold.state).toBe("printed");
+  });
+
+  it("a non-string or empty device id falls back to the author", () => {
+    const rows: PrintRow[] = [
+      //42 / '' are not usable device ids — the legacy admin author decides.
+      { action: "PRINT_SUCCESS", author: A, time_stamp: 1, device_id: 42 as any, payload: {} },
+      { action: "PRINT_SUCCESS", author: A, time_stamp: 2, device_id: "", payload: {} },
+      { action: "PRINT_SUCCESS", author: A, time_stamp: 3, device_id: null, payload: { device_id: 42 } },
+      { action: "PRINT_SUCCESS", author: A, time_stamp: 4, device_id: null, payload: { device_id: "" } },
+    ];
+    for (const r of rows) {
+      // Author A is the creator → the fallback author makes it a valid print.
+      const asHolder = foldPrintBaton([r], A);
+      expect(asHolder.conflict).toEqual([]);
+      expect(asHolder.state).toBe("printed");
+
+      // …and under another creator the same fallback still conflicts.
+      const asNonHolder = foldPrintBaton([r], B);
+      expect(asNonHolder.conflict).toEqual(["AUTO_SUCCESS_FROM_NON_HOLDER"]);
     }
   });
 });
@@ -534,6 +631,81 @@ describe("decidePrint — guards", () => {
     ).toBe("stand-down");
   });
 
+  it("server creator (me null, chain[0] null) arms the creator alert past 60 s", () => {
+    const rows = [
+      row("PRINT_PASS", null, 10),
+      row("PRINT_REQUEST", B, 20),
+      row("PRINT_REASSIGN", null, 30, { to: B }),
+    ];
+    const fold = foldPrintBaton(rows, null);
+    expect(fold.chain[0]).toBeNull();
+    expect(fold.reassignAuthors).toEqual([null]);
+    // Exactly 60 s old: `now - createdAt >= PRINT_ALERT_MS` still holds.
+    const createdAt = base.now - PRINT_ALERT_MS;
+    expect(
+      decidePrint(fold, { ...base, me: null, capable: false, createdAt }).kind,
+    ).toBe("alert");
+  });
+
+  it("server creator stands down (no alert) before the 60 s window expires", () => {
+    const rows = [
+      row("PRINT_PASS", null, 10),
+      row("PRINT_REQUEST", B, 20),
+      row("PRINT_REASSIGN", null, 30, { to: B }),
+    ];
+    const fold = foldPrintBaton(rows, null);
+    const createdAt = base.now - PRINT_ALERT_MS + 1;
+    // decidePrint itself never carries alertInMs — the remaining-window arm
+    // lives in runBatonPrint's stand-down branch; here it is a plain stand-down.
+    expect(
+      decidePrint(fold, { ...base, me: null, capable: false, createdAt }).kind,
+    ).toBe("stand-down");
+  });
+
+  it("the reassign target skips a null (server) request for the next human device", () => {
+    const rows = [
+      row("PRINT_PASS", A, 10),
+      row("PRINT_REQUEST", null, 20),
+      row("PRINT_REQUEST", B, 30),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.requests).toEqual([null, B]);
+    expect(decidePrint(fold, { ...base, me: A, capable: false })).toEqual({
+      kind: "reassign",
+      to: B,
+    });
+  });
+
+  it("a stranded holder's reassign also skips the null request", () => {
+    const rows = [
+      row("PRINT_PASS", A, 10, { reason: "stranded" }),
+      row("PRINT_REQUEST", null, 20),
+      row("PRINT_REQUEST", B, 30),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(decidePrint(fold, { ...base, me: A, capable: true })).toEqual({
+      kind: "reassign",
+      to: B,
+    });
+  });
+
+  it("the holder's own request is never a reassign target", () => {
+    // B is the holder AND the only requester: without the `r !== me` filter
+    // it would reassign to itself — a REASSIGN_CYCLE on the next fold.
+    const rows = [
+      row("PRINT_PASS", A, 10),
+      row("PRINT_REQUEST", B, 20),
+      row("PRINT_REASSIGN", A, 30, { to: B }),
+      row("PRINT_PASS", B, 40),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.holder).toBe(B);
+    expect(fold.requests).toEqual([B]);
+    expect(decidePrint(fold, { ...base, me: B, capable: false })).toEqual({
+      kind: "wait",
+    });
+  });
+
   it("original-device alert: creator sees alert (>60 s, reassign but no success)", () => {
     // A created the ticket, passed the baton (PRINT_PASS), then reassigned to B.
     // No PRINT_SUCCESS. Ticket created >60 s ago → A (the original device)
@@ -738,7 +910,19 @@ describe("printSpinnerState — silent-print spinner", () => {
 
   it("age unknown (anchor not fetched yet) keeps spinning instead of failing", () => {
     expect(printSpinnerState({ ...trying, ageMs: null })).toBe("trying");
+    expect(printSpinnerState({ ...trying, ageMs: undefined })).toBe("trying");
     expect(printSpinnerState({ ...trying, ageMs: 0 })).toBe("trying");
+    // A negative age (clock skew between the anchor and now) is not "old".
+    expect(printSpinnerState({ ...trying, ageMs: -5 })).toBe("trying");
+  });
+
+  it("only printed true/1 mean printed — anything else falls through as not-printed", () => {
+    // SQL EXISTS returns 0/1, but a truthy count (2) must not be mistaken for
+    // "PRINT_SUCCESS exists": it falls through to the age check.
+    expect(printSpinnerState({ ...trying, printed: 2 })).toBe("trying");
+    expect(
+      printSpinnerState({ ...trying, printed: 2, ageMs: PRINT_SPINNER_FAIL_MS }),
+    ).toBe("failed");
   });
 });
 

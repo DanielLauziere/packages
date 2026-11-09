@@ -592,7 +592,35 @@ describe('applyTicketLog', () => {
         expect(adapter.findRun('UPDATE ticket_menu_item')).toBeUndefined()
         expect(adapter.findRun('print_record')).toBeUndefined()
       })
+
+      it(`${action} implicitly creates the missing ticket (tier-13 ensureTicketExists)`, async () => {
+        // No SELECT mock → the probe finds no ticket → the INSERT must run
+        // (mirrors the device-seed tests' assertion at the same path).
+        await applyTicketLog(adapter, entry({ action }))
+        const ins = adapter.findRun('INSERT INTO "ticket"')
+        expect(ins).toBeDefined()
+        expect(ins!.params).toContain('ticket-001')
+        expect(ins!.params).toContain(entry().time_stamp)
+        // The creating device rides the row payload, never a ticket column.
+        expect(ins!.sql).not.toContain('device_uuid')
+        expect(adapter.findRun('UPDATE "ticket" SET device_uuid')).toBeUndefined()
+      })
     }
+
+    it('a PRINT row on an existing ticket bumps time_stamp (LWW forward only)', async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      await applyTicketLog(adapter, entry({ action: 'PRINT_PASS' }))
+      const bump = adapter.findRun('UPDATE "ticket" SET time_stamp')
+      expect(bump).toBeDefined()
+      // Forward-only guard: an older PRINT row never rewinds the ticket.
+      expect(bump!.sql).toContain('AND ? < time_stamp')
+      expect(bump!.params).toEqual([entry().time_stamp, 'ticket-001', entry().time_stamp])
+      // Existing row: created once (by an earlier apply), never re-created.
+      expect(adapter.findRun('INSERT INTO "ticket"')).toBeUndefined()
+      // Tier 13 is ensureTicketExists-only — no status/field writes.
+      expect(adapter.findRun('SET status')).toBeUndefined()
+      expect(adapter.findRun('SET table_uuid')).toBeUndefined()
+    })
   })
 
   describe('unknown action', () => {
@@ -712,22 +740,24 @@ describe('applyLogsBatch', () => {
     expect(claims).toEqual(['a-1', 'b-2'])
   })
 
-  it('PRINT actions sort last (tier 12) after status actions', async () => {
-    adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
-    adapter.onQuery('SELECT action, payload', [])
-    adapter.onQuery('SELECT admin_uuid FROM ticket', [{ admin_uuid: 'admin-a' }])
-    const logs: TicketLogEntry[] = [
-      entry({ uuid: 'p-1', action: 'PRINT_PASS', payload: {}, time_stamp: 1 }),
-      entry({ uuid: 's-1', action: 'SET_STATUS_COMPLETE', payload: {}, time_stamp: 2 }),
-    ]
-    const result = await applyLogsBatch(adapter, logs)
-    expect(result.applied).toBe(2)
-    expect(result.errors).toHaveLength(0)
-    const claims = adapter.runs
-      .filter((r) => r.sql.includes('INSERT OR IGNORE INTO "ticket_log_applied"'))
-      .map((r) => r.params![0])
-    expect(claims).toEqual(['s-1', 'p-1'])
-  })
+  for (const action of ['PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN']) {
+    it(`PRINT actions sort last (tier 13) after status actions — ${action}`, async () => {
+      adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
+      adapter.onQuery('SELECT action, payload', [])
+      adapter.onQuery('SELECT admin_uuid FROM ticket', [{ admin_uuid: 'admin-a' }])
+      const logs: TicketLogEntry[] = [
+        entry({ uuid: 'p-1', action, payload: {}, time_stamp: 1 }),
+        entry({ uuid: 's-1', action: 'SET_STATUS_COMPLETE', payload: {}, time_stamp: 2 }),
+      ]
+      const result = await applyLogsBatch(adapter, logs)
+      expect(result.applied).toBe(2)
+      expect(result.errors).toHaveLength(0)
+      const claims = adapter.runs
+        .filter((r) => r.sql.includes('INSERT OR IGNORE INTO "ticket_log_applied"'))
+        .map((r) => r.params![0])
+      expect(claims).toEqual(['s-1', 'p-1'])
+    })
+  }
 
   it('skips already-applied logs', async () => {
     adapter.onQuery('SELECT 1 FROM ticket_log_applied', [{ uuid: 'log-001' }])

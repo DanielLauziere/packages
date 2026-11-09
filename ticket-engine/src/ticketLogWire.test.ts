@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   TICKET_LOG_ACTION_IDS,
+  actionIdForTicketLog,
   decodeTicketLogBuckets,
   decodeTicketLogGroup,
   encodeTicketLogBuckets,
@@ -13,6 +14,7 @@ describe('compact ticket-log wire protocol', () => {
   it('uses the stable action IDs, including the menu-item wire aliases', () => {
     expect(TICKET_LOG_ACTION_IDS.ADD_MENU_ITEM).toBe(1)
     expect(TICKET_LOG_ACTION_IDS.REMOVE_MENU_ITEM).toBe(2)
+    expect(TICKET_LOG_ACTION_IDS.PRINT_SUCCESS).toBe(17)
     expect(TICKET_LOG_ACTION_IDS.PRINT_REASSIGN).toBe(20)
 
     const group = encodeTicketLogGroup([
@@ -226,6 +228,45 @@ describe('compact ticket-log wire protocol', () => {
         completed_at: 2 ** 53,
       }),
     ).toThrow('invalid completed timestamp')
+  })
+
+  it('maps PRINT_SUCCESS to wire id 17 and back', () => {
+    expect(TICKET_LOG_ACTION_IDS.PRINT_SUCCESS).toBe(17)
+    expect(actionIdForTicketLog('PRINT_SUCCESS')).toBe(17)
+
+    const wire = encodeTicketLogGroup([
+      { uuid: 'p', action: 'PRINT_SUCCESS', payload: {}, time_stamp: 10 },
+    ])
+    expect(wire.logs[0]).toEqual({ u: 'p', a: 17, p: {} })
+    expect(
+      decodeTicketLogGroup('ticket', 'location', wire)[0]!.action,
+    ).toBe('PRINT_SUCCESS')
+  })
+
+  it('round-trips a manual takeover payload ({manual:true, device_id})', () => {
+    // What manualTakeover appends: manual:true plus the acting device. The
+    // peer's fold keys its printed/conflict state on `manual === true`, so a
+    // lossy payload would turn a takeover into an AUTO_SUCCESS conflict.
+    const wire = encodeTicketLogGroup([
+      {
+        uuid: 'manual',
+        action: 'PRINT_SUCCESS',
+        payload: { manual: true, device_id: 'dev-1' },
+        time_stamp: 500,
+        admin_uuid: 'admin-a',
+      },
+    ])
+    expect(wire.logs[0]).toEqual({
+      u: 'manual',
+      a: 17,
+      p: { manual: true, device_id: 'dev-1' },
+    })
+    expect(decodeTicketLogGroup('ticket', 'location', wire)[0]).toMatchObject({
+      action: 'PRINT_SUCCESS',
+      payload: { manual: true, device_id: 'dev-1' },
+      time_stamp: 500,
+      admin_uuid: 'admin-a',
+    })
   })
 
   it('carries completed_at from the newest SET_STATUS_COMPLETE row', () => {

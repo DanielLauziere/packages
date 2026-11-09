@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { DatabaseSync } from "node:sqlite";
 import {
+  CHAIN_SEED_SQL,
   PRINT_ROWS_SQL,
   parsePrintPayload,
   mapPrintRows,
@@ -144,6 +146,103 @@ describe("PRINT_ROWS_SQL / mapPrintRows / parsePrintPayload", () => {
       async () => null,
     );
     expect(fold.holder).toBeNull();
+  });
+
+  it("mapPrintRows(null) maps to an empty list", () => {
+    // Defensive null tolerance on the driver result (rows ?? []).
+    expect(mapPrintRows(null as any)).toEqual([]);
+  });
+
+  it("seedDeviceOf prefers the row's device, then payload.device_id, then the author", () => {
+    expect(seedDeviceOf(null)).toBeNull();
+    // Legacy rows (pre device-identity change) carry no device at all.
+    expect(
+      seedDeviceOf({ action: "ADD_ITEM", author: "admin-1", time_stamp: 1, payload: {} }),
+    ).toBe("admin-1");
+    expect(
+      seedDeviceOf({
+        action: "ADD_ITEM",
+        author: "admin-1",
+        time_stamp: 1,
+        payload: { device_id: DEVICE_B },
+      }),
+    ).toBe(DEVICE_B);
+    expect(
+      seedDeviceOf({
+        action: "ADD_ITEM",
+        author: "admin-1",
+        time_stamp: 1,
+        device_id: DEVICE_A,
+        payload: { device_id: DEVICE_B },
+      }),
+    ).toBe(DEVICE_A);
+  });
+});
+
+describe("CHAIN_SEED_SQL — the chain[0] seed row", () => {
+  function makeDb() {
+    const db = new DatabaseSync(":memory:");
+    db.exec(`
+      CREATE TABLE ticket_log (
+        uuid TEXT PRIMARY KEY,
+        ticket_uuid TEXT,
+        action TEXT,
+        payload TEXT,
+        time_stamp INTEGER,
+        admin_uuid TEXT
+      )
+    `);
+    return db;
+  }
+
+  it("returns the first row of ANY action (a non-print seed with device_id)", () => {
+    const db = makeDb();
+    const insert = db.prepare(
+      `INSERT INTO ticket_log (uuid, ticket_uuid, action, payload, time_stamp, admin_uuid)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    // The ticket's first log row is a status completion carrying the creating
+    // device; the PRINT_* rows only arrive later.
+    insert.run(
+      "r-1",
+      "t-1",
+      "SET_STATUS_COMPLETE",
+      JSON.stringify({ device_id: DEVICE_A }),
+      100,
+      "admin-1",
+    );
+    insert.run(
+      "r-2",
+      "t-1",
+      "PRINT_PASS",
+      JSON.stringify({ reason: "stranded", device_id: DEVICE_B }),
+      200,
+      "admin-1",
+    );
+
+    const seed = db.prepare(CHAIN_SEED_SQL).get("t-1");
+    expect(seed.action).toBe("SET_STATUS_COMPLETE");
+    // …and it maps straight into the fold's seed device.
+    const mapped = mapPrintRows([seed]);
+    expect(mapped[0]).toEqual({
+      action: "SET_STATUS_COMPLETE",
+      author: "admin-1",
+      time_stamp: 100,
+      payload: { device_id: DEVICE_A },
+      device_id: DEVICE_A,
+    });
+    expect(seedDeviceOf(mapped[0]!)).toBe(DEVICE_A);
+
+    // PRINT_ROWS_SQL filters to the four print actions: it cannot see the seed.
+    const printRows = db.prepare(PRINT_ROWS_SQL).all("t-1");
+    expect(printRows.map((r: any) => r.action)).toEqual(["PRINT_PASS"]);
+    db.close();
+  });
+
+  it("selects one row ordered by time_stamp,uuid with no action filter", () => {
+    expect(CHAIN_SEED_SQL).not.toContain("action IN");
+    expect(CHAIN_SEED_SQL).toContain('ORDER BY "time_stamp", uuid');
+    expect(CHAIN_SEED_SQL).toContain("LIMIT 1");
   });
 });
 
@@ -339,6 +438,253 @@ describe("runBatonPrint", () => {
     expect(result.outcome).toBe("waiting");
     expect(result.alertInMs).toBeGreaterThan(0);
     expect(result.alertInMs).toBeLessThanOrEqual(PRINT_ALERT_MS);
+  });
+
+  it("conflicted fold → outcome conflict, nothing appended", async () => {
+    // A PRINT_PASS authored by a non-holder (DEVICE_B) folds to
+    // PASS_FROM_NON_HOLDER → decidePrint 'attention' → 'conflict'.
+    const { deps, appendLog, printTicket } = makeDeps(
+      {
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: "admin-2", time_stamp: 1000, payload: { device_id: DEVICE_B } },
+        ],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_A,
+    );
+    const result = await runBatonPrint(deps, args);
+    expect(result).toEqual({ outcome: "conflict" });
+    // A conflict must never mutate the log — the row that fixes the divergence
+    // is written by a human, not by the loop.
+    expect(appendLog).not.toHaveBeenCalled();
+    expect(printTicket).not.toHaveBeenCalled();
+  });
+
+  describe("appendPrintLog stamps payload.device_id on every baton row (item 4)", () => {
+    it("PRINT_SUCCESS", async () => {
+      const { deps, appendLog } = makeDeps(
+        { getChainSeedRow: async () => seedCreatorRow(DEVICE_A) },
+        DEVICE_A,
+      );
+      const result = await runBatonPrint(deps, args);
+      expect(result).toEqual({ outcome: "printed" });
+      expect(appendLog).toHaveBeenCalledTimes(1);
+      const written = appendLog.mock.calls[0]![0];
+      expect(written.action).toBe(PRINT_SUCCESS);
+      expect(written.payload).toEqual({ device_id: DEVICE_A });
+      expect(written.admin_uuid).toBe("admin-1"); // admin stays the admin
+    });
+
+    it("PRINT_PASS", async () => {
+      const { deps, appendLog } = makeDeps(
+        { isKitchenCapable: () => false, getChainSeedRow: async () => seedCreatorRow(DEVICE_A) },
+        DEVICE_A,
+      );
+      await runBatonPrint(deps, args);
+      expect(appendLog.mock.calls[0]![0]).toMatchObject({
+        action: "PRINT_PASS",
+        payload: { reason: "not_capable", device_id: DEVICE_A },
+      });
+      for (const [written] of appendLog.mock.calls) {
+        expect(written.payload.device_id).toBe(DEVICE_A);
+      }
+    });
+
+    it("PRINT_REQUEST", async () => {
+      const { deps, appendLog } = makeDeps(
+        {
+          getPrintRows: async () => [
+            { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A } },
+          ],
+          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+        },
+        DEVICE_B,
+      );
+      await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+      expect(appendLog.mock.calls[0]![0]).toMatchObject({
+        action: "PRINT_REQUEST",
+        payload: { device_id: DEVICE_B },
+      });
+      for (const [written] of appendLog.mock.calls) {
+        expect(written.payload.device_id).toBe(DEVICE_B);
+      }
+    });
+
+    it("PRINT_REASSIGN", async () => {
+      const { deps, appendLog } = makeDeps(
+        {
+          getPrintRows: async () => [
+            { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A } },
+            { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
+          ],
+          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+        },
+        DEVICE_A,
+      );
+      await runBatonPrint(deps, args);
+      expect(appendLog.mock.calls[0]![0]).toMatchObject({
+        action: "PRINT_REASSIGN",
+        payload: { to: DEVICE_B, device_id: DEVICE_A },
+      });
+      for (const [written] of appendLog.mock.calls) {
+        expect(written.payload.device_id).toBe(DEVICE_A);
+      }
+    });
+
+    it("the manualTakeover PRINT_SUCCESS", async () => {
+      const { deps, appendLog } = makeDeps({}, DEVICE_A);
+      const ok = await manualTakeover(deps, TICKET, { uuid: "admin-1" });
+      expect(ok).toBe(true);
+      expect(appendLog).toHaveBeenCalledTimes(1);
+      expect(appendLog.mock.calls[0]![0]).toMatchObject({
+        action: PRINT_SUCCESS,
+        payload: { manual: true, device_id: DEVICE_A },
+      });
+    });
+  });
+
+  it("a throwing transport logs the error and writes a stranded pass — no retry", async () => {
+    const logError = vi.fn();
+    const { deps, appendLog, printTicket } = makeDeps(
+      { getChainSeedRow: async () => seedCreatorRow(DEVICE_A), logError },
+      DEVICE_A,
+    );
+    printTicket.mockRejectedValueOnce(new Error("transport down"));
+    const result = await runBatonPrint(deps, args);
+    // Same failover as a refused send: caught, logged, stranded pass, done.
+    expect(result).toEqual({ outcome: "advanced" });
+    expect(printTicket).toHaveBeenCalledTimes(1); // never retried
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith("❌ Print failed t-1", expect.any(Error));
+    expect(appendLog).toHaveBeenCalledTimes(1);
+    expect(appendLog.mock.calls[0]![0]).toMatchObject({
+      action: "PRINT_PASS",
+      payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A },
+    });
+  });
+
+  it("without a custom logError the default console.error sink receives the failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { deps } = makeDeps(
+      {
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+        printTicket: vi.fn(async () => {
+          throw new Error("transport down");
+        }),
+      },
+      DEVICE_A,
+    );
+    const result = await runBatonPrint(deps, args);
+    expect(result.outcome).toBe("advanced");
+    expect(spy).toHaveBeenCalledWith("❌ Print failed t-1", expect.any(Error));
+    spy.mockRestore();
+  });
+
+  it("a pending PRINT_REQUEST inside its 60 s window arms alertInMs from my request time", async () => {
+    const { deps, appendLog } = makeDeps(
+      {
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
+          { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 95_000, payload: { device_id: DEVICE_B } },
+        ],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+    // now = Date.now() = 100_000; my request is 5 s old → 55 s until it strands.
+    expect(result).toEqual({ outcome: "waiting", alertInMs: 55_000 });
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("a non-zero getServerOffset shifts the pending-request alert window", async () => {
+    const { deps } = makeDeps(
+      {
+        getServerOffset: async () => 10_000,
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
+          { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 60_000, payload: { device_id: DEVICE_B } },
+        ],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+    // now = Date.now() + 10_000 = 110_000 → 50 s since the request →
+    // alertInMs = 60_000 + 60_000 − 110_000. With offset 0 it would be 20_000.
+    expect(result).toEqual({ outcome: "waiting", alertInMs: 10_000 });
+  });
+
+  it("a positive server offset can tip a pending request over the alert window", async () => {
+    const { deps } = makeDeps(
+      {
+        getServerOffset: async () => 10_000,
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
+          { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 45_000, payload: { device_id: DEVICE_B } },
+        ],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+    // Server clock says 65 s elapsed (≥ 60 s) → alert; the local clock alone
+    // would only see 55 s and keep waiting.
+    expect(result).toEqual({ outcome: "alert" });
+  });
+
+  it("a ticket time_stamp of 0 / non-numeric never arms the creator-strand alert", async () => {
+    const rows: PrintRow[] = [
+      { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
+      { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
+      { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
+    ];
+    // `Number(ts) || undefined` makes both falsy/unparseable stamps undefined:
+    // the creator-strand alert (and its alertInMs stand-down arm) can never
+    // fire from them. A raw `Number(0)` would fire the alert (now − 0 ≥ 60 s).
+    for (const time_stamp of [0, "abc"] as const) {
+      const { deps, appendLog } = makeDeps(
+        {
+          isKitchenCapable: () => false,
+          getPrintRows: async () => rows,
+          getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+        },
+        DEVICE_A,
+      );
+      const result = await runBatonPrint(deps, {
+        ...args,
+        ticket: { ...TICKET, time_stamp },
+      });
+      expect(result).toEqual({ outcome: "waiting" }); // no alert, no alertInMs
+      expect(appendLog).not.toHaveBeenCalled();
+    }
+  });
+
+  it("server device (deviceUuid null): stand-down before 60 s arms alertInMs", async () => {
+    // The server is chain[0] and has reassigned away; its creator-strand
+    // window has not expired yet → the stand-down arm returns the remaining
+    // time instead of a bare waiting.
+    const { deps, appendLog } = makeDeps(
+      {
+        isKitchenCapable: () => false,
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: null, time_stamp: 1000, payload: { device_id: null } },
+          { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
+          { action: "PRINT_REASSIGN", author: null, time_stamp: 3000, payload: { to: DEVICE_B, device_id: null } },
+        ],
+        getChainSeedRow: async () => ({ action: "ADD_ITEM", author: null, time_stamp: 1, payload: { device_id: null } }),
+        deviceUuid: () => null as any,
+      },
+      DEVICE_A,
+    );
+    const createdAt = 100_000 - 30_000;
+    const result = await runBatonPrint(deps, {
+      ...args,
+      ticket: { ...TICKET, uuid: "t-server-alert", time_stamp: createdAt },
+    });
+    // me === null === chain[0], reassignAuthors includes null, window open.
+    expect(result).toEqual({ outcome: "waiting", alertInMs: 30_000 });
+    expect(appendLog).not.toHaveBeenCalled();
   });
 });
 
