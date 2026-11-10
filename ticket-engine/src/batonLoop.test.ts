@@ -13,7 +13,7 @@ import {
   type BatonDeps,
 } from "./batonLoop.js";
 import type { PrintRow } from "./printProtocol.js";
-import { PRINT_ALERT_MS, PRINT_REASON_STRANDED, PRINT_SUCCESS, foldPrintBaton } from "./printProtocol.js";
+import { PRINT_ALERT_MS, PRINT_FAILED, PRINT_REASON_STRANDED, PRINT_SPINNER_FAIL_MS, PRINT_SUCCESS, foldPrintBaton } from "./printProtocol.js";
 
 // The ticket's creating device comes from its FIRST log row (any action) —
 // the chain[0] seed
@@ -94,9 +94,10 @@ afterEach(() => {
 });
 
 describe("PRINT_ROWS_SQL / mapPrintRows / parsePrintPayload", () => {
-  it("selects the four PRINT_* actions ordered by time_stamp, uuid", () => {
+  it("selects the five PRINT_* actions ordered by time_stamp, uuid", () => {
     expect(PRINT_ROWS_SQL).toContain("PRINT_SUCCESS");
     expect(PRINT_ROWS_SQL).toContain("PRINT_REASSIGN");
+    expect(PRINT_ROWS_SQL).toContain("PRINT_FAILED");
     expect(PRINT_ROWS_SQL).toContain('ORDER BY "time_stamp", uuid');
   });
 
@@ -240,6 +241,14 @@ describe("CHAIN_SEED_SQL — the chain[0] seed row", () => {
       200,
       "admin-1",
     );
+    insert.run(
+      "r-3",
+      "t-1",
+      "PRINT_FAILED",
+      JSON.stringify({ device_id: DEVICE_B }),
+      300,
+      "admin-1",
+    );
 
     const seed = db.prepare(CHAIN_SEED_SQL).get("t-1");
     expect(seed.action).toBe("SET_STATUS_COMPLETE");
@@ -255,9 +264,13 @@ describe("CHAIN_SEED_SQL — the chain[0] seed row", () => {
     });
     expect(seedDeviceOf(mapped[0]!)).toBe(DEVICE_A);
 
-    // PRINT_ROWS_SQL filters to the four print actions: it cannot see the seed.
+    // PRINT_ROWS_SQL filters to the print actions (incl. PRINT_FAILED): it
+    // cannot see the seed.
     const printRows = db.prepare(PRINT_ROWS_SQL).all("t-1");
-    expect(printRows.map((r: any) => r.action)).toEqual(["PRINT_PASS"]);
+    expect(printRows.map((r: any) => r.action)).toEqual([
+      "PRINT_PASS",
+      "PRINT_FAILED",
+    ]);
     db.close();
   });
 
@@ -763,6 +776,20 @@ describe("manualTakeover", () => {
     expect(ok).toBe(false);
     expect(appendLog).not.toHaveBeenCalled();
   });
+
+  it("allows takeover from a failed strand (Phase 4) — never a dead ticket", async () => {
+    const { deps, appendLog } = makeDeps({
+      getPrintRows: async () => [
+        { action: PRINT_FAILED, author: "admin-2", time_stamp: 1, payload: { device_id: DEVICE_B } },
+      ],
+    });
+    const ok = await manualTakeover(deps, TICKET, { uuid: "admin-1" });
+    expect(ok).toBe(true);
+    expect(appendLog.mock.calls[0]![0]).toMatchObject({
+      action: PRINT_SUCCESS,
+      payload: { manual: true },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -931,5 +958,117 @@ describe("failover — a refused holder hands the baton off (item 9)", () => {
     expect(stranded.stranded).toBe(true);
     expect(stranded.holder).toBe(DEVICE_A);
     expect(stranded.decider).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4 — PRINT_FAILED: the durable 5-minute give-up. The window runs from
+// THIS device's own read-only spinner observation (the UI arms it); the publish
+// happens before decidePrint so no send/pass/request slips past an elapsed
+// window, and the re-read fold then stands every device down.
+// ---------------------------------------------------------------------------
+describe("Phase 4 — PRINT_FAILED publisher", () => {
+  const WINDOW_MS = PRINT_SPINNER_FAIL_MS; // 300_000
+  // Date.now is mocked to 100_000: observed 1 s past the window / 60 s in.
+  const elapsedObs = () => 100_000 - WINDOW_MS - 1;
+  const freshObs = () => 100_000 - 60_000;
+
+  // appendLog feeds getPrintRows back in, so the loop's re-read sees the row
+  // it just wrote (the real client persists every append).
+  function makePersistedDeps(
+    over: Partial<BatonDeps<typeof TICKET, object, { uuid: string }>>,
+    deviceId: string = DEVICE_A,
+  ) {
+    const rows: PrintRow[] = [];
+    const appendLog = vi.fn(async (input: any) => {
+      rows.push({
+        action: input.action,
+        author: input.admin_uuid,
+        time_stamp: input.time_stamp,
+        payload: input.payload,
+        device_id: input.payload?.device_id ?? null,
+        seq: input.payload?.seq ?? null,
+      });
+    });
+    const base = makeDeps(
+      { getPrintRows: async () => [...rows], appendLog, ...over },
+      deviceId,
+    );
+    return { ...base, appendLog, rows };
+  }
+
+  it("publishes PRINT_FAILED once the local 5:00 window elapses with no success", async () => {
+    // The strand is stuck: another device created it, nothing has printed.
+    const { deps, appendLog, printTicket } = makePersistedDeps({
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_B),
+      getPrintPendingObservedAt: elapsedObs,
+    });
+    const result = await runBatonPrint(deps, args);
+    expect(result).toEqual({ outcome: "failed" });
+    expect(printTicket).not.toHaveBeenCalled();
+    expect(appendLog).toHaveBeenCalledTimes(1);
+    expect(appendLog.mock.calls[0]![0]).toMatchObject({ action: PRINT_FAILED });
+  });
+
+  it("before 5:00: no declaration — arms failInMs for the remaining window", async () => {
+    const { deps, appendLog } = makePersistedDeps({
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_B),
+      getPrintPendingObservedAt: freshObs,
+    });
+    const result = await runBatonPrint(deps, args);
+    expect(result.outcome).toBe("waiting");
+    expect(result.failInMs).toBe(WINDOW_MS - 60_000);
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("no local observation → this device never declares (and arms nothing)", async () => {
+    const { deps, appendLog } = makePersistedDeps({
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_B),
+      getPrintPendingObservedAt: () => null,
+    });
+    const result = await runBatonPrint(deps, args);
+    expect(result.outcome).toBe("waiting");
+    expect(result.failInMs).toBeUndefined();
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("pre-success non-publication: a PRINT_SUCCESS suppresses the declaration", async () => {
+    const { deps, appendLog } = makePersistedDeps({
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      getPrintRows: async () => [
+        { action: PRINT_SUCCESS, author: "admin-1", time_stamp: 1, payload: { device_id: DEVICE_A } },
+      ],
+      getPrintPendingObservedAt: elapsedObs,
+    });
+    const result = await runBatonPrint(deps, args);
+    expect(result).toEqual({ outcome: "printed" });
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("a conflicted strand keeps the attention verdict — no declaration over it", async () => {
+    // REASSIGN without a pass → REASSIGN_WITHOUT_PASS conflict.
+    const { deps, appendLog } = makePersistedDeps({
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      getPrintRows: async () => [
+        { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 1, payload: { to: DEVICE_B, device_id: DEVICE_A } },
+      ],
+      getPrintPendingObservedAt: elapsedObs,
+    });
+    const result = await runBatonPrint(deps, args);
+    expect(result).toEqual({ outcome: "conflict" });
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("a peer's PRINT_FAILED already landed → outcome failed, no duplicate row", async () => {
+    const { deps, appendLog } = makePersistedDeps({
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      getPrintRows: async () => [
+        { action: PRINT_FAILED, author: "admin-2", time_stamp: 1, payload: { device_id: DEVICE_B } },
+      ],
+      getPrintPendingObservedAt: elapsedObs,
+    });
+    const result = await runBatonPrint(deps, args);
+    expect(result).toEqual({ outcome: "failed" });
+    expect(appendLog).not.toHaveBeenCalled();
   });
 });

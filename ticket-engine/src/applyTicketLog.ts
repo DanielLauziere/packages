@@ -45,6 +45,7 @@ export const ACTION_PRIORITY: Record<string, number> = {
   PRINT_PASS: 13,
   PRINT_REQUEST: 13,
   PRINT_REASSIGN: 13,
+  PRINT_FAILED: 13,
 }
 
 /**
@@ -545,7 +546,8 @@ export async function applyTicketLog(
       case 'PRINT_SUCCESS':
       case 'PRINT_PASS':
       case 'PRINT_REQUEST':
-      case 'PRINT_REASSIGN': {
+      case 'PRINT_REASSIGN':
+      case 'PRINT_FAILED': {
         await ensureTicketExists(adapter, entry)
         break
       }

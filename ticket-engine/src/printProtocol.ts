@@ -2,12 +2,19 @@ export const PRINT_SUCCESS = "PRINT_SUCCESS";
 export const PRINT_PASS = "PRINT_PASS";
 export const PRINT_REQUEST = "PRINT_REQUEST";
 export const PRINT_REASSIGN = "PRINT_REASSIGN";
+// Phase 4: the durable 5-minute give-up. Any device whose local
+// PRINT_SPINNER_FAIL_MS window elapses with no PRINT_SUCCESS publishes one
+// PRINT_FAILED; from then on the chain is failed until a human takes over.
+// Distinct from PRINT_PASS {reason:"print_failed"} (one refused send — the
+// chain keeps failing over): this one stops the whole chain.
+export const PRINT_FAILED = "PRINT_FAILED";
 
 export const PRINT_ACTIONS = [
   PRINT_SUCCESS,
   PRINT_PASS,
   PRINT_REQUEST,
   PRINT_REASSIGN,
+  PRINT_FAILED,
 ] as const;
 
 export type PrintAction = (typeof PRINT_ACTIONS)[number];
@@ -29,7 +36,12 @@ export const PRINT_REASON_STRANDED = "stranded";
 export const PRINT_SPINNER_FAIL_MS = 300000;
 
 export type PrintFoldState =
-  "open" | "solicit" | "assigned" | "printed" | "conflict";
+  | "open"
+  | "solicit"
+  | "assigned"
+  | "printed"
+  | "conflict"
+  | "failed";
 
 export interface PrintRow {
   action: string;
@@ -107,6 +119,10 @@ export interface PrintFold {
   holder: string | null;
   decider: boolean;
   terminal: boolean;
+  /** True when a PRINT_FAILED exists and NO PRINT_SUCCESS does — the chain
+   *  gave up and every device stands down (Phase 4). Success dominates: with
+   *  both rows present this is false and the fold resolves printed. */
+  failed: boolean;
   conflict: string[];
   chain: (string | null)[];
   requests: (string | null)[];
@@ -144,6 +160,7 @@ export function foldPrintBaton(
   const reassignAuthors: (string | null)[] = [];
   const printFailAuthors: (string | null)[] = [];
   const successes: PrintRow[] = [];
+  const failedRows: PrintRow[] = [];
 
   for (const row of rows) {
     if (!PRINT_ACTION_SET.has(row.action)) continue;
@@ -180,6 +197,9 @@ export function foldPrintBaton(
         break;
       case PRINT_SUCCESS:
         successes.push(row);
+        break;
+      case PRINT_FAILED:
+        failedRows.push(row);
         break;
     }
   }
@@ -273,12 +293,17 @@ export function foldPrintBaton(
     }
     stranded = latest.payload?.reason === PRINT_REASON_STRANDED;
   }
-  const terminal = successes.length > 0;
+  // Phase 4: any PRINT_FAILED is terminal only while no success exists —
+  // success dominates (a PRINT_FAILED alongside a PRINT_SUCCESS never makes
+  // the strand failed, and the fold resolves printed as before).
+  const failed = failedRows.length > 0 && successes.length === 0;
+  const terminal = successes.length > 0 || failedRows.length > 0;
 
   let state: PrintFoldState;
   if (manual.length > 0) state = "printed";
   else if (conflicts.length > 0) state = "conflict";
-  else if (terminal) state = "printed";
+  else if (successes.length > 0) state = "printed";
+  else if (failed) state = "failed";
   else if (openPass) state = "solicit";
   else if (chain.length > 1) state = "assigned";
   else state = "open";
@@ -288,6 +313,7 @@ export function foldPrintBaton(
     holder: current,
     decider,
     terminal,
+    failed,
     conflict: conflicts,
     chain,
     requests,
@@ -417,11 +443,19 @@ export function printSpinnerState(opts: {
    *  (Phase 3: device-local observation time, never a foreign row stamp).
    *  When provided it decides the fail threshold; `ageMs` is ignored. */
   pendingMs?: number | null;
+  /** Phase 4: a PRINT_FAILED row exists (SQL EXISTS → 0/1) — the strand
+   *  failed for every device, so the spinner renders the failed state
+   *  immediately, no local window needed. Success still dominates (checked
+   *  first via `printed`). */
+  failed?: boolean | number | null;
 }): PrintSpinnerState | null {
-  const { printed, silentPrint, ageMs, pendingMs } = opts;
+  const { printed, silentPrint, ageMs, pendingMs, failed } = opts;
   if (!silentPrint) return null;
   if (printed === true || printed === 1) return null;
   if (printed === null || printed === undefined) return null;
+  // Phase 4: the durable verdict wins over the local window — every device
+  // shows failed the moment the declaration lands.
+  if (failed) return "failed";
   // Phase 3: the local observation basis wins when present.
   if (pendingMs != null) {
     return pendingMs >= PRINT_SPINNER_FAIL_MS ? "failed" : "trying";
@@ -431,5 +465,9 @@ export function printSpinnerState(opts: {
 }
 
 export function manualTakeoverAllowed(fold: PrintFold): boolean {
+  // Phase 4: a failed strand is exactly when a human must be able to take
+  // over — terminal (from PRINT_FAILED) would otherwise block the (!) press
+  // and leave a dead ticket. Success-terminal strands stay untakeable.
+  if (fold.failed) return true;
   return !fold.terminal;
 }

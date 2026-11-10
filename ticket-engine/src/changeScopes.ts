@@ -56,6 +56,7 @@ const ticketLocalActions = new Set([
   'PRINT_PASS',
   'PRINT_REQUEST',
   'PRINT_REASSIGN',
+  'PRINT_FAILED',
 ]);
 
 export const FLOOR_VIEW_TABLES = ['floor_room', 'floor_item'] as const;

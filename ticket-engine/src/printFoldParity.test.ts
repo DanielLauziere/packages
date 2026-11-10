@@ -32,6 +32,7 @@ interface CorpusScenario {
     holder: string;
     decider: boolean;
     terminal: boolean;
+    failed: boolean;
     conflicts: string[];
     chain: string[];
     stranded: boolean;
@@ -64,6 +65,7 @@ describe("print-fold parity corpus (Go ↔ TS)", () => {
       expect(fold.holder).toBe(sc.expect.holder);
       expect(fold.decider).toBe(sc.expect.decider);
       expect(fold.terminal).toBe(sc.expect.terminal);
+      expect(fold.failed).toBe(sc.expect.failed);
       expect(fold.conflict).toEqual(sc.expect.conflicts);
       expect(fold.chain).toEqual(sc.expect.chain);
       expect(fold.stranded).toBe(sc.expect.stranded);

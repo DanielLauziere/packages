@@ -16,6 +16,7 @@ describe('compact ticket-log wire protocol', () => {
     expect(TICKET_LOG_ACTION_IDS.REMOVE_MENU_ITEM).toBe(2)
     expect(TICKET_LOG_ACTION_IDS.PRINT_SUCCESS).toBe(17)
     expect(TICKET_LOG_ACTION_IDS.PRINT_REASSIGN).toBe(20)
+    expect(TICKET_LOG_ACTION_IDS.PRINT_FAILED).toBe(21)
 
     const group = encodeTicketLogGroup([
       {
@@ -241,6 +242,24 @@ describe('compact ticket-log wire protocol', () => {
     expect(
       decodeTicketLogGroup('ticket', 'location', wire)[0]!.action,
     ).toBe('PRINT_SUCCESS')
+  })
+
+  it('maps PRINT_FAILED to wire id 21 and back (Phase 4)', () => {
+    expect(TICKET_LOG_ACTION_IDS.PRINT_FAILED).toBe(21)
+    expect(actionIdForTicketLog('PRINT_FAILED')).toBe(21)
+
+    const wire = encodeTicketLogGroup([
+      {
+        uuid: 'f',
+        action: 'PRINT_FAILED',
+        payload: { device_id: 'dev-2', seq: 7 },
+        time_stamp: 10,
+      },
+    ])
+    expect(wire.logs[0]).toEqual({ u: 'f', a: 21, p: { device_id: 'dev-2', seq: 7 } })
+    expect(
+      decodeTicketLogGroup('ticket', 'location', wire)[0]!.action,
+    ).toBe('PRINT_FAILED')
   })
 
   it('round-trips a manual takeover payload ({manual:true, device_id})', () => {

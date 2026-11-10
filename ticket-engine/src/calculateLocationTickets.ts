@@ -130,6 +130,7 @@ export const calculateLocationTickets = ({
       admin_uuid: currentTicket.admin_uuid ?? null,
       print_success: currentTicket.print_success ?? null,
       print_row_count: currentTicket.print_row_count ?? null,
+      print_failed: currentTicket.print_failed ?? null,
       menu_items: [],
       combos: [],
       applied_promotions: [],

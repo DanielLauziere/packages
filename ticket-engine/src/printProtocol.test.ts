@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   PRINT_ALERT_MS,
+  PRINT_FAILED,
   PRINT_SPINNER_FAIL_MS,
   foldPrintBaton,
   decidePrint,
@@ -1180,5 +1181,128 @@ describe("foldPrintBaton — per-author seq ordering (Phase 2)", () => {
     expect(fold.conflict).toEqual([]);
     expect(fold.chain).toEqual([A, B]);
     expect(fold.holder).toBe(B);
+  });
+});
+
+describe("Phase 4 — PRINT_FAILED fold / decide / spinner", () => {
+  it("PRINT_FAILED alone: state failed, terminal — every device stands down", () => {
+    const rows = [row(PRINT_FAILED, B, 1000, { device_id: D })];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.state).toBe("failed");
+    expect(fold.terminal).toBe(true);
+    expect(fold.failed).toBe(true);
+    expect(fold.conflict).toEqual([]);
+    // decidePrint is stand-down for EVERY device — holder, author, stranger:
+    // no requests, no sends, no passes on any of them.
+    for (const me of [A, B, D, "dev-x"]) {
+      expect(decidePrint(fold, { me, capable: true, now: 2000 }).kind).toBe(
+        "stand-down",
+      );
+    }
+  });
+
+  it("success dominates: PRINT_SUCCESS + PRINT_FAILED → printed, never conflict", () => {
+    // The 4:58-print / 5:00-declare race resolved in both directions.
+    const rows = [
+      row("PRINT_FAILED", B, 1000, { device_id: D }),
+      row("PRINT_SUCCESS", A, 2000, { device_id: A }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.state).toBe("printed");
+    expect(fold.terminal).toBe(true);
+    expect(fold.failed).toBe(false);
+    expect(fold.conflict).toEqual([]);
+  });
+
+  it("multi-writer: several PRINT_FAILED rows → one stand-down, no conflict", () => {
+    const rows = [
+      row(PRINT_FAILED, A, 1000, { device_id: A }),
+      row(PRINT_FAILED, B, 1100, { device_id: D }),
+      row(PRINT_FAILED, C, 1200, { device_id: "dev-z" }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.state).toBe("failed");
+    expect(fold.failed).toBe(true);
+    expect(fold.terminal).toBe(true);
+    expect(fold.conflict).toEqual([]);
+  });
+
+  it("failed beats an open solicit and an assigned chain", () => {
+    const solicit = foldPrintBaton(
+      [
+        row("PRINT_PASS", A, 1000, { device_id: A }),
+        row(PRINT_FAILED, B, 2000, { device_id: D }),
+      ],
+      A,
+    );
+    expect(solicit.state).toBe("failed");
+
+    const assigned = foldPrintBaton(
+      [
+        row("PRINT_PASS", A, 1000, { device_id: A }),
+        row("PRINT_REASSIGN", A, 2000, { to: D, device_id: A }),
+        row(PRINT_FAILED, B, 3000, { device_id: D }),
+      ],
+      A,
+    );
+    expect(assigned.state).toBe("failed");
+    expect(assigned.chain).toEqual([A, D]);
+  });
+
+  it("conflict still outranks failed — the attention verdict survives", () => {
+    const fold = foldPrintBaton(
+      [
+        // REASSIGN without a pass → conflict, plus a late declaration.
+        row("PRINT_REASSIGN", A, 1000, { to: D, device_id: A }),
+        row(PRINT_FAILED, B, 2000, { device_id: D }),
+      ],
+      A,
+    );
+    expect(fold.state).toBe("conflict");
+    expect(fold.failed).toBe(true); // no success — still untakeable-safe
+    expect(fold.terminal).toBe(true);
+  });
+
+  it("manualTakeoverAllowed from failed; the manual success clears it", () => {
+    const failedFold = foldPrintBaton(
+      [row(PRINT_FAILED, B, 1000, { device_id: D })],
+      A,
+    );
+    expect(manualTakeoverAllowed(failedFold)).toBe(true);
+
+    const takenOver = foldPrintBaton(
+      [
+        row(PRINT_FAILED, B, 1000, { device_id: D }),
+        row("PRINT_SUCCESS", A, 2000, { manual: true, device_id: A }),
+      ],
+      A,
+    );
+    expect(takenOver.state).toBe("printed");
+    expect(takenOver.failed).toBe(false);
+    expect(manualTakeoverAllowed(takenOver)).toBe(false);
+  });
+
+  it("spinner: the durable failed verdict renders on every device", () => {
+    // No local window needed — the EXISTS column flips it immediately.
+    expect(
+      printSpinnerState({ printed: 0, silentPrint: true, failed: 1 }),
+    ).toBe("failed");
+    // …even before this device's own 5:00 window elapsed.
+    expect(
+      printSpinnerState({
+        printed: 0,
+        silentPrint: true,
+        failed: 1,
+        pendingMs: 1_000,
+      }),
+    ).toBe("failed");
+    // Success dominates: printed → no spinner at all (green check path).
+    expect(
+      printSpinnerState({ printed: 1, silentPrint: true, failed: 1 }),
+    ).toBeNull();
+    // Silent print off → quiet even with a failed row.
+    expect(
+      printSpinnerState({ printed: 0, silentPrint: false, failed: 1 }),
+    ).toBeNull();
   });
 });

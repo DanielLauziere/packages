@@ -1,6 +1,6 @@
 /**
  * Client-side baton print loop (CORE-LOGIC-PRINT-LOGIC.md). The fold is
- * computed live from the four PRINT_* rows in ticket_log; the engine's
+ * computed live from the five PRINT_* rows in ticket_log; the engine's
  * `decidePrint` picks this device's single next move; every row this device
  * writes is an ordinary ticket_log that rides sync/P2P. No claim, no confirm,
  * no print_record — the local ledger is the log itself.
@@ -15,35 +15,40 @@ import {
   foldPrintBaton,
   manualTakeoverAllowed,
   PRINT_ALERT_MS,
+  PRINT_FAILED,
   PRINT_PASS,
   PRINT_REASON_STRANDED,
   PRINT_REASSIGN,
   PRINT_REQUEST,
+  PRINT_SPINNER_FAIL_MS,
   PRINT_SUCCESS,
   type PrintFold,
   type PrintRow,
 } from './printProtocol.js';
 
 export interface BatonResult {
-  outcome: 'printed' | 'advanced' | 'alert' | 'conflict' | 'waiting';
+  outcome: 'printed' | 'advanced' | 'alert' | 'conflict' | 'waiting' | 'failed';
   // Arm/re-arm local timers: alertInMs = time until my own PRINT_REQUEST
-  // strands (60 s (!)). No retryInMs — a refused send now fails over
-  // immediately (item 9) instead of retrying on a cooldown.
+  // strands (60 s (!)); failInMs = time until this device's local 5:00
+  // give-up window elapses (Phase 4 — the hook arms the earlier of the two).
+  // No retryInMs — a refused send now fails over immediately (item 9)
+  // instead of retrying on a cooldown.
   alertInMs?: number;
+  failInMs?: number;
 }
 
 /** SQL every client uses to load the baton rows for one ticket. */
 export const PRINT_ROWS_SQL = `SELECT action, payload, "time_stamp", admin_uuid
      FROM ticket_log
      WHERE ticket_uuid = ?
-       AND action IN ('PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN')
+       AND action IN ('PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN', 'PRINT_FAILED')
      ORDER BY "time_stamp", uuid`;
 
 /**
  * SQL for the chain seed: the ticket's FIRST log row of ANY action. That row
  * carries `payload.device_id` (stamped once by the ticket-create path) and is
  * what chain[0] is seeded from. PRINT_ROWS_SQL deliberately filters to the
- * four print actions, so the seed needs its own query.
+ * print actions, so the seed needs its own query.
  */
 export const CHAIN_SEED_SQL = `SELECT action, payload, "time_stamp", admin_uuid
      FROM ticket_log
@@ -155,6 +160,12 @@ export interface BatonDeps<Ticket, TLG, TAdmin> {
    *  device's own failed send or reassign) — set once and persisted in local
    *  storage keyed by ticket. Arms the original-device 60 s strand alert. */
   observeCreatorStrand(ticket_uuid: string): number | Promise<number>;
+  /** Phase 4: READ-ONLY local observation of the print-pending state (the
+   *  spinner-start window the UI armed) — returns null when this device has
+   *  no observation (silent print off / never rendered the ticket), and
+   *  never creates one. The loop publishes PRINT_FAILED only once this
+   *  device's own 5:00 window has elapsed from it. */
+  getPrintPendingObservedAt?(ticket_uuid: string): number | Promise<number> | null;
   /** Config-level capability (silent mode + printer configured for this
    *  platform). Re-checked each iteration; cooldown handled by the loop. */
   isKitchenCapable(): boolean;
@@ -227,6 +238,16 @@ export async function runBatonPrint<
   // carries payload.device_id (backlog item 4).
   const seed = seedDeviceOf(await deps.getChainSeedRow(ticket.uuid));
 
+  // Phase 4: remaining time on this device's local 5:00 give-up window,
+  // recomputed each iteration from the read-only pending observation.
+  // Unresolved returns carry it as `failInMs` so the hook re-runs the loop
+  // exactly when the window elapses (the earlier of alertInMs/failInMs wins).
+  let failArmMs: number | undefined;
+  const withFailTimer = <R extends BatonResult>(result: R): R =>
+    failArmMs != null && result.failInMs == null
+      ? { ...result, failInMs: failArmMs }
+      : result;
+
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const rows = await deps.getPrintRows(ticket.uuid);
     const fold = foldPrintBaton(rows, seed);
@@ -238,6 +259,29 @@ export async function runBatonPrint<
     );
     const now = Date.now() + offset;
     const capable = deps.isKitchenCapable();
+
+    // Phase 4: the durable 5-minute give-up. The window runs from THIS
+    // device's own spinner-start observation (read-only — the UI arms it; no
+    // observation means this device never watched the ticket and never
+    // declares). `!fold.terminal` carries both spec gates at once: no
+    // PRINT_SUCCESS applied and no PRINT_FAILED yet (by anyone — the first
+    // declaration to land does the work for every device, and its count bump
+    // re-folds peers before their own timers fire). Conflicts keep the
+    // attention verdict, so they never publish over it.
+    const pendingObservedAt =
+      (await deps.getPrintPendingObservedAt?.(ticket.uuid)) ?? null;
+    failArmMs =
+      pendingObservedAt != null && !fold.terminal && fold.state !== 'conflict'
+        ? pendingObservedAt + PRINT_SPINNER_FAIL_MS - now
+        : undefined;
+    if (failArmMs != null && failArmMs <= 0) {
+      await appendPrintLog(deps, ticket, admin.uuid, PRINT_FAILED, {});
+      advanced = true;
+      // Re-read: the fold now resolves failed and decidePrint stands this
+      // device — and every other — down on the next iteration.
+      continue;
+    }
+
     // Phase 3: local observation of the creator-strand state — set once, so
     // the 60 s window is measured from when this device first saw its own
     // failed send / reassign, not from any foreign row stamp.
@@ -306,12 +350,15 @@ export async function runBatonPrint<
         continue;
 
       case 'alert':
-        return { outcome: 'alert' };
+        return withFailTimer({ outcome: 'alert' });
 
       case 'attention':
         return { outcome: 'conflict' };
 
       case 'stand-down':
+        // Phase 4: a failed strand is its own outcome — surface it for
+        // manual resolution, never misreport it as printed.
+        if (fold.failed) return { outcome: 'failed' };
         if (fold.terminal) return { outcome: 'printed' };
         // Original device that already tried to print (reassign or local print
         // failure) but hasn't reached the 60 s strand window yet: arm a timer
@@ -325,23 +372,23 @@ export async function runBatonPrint<
         ) {
           const remaining = observedAt + PRINT_ALERT_MS - now;
           if (remaining > 0 && remaining <= PRINT_ALERT_MS) {
-            return {
+            return withFailTimer({
               outcome: advanced ? 'advanced' : 'waiting',
               alertInMs: remaining,
-            };
+            });
           }
         }
-        return { outcome: advanced ? 'advanced' : 'waiting' };
+        return withFailTimer({ outcome: advanced ? 'advanced' : 'waiting' });
 
       case 'wait': {
         // Waiter on my own request: arm the 60 s (!) alert timer from the
         // local observation time, never the request row's foreign stamp.
         if (myRequest && !fold.terminal && fold.holder !== me) {
           const requestedObservedAt = await deps.observeRequest(ticket.uuid);
-          return {
+          return withFailTimer({
             outcome: advanced ? 'advanced' : 'waiting',
             alertInMs: Math.max(0, requestedObservedAt + PRINT_ALERT_MS - now),
-          };
+          });
         }
         // Original device with a local print failure (no reassign): arm the
         // 60 s (!) alert timer so the alert surfaces when the strand window
@@ -355,18 +402,18 @@ export async function runBatonPrint<
         ) {
           const remaining = observedAt + PRINT_ALERT_MS - now;
           if (remaining > 0 && remaining <= PRINT_ALERT_MS) {
-            return {
+            return withFailTimer({
               outcome: advanced ? 'advanced' : 'waiting',
               alertInMs: remaining,
-            };
+            });
           }
         }
-        return { outcome: advanced ? 'advanced' : 'waiting' };
+        return withFailTimer({ outcome: advanced ? 'advanced' : 'waiting' });
       }
     }
   }
 
-  return { outcome: advanced ? 'advanced' : 'waiting' };
+  return withFailTimer({ outcome: advanced ? 'advanced' : 'waiting' });
 }
 
 // The (!) press: re-validate the fold at press time, then take the ticket

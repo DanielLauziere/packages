@@ -584,7 +584,7 @@ describe('applyTicketLog', () => {
   })
 
   describe('PRINT actions', () => {
-    for (const action of ['PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN']) {
+    for (const action of ['PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN', 'PRINT_FAILED']) {
       it(`${action} applies without mutating ticket state or writing a print cache`, async () => {
         await applyTicketLog(adapter, entry({ action, payload: { to: 'admin-b' } }))
         expect(adapter.findRun('SET status')).toBeUndefined()
@@ -740,7 +740,7 @@ describe('applyLogsBatch', () => {
     expect(claims).toEqual(['a-1', 'b-2'])
   })
 
-  for (const action of ['PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN']) {
+  for (const action of ['PRINT_SUCCESS', 'PRINT_PASS', 'PRINT_REQUEST', 'PRINT_REASSIGN', 'PRINT_FAILED']) {
     it(`PRINT actions sort last (tier 13) after status actions — ${action}`, async () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       adapter.onQuery('SELECT action, payload', [])
