@@ -41,12 +41,65 @@ export interface PrintRow {
    *  acting admin for logging. Absent on rows written before the device
    *  change; the fold falls back to `author` for those. */
   device_id?: string | null;
+  /** Per-author monotonic ordinal (Phase 2). The authoring device stamps it
+   *  on every PRINT_* row it writes — a counter persisted in its local
+   *  metadata, never reused within a device. Ordering between two rows of the
+   *  SAME author (a holder's pass vs that holder's reassign) is decided by
+   *  `seq`, which needs only the author's own clock and is immune to
+   *  cross-device skew. Absent on legacy rows; those fall back to
+   *  `time_stamp` (within the author only). */
+  seq?: number | null;
 }
 
 /** Read the acting device from a PRINT_* row's payload. */
 function deviceIdOf(row: PrintRow): string | null {
   const id = row.device_id ?? row.payload?.device_id;
   return typeof id === 'string' && id ? id : null;
+}
+
+/**
+ * Read the per-author ordinal from a PRINT_* row. Top-level `seq` (set by the
+ * loaders from `payload.seq`) wins; `payload.seq` is the wire form. Returns
+ * null for legacy rows (no seq anywhere) — the fold then falls back to
+ * `time_stamp` for that comparison.
+ */
+function seqOf(row: PrintRow): number | null {
+  const raw = row.seq ?? row.payload?.seq;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+}
+
+/**
+ * Order two rows of the SAME author: `seq` when both carry one (skew-proof),
+ * else `time_stamp` (legacy rows). Equal seqs tiebreak on the author's own
+ * `time_stamp` — one clock per comparison is sound, and a counter rewind then
+ * degrades to exactly the pre-seq behaviour for the colliding rows.
+ *
+ * This is the "at or before" form: `a` comes before `b` or is the same point
+ * in the author's own order.
+ */
+function sameAuthorBefore(a: PrintRow, b: PrintRow): boolean {
+  const as = seqOf(a);
+  const bs = seqOf(b);
+  if (as != null && bs != null) {
+    if (as !== bs) return as < bs;
+    return a.time_stamp <= b.time_stamp;
+  }
+  return a.time_stamp <= b.time_stamp;
+}
+
+/**
+ * Strictly-before form, used only by the "latest pass" scan (the stranded
+ * flag rides the holder's LAST pass). With equal seqs the author's own stamp
+ * breaks the tie; a true tie keeps the earlier-scanned row (stable).
+ */
+function sameAuthorStrictlyBefore(a: PrintRow, b: PrintRow): boolean {
+  const as = seqOf(a);
+  const bs = seqOf(b);
+  if (as != null && bs != null) {
+    if (as !== bs) return as < bs;
+    return a.time_stamp < b.time_stamp;
+  }
+  return a.time_stamp < b.time_stamp;
 }
 
 export interface PrintFold {
@@ -145,9 +198,9 @@ export function foldPrintBaton(
     if (owned.length === 1) {
       const reassign = owned[0];
       const passes = passesBy.get(current) ?? [];
-      const hasOpenPass = passes.some(
-        (p) => p.time_stamp <= reassign.time_stamp,
-      );
+      // Open-pass test (C2): same author only, so the per-author `seq`
+      // ordinal decides — a skewed foreign stamp can no longer shadow it.
+      const hasOpenPass = passes.some((p) => sameAuthorBefore(p, reassign));
       if (!hasOpenPass) {
         conflicts.push("REASSIGN_WITHOUT_PASS");
         break;
@@ -176,7 +229,10 @@ export function foldPrintBaton(
     const owned = reassignsBy.get(author) ?? [];
     if (
       owned.length === 1 &&
-      passes.some((p) => p.time_stamp > owned[0].time_stamp)
+      // PASS_AFTER_REASSIGN (C3): same author only — `seq` decides, strictly
+      // after (a pass at the same point as the reassign is tolerated, as the
+      // stamp comparison was).
+      passes.some((p) => sameAuthorStrictlyBefore(owned[0], p))
     ) {
       conflicts.push("PASS_AFTER_REASSIGN");
     }
@@ -201,17 +257,22 @@ export function foldPrintBaton(
   const openPass = holderPasses.some(
     (p) =>
       holderReassigns.length === 0 ||
-      p.time_stamp <= holderReassigns[0].time_stamp,
+      // Same author only — `seq` decides (C2).
+      sameAuthorBefore(p, holderReassigns[0]),
   );
   const decider = openPass && holderReassigns.length === 0;
 
   // Failover (item 9): the holder's latest pass is a `stranded` handoff and
   // it has not reassigned yet → the floor is open for any capable device not
   // already in the chain.
-  const stranded =
-    holderReassigns.length === 0 &&
-    holderPasses.some((p) => p.payload?.reason === PRINT_REASON_STRANDED);
-
+  let stranded = false;
+  if (holderReassigns.length === 0 && holderPasses.length > 0) {
+    let latest = holderPasses[0];
+    for (const p of holderPasses.slice(1)) {
+      if (sameAuthorStrictlyBefore(latest, p)) latest = p;
+    }
+    stranded = latest.payload?.reason === PRINT_REASON_STRANDED;
+  }
   const terminal = successes.length > 0;
 
   let state: PrintFoldState;
@@ -241,10 +302,14 @@ export interface PrintDeviceContext {
   me: string | null;
   capable: boolean;
   now: number;
-  requestedAt?: number | null;
-  /** Ticket creation time (ms, server-adjusted) — for the original-device
-   * alert: a ticket created >60s with a reassign-but-no-success strand. */
-  createdAt?: number;
+  /** When THIS device first observed its own unanswered `PRINT_REQUEST`
+   * (Phase 3: device-local observation time, never the row's foreign
+   * `time_stamp`). Arms the 60 s requester-strand alert. */
+  requestedObservedAt?: number | null;
+  /** When THIS device first observed the creator-strand state (its own failed
+   *  send / its own reassign) — device-local observation time. Arms the 60 s
+   *  original-device strand alert. */
+  observedAt?: number | null;
 }
 
 export type PrintDecision =
@@ -276,8 +341,8 @@ export function decidePrint(
     fold.chain.length > 0 &&
     fold.chain[0] === me &&
     !fold.terminal &&
-    ctx.createdAt != null &&
-    now - ctx.createdAt >= PRINT_ALERT_MS &&
+    ctx.observedAt != null &&
+    now - ctx.observedAt >= PRINT_ALERT_MS &&
     (fold.reassignAuthors.includes(me) || fold.printFailAuthors.includes(me))
   ) {
     return { kind: "alert" };
@@ -320,8 +385,8 @@ export function decidePrint(
     fold.requests.includes(me) &&
     !fold.terminal &&
     fold.holder !== me &&
-    ctx.requestedAt != null &&
-    now - ctx.requestedAt >= PRINT_ALERT_MS
+    ctx.requestedObservedAt != null &&
+    now - ctx.requestedObservedAt >= PRINT_ALERT_MS
   ) {
     return { kind: "alert" };
   }
@@ -345,13 +410,22 @@ export function printSpinnerState(opts: {
   printed?: boolean | number | null;
   /** location_group.silent_print — the restaurant-level print switch. */
   silentPrint?: boolean | null;
-  /** ms since the ticket's age anchor (completion time, else creation). */
+  /** ms since the ticket's age anchor (completion time, else creation).
+   *  Legacy/foreign-stamp basis — prefer `pendingMs` (Phase 3). */
   ageMs?: number | null;
+  /** ms since THIS device first observed the ticket as print-pending
+   *  (Phase 3: device-local observation time, never a foreign row stamp).
+   *  When provided it decides the fail threshold; `ageMs` is ignored. */
+  pendingMs?: number | null;
 }): PrintSpinnerState | null {
-  const { printed, silentPrint, ageMs } = opts;
+  const { printed, silentPrint, ageMs, pendingMs } = opts;
   if (!silentPrint) return null;
   if (printed === true || printed === 1) return null;
   if (printed === null || printed === undefined) return null;
+  // Phase 3: the local observation basis wins when present.
+  if (pendingMs != null) {
+    return pendingMs >= PRINT_SPINNER_FAIL_MS ? "failed" : "trying";
+  }
   if (ageMs === null || ageMs === undefined || ageMs <= 0) return "trying";
   return ageMs >= PRINT_SPINNER_FAIL_MS ? "failed" : "trying";
 }

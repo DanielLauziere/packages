@@ -33,7 +33,7 @@ interface HarnessDevice {
   crashed: boolean
   prints: number
   sends: { held: boolean; manual?: boolean }[]
-  requestedAt: number | null
+  requestedObservedAt: number | null
   alertShown: boolean
   /**
    * Production parity: `appendPrintLog` stamps `payload.device_id` with the
@@ -83,7 +83,7 @@ function device(id: string | null, opts: Partial<HarnessDevice> = {}): HarnessDe
     crashed: opts.crashed ?? false,
     prints: 0,
     sends: [],
-    requestedAt: null,
+    requestedObservedAt: null,
     alertShown: false,
     // Default to production parity (stamp the device). Opt OUT explicitly for
     // the legacy-row cases that assert the admin fallback.
@@ -158,7 +158,7 @@ function step(w: World, id: string | null): string {
     me: id,
     capable: d.capable,
     now: w.now,
-    requestedAt: d.requestedAt,
+    requestedObservedAt: d.requestedObservedAt,
   })
   switch (decision.kind) {
     case 'send':
@@ -177,7 +177,7 @@ function step(w: World, id: string | null): string {
       appendDeviceRow(w, 'PRINT_PASS', d)
       break
     case 'request':
-      d.requestedAt = w.now
+      d.requestedObservedAt = w.now
       appendDeviceRow(w, 'PRINT_REQUEST', d)
       break
     case 'reassign':
@@ -363,7 +363,7 @@ describe('Appendix A — every print flow', () => {
     expect(step(w, A)).toBe('pass')
     expect(step(w, B)).toBe('request')
     dev(w, A).crashed = true
-    w.now = dev(w, B).requestedAt! + PRINT_ALERT_MS
+    w.now = dev(w, B).requestedObservedAt! + PRINT_ALERT_MS
     expect(step(w, B)).toBe('alert')
     expect(w.humanPresses).toBe(1)
     expect(totalPrints(w)).toBe(1)
@@ -413,7 +413,7 @@ describe('Appendix A — every print flow', () => {
     expect(step(w, B)).toBe('request')
     expect(step(w, A)).toBe('reassign')
     dev(w, B).crashed = true
-    w.now = dev(w, B).requestedAt! + PRINT_ALERT_MS
+    w.now = dev(w, B).requestedObservedAt! + PRINT_ALERT_MS
     // B is the holder and crashed mid-flight; A is out; no waiter remains.
     expect(step(w, A)).toBe('stand-down')
     expect(totalPrints(w)).toBe(0)
@@ -444,7 +444,7 @@ describe('Appendix A — every print flow', () => {
     expect(step(w, SERVER)).toBe('pass')
     expect(step(w, B)).toBe('request')
     dev(w, SERVER).crashed = true
-    w.now = dev(w, B).requestedAt! + PRINT_ALERT_MS
+    w.now = dev(w, B).requestedObservedAt! + PRINT_ALERT_MS
     expect(step(w, B)).toBe('alert')
     expect(totalPrints(w)).toBe(1)
     expect(fullFold(w).state).toBe('printed')
@@ -483,7 +483,7 @@ describe('Appendix A — every print flow', () => {
       w.now += 1000
       expect(foldOf(w, B).state).toBe('open')
       expect(decidePrint(foldOf(w, B), { me: B, capable: true, now: w.now }).kind).toBe('wait')
-      expect(dev(w, B).requestedAt).toBeNull()
+      expect(dev(w, B).requestedObservedAt).toBeNull()
       expect(dev(w, B).alertShown).toBe(false)
     }
     run(w, mulberry32(12))

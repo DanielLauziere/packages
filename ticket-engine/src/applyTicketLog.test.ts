@@ -607,7 +607,7 @@ describe('applyTicketLog', () => {
       })
     }
 
-    it('a PRINT row on an existing ticket bumps time_stamp (LWW forward only)', async () => {
+    it('a PRINT row on an existing ticket runs the time_stamp min-reduce guard (LWW forward only)', async () => {
       adapter.onQuery('SELECT uuid FROM ticket', [{ uuid: 'ticket-001' }])
       await applyTicketLog(adapter, entry({ action: 'PRINT_PASS' }))
       const bump = adapter.findRun('UPDATE "ticket" SET time_stamp')

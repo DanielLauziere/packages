@@ -81,6 +81,9 @@ export type CompleteTicket = {
   admin_uuid?: string | null;
   /** SQL EXISTS of a PRINT_SUCCESS row — feeds the silent-print spinner. */
   print_success?: number | boolean | null;
+  /** COUNT of PRINT_* rows (SUCCESS/PASS/REQUEST/REASSIGN) — advances on every
+   *  baton event so the silent-print fingerprint re-folds for remote events. */
+  print_row_count?: number | null;
 };
 
 export type MenuItemModifierGroupModifierDB = {
@@ -244,6 +247,9 @@ export type ReturnCompleteTicket = {
   admin_uuid?: string | null;
   /** SQL EXISTS of a PRINT_SUCCESS row — feeds the silent-print spinner. */
   print_success?: number | boolean | null;
+  /** COUNT of PRINT_* rows (SUCCESS/PASS/REQUEST/REASSIGN) — advances on every
+   *  baton event so the silent-print fingerprint re-folds for remote events. */
+  print_row_count?: number | null;
   menu_items: ReturnMenuItem[];
   combos: ComboDB[];
   applied_promotions: ReturnPromotion[];

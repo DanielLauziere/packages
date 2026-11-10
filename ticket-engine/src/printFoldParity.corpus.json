@@ -1,0 +1,182 @@
+{
+  "note": "Print-fold parity corpus (Phase 2). Each scenario is a list of PRINT_* rows plus the creator seed; both engines must produce the same fold state, holder, decider, terminal, conflicts, chain, and stranded flag. `seq` is the per-author ordinal; `ts` is the origin-device wall-clock stamp (deliberately skewed in several scenarios to prove seq ordering).",
+  "scenarios": [
+    {
+      "name": "empty: creator holds, open",
+      "creator": "dev-a",
+      "rows": [],
+      "expect": { "state": "open", "holder": "dev-a", "decider": false, "terminal": false, "conflicts": [], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "holder pass: solicit, decider",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 1, "payload": {} }
+      ],
+      "expect": { "state": "solicit", "holder": "dev-a", "decider": true, "terminal": false, "conflicts": [], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "reassign walks the chain",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 200, "seq": 2, "payload": { "to": "dev-b" } }
+      ],
+      "expect": { "state": "assigned", "holder": "dev-b", "decider": false, "terminal": false, "conflicts": [], "chain": ["dev-a", "dev-b"], "stranded": false }
+    },
+    {
+      "name": "seq beats a skewed stamp: pass before reassign",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 9000, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 2, "payload": { "to": "dev-b" } }
+      ],
+      "expect": { "state": "assigned", "holder": "dev-b", "decider": false, "terminal": false, "conflicts": [], "chain": ["dev-a", "dev-b"], "stranded": false }
+    },
+    {
+      "name": "seq: pass strictly after reassign is REASSIGN_WITHOUT_PASS",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 2, "payload": { "to": "dev-b" } },
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 9000, "seq": 3, "payload": {} }
+      ],
+      "expect": { "state": "conflict", "holder": "dev-a", "decider": false, "terminal": false, "conflicts": ["REASSIGN_WITHOUT_PASS", "PASS_AFTER_REASSIGN"], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "seq collision tiebreaks on the author stamp (rewind)",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 500, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 1, "payload": { "to": "dev-b" } }
+      ],
+      "expect": { "state": "conflict", "holder": "dev-a", "decider": false, "terminal": false, "conflicts": ["REASSIGN_WITHOUT_PASS", "PASS_AFTER_REASSIGN"], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "legacy rows (no seq) fall back to stamps",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 200, "payload": { "to": "dev-b" } }
+      ],
+      "expect": { "state": "assigned", "holder": "dev-b", "decider": false, "terminal": false, "conflicts": [], "chain": ["dev-a", "dev-b"], "stranded": false }
+    },
+    {
+      "name": "mixed legacy + seq compare on the stamp",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 200, "seq": 5, "payload": { "to": "dev-b" } }
+      ],
+      "expect": { "state": "assigned", "holder": "dev-b", "decider": false, "terminal": false, "conflicts": [], "chain": ["dev-a", "dev-b"], "stranded": false }
+    },
+    {
+      "name": "PASS_AFTER_REASSIGN: seq decides over the stamp",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 9000, "seq": 2, "payload": { "to": "dev-b" } },
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 50, "seq": 3, "payload": {} }
+      ],
+      "expect": { "state": "conflict", "holder": "dev-b", "decider": false, "terminal": false, "conflicts": ["PASS_AFTER_REASSIGN"], "chain": ["dev-a", "dev-b"], "stranded": false }
+    },
+    {
+      "name": "a pass at the same seq point as the reassign is tolerated",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 9000, "seq": 1, "payload": { "to": "dev-b" } }
+      ],
+      "expect": { "state": "assigned", "holder": "dev-b", "decider": false, "terminal": false, "conflicts": [], "chain": ["dev-a", "dev-b"], "stranded": false }
+    },
+    {
+      "name": "manual success dominates a conflict",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "stranger", "device_id": "dev-x", "ts": 1, "seq": 1, "payload": {} },
+        { "action": "PRINT_SUCCESS", "author": "admin-a", "device_id": "dev-a", "ts": 5, "seq": 1, "payload": { "manual": true } }
+      ],
+      "expect": { "state": "printed", "holder": "dev-a", "decider": false, "terminal": true, "conflicts": ["PASS_FROM_NON_HOLDER"], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "auto success from the holder is printed",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_SUCCESS", "author": "admin-a", "device_id": "dev-a", "ts": 5, "seq": 1, "payload": {} }
+      ],
+      "expect": { "state": "printed", "holder": "dev-a", "decider": false, "terminal": true, "conflicts": [], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "stranded pass opens the floor",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 1, "seq": 1, "payload": { "reason": "stranded" } }
+      ],
+      "expect": { "state": "solicit", "holder": "dev-a", "decider": true, "terminal": false, "conflicts": [], "chain": ["dev-a"], "stranded": true }
+    },
+    {
+      "name": "latest pass by seq: newer normal clears stranded",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 9000, "seq": 1, "payload": { "reason": "stranded" } },
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 2, "payload": {} }
+      ],
+      "expect": { "state": "solicit", "holder": "dev-a", "decider": true, "terminal": false, "conflicts": [], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "latest pass by seq: newer stranded (lower stamp) sets stranded",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 9000, "seq": 1, "payload": {} },
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 2, "payload": { "reason": "stranded" } }
+      ],
+      "expect": { "state": "solicit", "holder": "dev-a", "decider": true, "terminal": false, "conflicts": [], "chain": ["dev-a"], "stranded": true }
+    },
+    {
+      "name": "seq never orders across authors",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 100, "seq": 9, "payload": {} },
+        { "action": "PRINT_PASS", "author": "admin-b", "device_id": "dev-b", "ts": 200, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 300, "seq": 10, "payload": { "to": "dev-b" } }
+      ],
+      "expect": { "state": "solicit", "holder": "dev-b", "decider": true, "terminal": false, "conflicts": [], "chain": ["dev-a", "dev-b"], "stranded": false }
+    },
+    {
+      "name": "pass from a non-holder is a conflict",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "stranger", "device_id": "dev-x", "ts": 1, "seq": 1, "payload": {} }
+      ],
+      "expect": { "state": "conflict", "holder": "dev-a", "decider": false, "terminal": false, "conflicts": ["PASS_FROM_NON_HOLDER"], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "auto success from a non-holder is a conflict",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_SUCCESS", "author": "stranger", "device_id": "dev-x", "ts": 5, "seq": 1, "payload": {} }
+      ],
+      "expect": { "state": "conflict", "holder": "dev-a", "decider": false, "terminal": true, "conflicts": ["AUTO_SUCCESS_FROM_NON_HOLDER"], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "multiple reassigns is a conflict",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 1, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 2, "seq": 2, "payload": { "to": "dev-b" } },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 3, "seq": 3, "payload": { "to": "dev-c" } }
+      ],
+      "expect": { "state": "conflict", "holder": "dev-a", "decider": false, "terminal": false, "conflicts": ["MULTIPLE_REASSIGN"], "chain": ["dev-a"], "stranded": false }
+    },
+    {
+      "name": "reassign cycle is a conflict",
+      "creator": "dev-a",
+      "rows": [
+        { "action": "PRINT_PASS", "author": "admin-a", "device_id": "dev-a", "ts": 1, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-a", "device_id": "dev-a", "ts": 2, "seq": 2, "payload": { "to": "dev-b" } },
+        { "action": "PRINT_PASS", "author": "admin-b", "device_id": "dev-b", "ts": 3, "seq": 1, "payload": {} },
+        { "action": "PRINT_REASSIGN", "author": "admin-b", "device_id": "dev-b", "ts": 4, "seq": 2, "payload": { "to": "dev-a" } }
+      ],
+      "expect": { "state": "conflict", "holder": "dev-b", "decider": false, "terminal": false, "conflicts": ["REASSIGN_CYCLE"], "chain": ["dev-a", "dev-b"], "stranded": false }
+    }
+  ]
+}

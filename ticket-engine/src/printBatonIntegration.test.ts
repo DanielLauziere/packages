@@ -46,7 +46,7 @@ interface Replica {
   prints: number;
   /** Sends this replica has opened (assertable for the "holder only" rule). */
   sends: { held: boolean; manual?: boolean }[];
-  requestedAt: number | null;
+  requestedObservedAt: number | null;
   alertShown: boolean;
 }
 
@@ -59,7 +59,7 @@ function replica(id: string, adminUuid: string, opts: Partial<Replica> = {}): Re
     rows: [],
     prints: 0,
     sends: [],
-    requestedAt: null,
+    requestedObservedAt: null,
     alertShown: false,
   };
 }
@@ -155,7 +155,7 @@ function step(r: Replica, creator: string, now: number): string {
     me: r.id,
     capable: r.capable,
     now,
-    requestedAt: r.requestedAt,
+    requestedObservedAt: r.requestedObservedAt,
   });
   switch (decision.kind) {
     case "send":
@@ -172,7 +172,7 @@ function step(r: Replica, creator: string, now: number): string {
       push(r, "PRINT_PASS", {}, now);
       break;
     case "request":
-      r.requestedAt = now;
+      r.requestedObservedAt = now;
       push(r, "PRINT_REQUEST", {}, now);
       break;
     case "reassign":
@@ -465,7 +465,7 @@ interface FleetDevice {
   rows: FleetRow[];
   prints: number;
   sends: { held: boolean }[];
-  requestedAt: number | null;
+  requestedObservedAt: number | null;
   /** True once this device has written a PRINT_REASSIGN (staleness probe). */
   reassigned: boolean;
 }
@@ -479,7 +479,7 @@ function fleetDevice(id: string, admin: string, opts: Partial<FleetDevice> = {})
     rows: [],
     prints: 0,
     sends: [],
-    requestedAt: null,
+    requestedObservedAt: null,
     reassigned: false,
   };
 }
@@ -551,7 +551,7 @@ function fleetConverge(fleet: FleetDevice[], ticketUuid: string, lg: string): vo
 
 /**
  * One step for one device, mirroring `runBatonPrint`'s decision→effect. A
- * fresh `now` (no createdAt) keeps the 60 s strand alerts out of the
+ * fresh `now` (no observedAt) keeps the 60 s strand alerts out of the
  * scenario's path — these scenarios must resolve in milliseconds.
  */
 function fleetStep(d: FleetDevice, creator: string, now: number): string {
@@ -565,7 +565,7 @@ function fleetStep(d: FleetDevice, creator: string, now: number): string {
     me: d.id,
     capable: capableOf(d),
     now,
-    requestedAt: myRequest ? myRequest.time_stamp : null,
+    requestedObservedAt: myRequest ? myRequest.time_stamp : null,
   });
   switch (decision.kind) {
     case "send":
@@ -581,7 +581,7 @@ function fleetStep(d: FleetDevice, creator: string, now: number): string {
       fleetPush(d, "PRINT_PASS", {}, now);
       break;
     case "request":
-      d.requestedAt = now;
+      d.requestedObservedAt = now;
       fleetPush(d, "PRINT_REQUEST", {}, now);
       break;
     case "reassign":

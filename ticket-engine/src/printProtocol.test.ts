@@ -545,7 +545,7 @@ describe("decidePrint — guards", () => {
         ...base,
         me: B,
         capable: true,
-        requestedAt: 999950,
+        requestedObservedAt: 999950,
       }).kind,
     ).toBe("wait");
   });
@@ -560,16 +560,16 @@ describe("decidePrint — guards", () => {
   it("alert arms 60 s after my request, only while unresolved and not holder", () => {
     const rows = [row("PRINT_PASS", A, 10), row("PRINT_REQUEST", B, 20)];
     const fold = foldPrintBaton(rows, A);
-    const requestedAt = base.now - PRINT_ALERT_MS;
+    const requestedObservedAt = base.now - PRINT_ALERT_MS;
     expect(
-      decidePrint(fold, { ...base, me: B, capable: true, requestedAt }).kind,
+      decidePrint(fold, { ...base, me: B, capable: true, requestedObservedAt }).kind,
     ).toBe("alert");
     expect(
       decidePrint(fold, {
         ...base,
         me: B,
         capable: true,
-        requestedAt: base.now - PRINT_ALERT_MS + 1,
+        requestedObservedAt: base.now - PRINT_ALERT_MS + 1,
       }).kind,
     ).toBe("wait");
   });
@@ -588,7 +588,7 @@ describe("decidePrint — guards", () => {
         ...base,
         me: B,
         capable: true,
-        requestedAt: base.now - PRINT_ALERT_MS,
+        requestedObservedAt: base.now - PRINT_ALERT_MS,
       }).kind,
     ).toBe("stand-down");
   });
@@ -607,7 +607,7 @@ describe("decidePrint — guards", () => {
         ...base,
         me: B,
         capable: true,
-        requestedAt: base.now - PRINT_ALERT_MS,
+        requestedObservedAt: base.now - PRINT_ALERT_MS,
       }).kind,
     ).toBe("send");
   });
@@ -640,10 +640,10 @@ describe("decidePrint — guards", () => {
     const fold = foldPrintBaton(rows, null);
     expect(fold.chain[0]).toBeNull();
     expect(fold.reassignAuthors).toEqual([null]);
-    // Exactly 60 s old: `now - createdAt >= PRINT_ALERT_MS` still holds.
-    const createdAt = base.now - PRINT_ALERT_MS;
+    // Exactly 60 s old: `now - observedAt >= PRINT_ALERT_MS` still holds.
+    const observedAt = base.now - PRINT_ALERT_MS;
     expect(
-      decidePrint(fold, { ...base, me: null, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: null, capable: false, observedAt }).kind,
     ).toBe("alert");
   });
 
@@ -654,11 +654,11 @@ describe("decidePrint — guards", () => {
       row("PRINT_REASSIGN", null, 30, { to: B }),
     ];
     const fold = foldPrintBaton(rows, null);
-    const createdAt = base.now - PRINT_ALERT_MS + 1;
+    const observedAt = base.now - PRINT_ALERT_MS + 1;
     // decidePrint itself never carries alertInMs — the remaining-window arm
     // lives in runBatonPrint's stand-down branch; here it is a plain stand-down.
     expect(
-      decidePrint(fold, { ...base, me: null, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: null, capable: false, observedAt }).kind,
     ).toBe("stand-down");
   });
 
@@ -718,9 +718,9 @@ describe("decidePrint — guards", () => {
     const fold = foldPrintBaton(rows, A);
     expect(fold.reassignAuthors).toEqual([A]);
     expect(fold.chain[0]).toBe(A);
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("alert");
   });
 
@@ -731,9 +731,9 @@ describe("decidePrint — guards", () => {
       row("PRINT_REASSIGN", A, 30, { to: B }),
     ];
     const fold = foldPrintBaton(rows, A);
-    const createdAt = base.now - PRINT_ALERT_MS + 1;
+    const observedAt = base.now - PRINT_ALERT_MS + 1;
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("stand-down");
   });
 
@@ -750,9 +750,9 @@ describe("decidePrint — guards", () => {
     ];
     const fold = foldPrintBaton(rows, A);
     // B is a reassign author but NOT the creator (chain[0] = A).
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: B, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: B, capable: false, observedAt }).kind,
     ).toBe("stand-down");
   });
 
@@ -764,9 +764,9 @@ describe("decidePrint — guards", () => {
       row("PRINT_SUCCESS", B, 40, {}),
     ];
     const fold = foldPrintBaton(rows, A);
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("stand-down");
   });
 
@@ -780,9 +780,9 @@ describe("decidePrint — guards", () => {
       row("PRINT_SUCCESS", B, 40, {}),
     ];
     const fold = foldPrintBaton(rows, A);
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("stand-down");
   });
 
@@ -795,20 +795,20 @@ describe("decidePrint — guards", () => {
     expect(fold.printFailAuthors).toEqual([A]);
     expect(fold.holder).toBe(A);
     expect(fold.chain[0]).toBe(A);
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("alert");
   });
 
   it("original-device alert on local print failure does not fire before 60 s", () => {
     const rows = [row("PRINT_PASS", A, 1000, { reason: "print_failed" })];
     const fold = foldPrintBaton(rows, A);
-    const createdAt = base.now - PRINT_ALERT_MS + 1;
+    const observedAt = base.now - PRINT_ALERT_MS + 1;
     // <60 s: creator is still holder, has passed, no requests → wait (holder
     // that already passed, decider with no requests to reassign to).
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("wait");
   });
 
@@ -818,9 +818,9 @@ describe("decidePrint — guards", () => {
     const rows = [row("PRINT_PASS", B, 1000, { reason: "print_failed" })];
     const fold = foldPrintBaton(rows, A);
     expect(fold.state).toBe("conflict");
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: B, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: B, capable: false, observedAt }).kind,
     ).toBe("attention");
   });
 
@@ -833,9 +833,9 @@ describe("decidePrint — guards", () => {
       row("PRINT_REASSIGN", A, 3000, { to: B }),
     ];
     const fold = foldPrintBaton(rows, A);
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("alert");
   });
 
@@ -845,18 +845,18 @@ describe("decidePrint — guards", () => {
       row("PRINT_SUCCESS", A, 2000, {}),
     ];
     const fold = foldPrintBaton(rows, A);
-    const createdAt = base.now - PRINT_ALERT_MS - 1;
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("stand-down");
   });
 
   it("original-device alert on print_failed stays silent when the device is not capable but <60 s", () => {
     const rows = [row("PRINT_PASS", A, 1000, { reason: "print_failed" })];
     const fold = foldPrintBaton(rows, A);
-    const createdAt = base.now - 30_000; // 30 s ago
+    const observedAt = base.now - 30_000; // 30 s ago
     expect(
-      decidePrint(fold, { ...base, me: A, capable: false, createdAt }).kind,
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }).kind,
     ).toBe("wait");
   });
 
@@ -923,6 +923,34 @@ describe("printSpinnerState — silent-print spinner", () => {
     expect(
       printSpinnerState({ ...trying, printed: 2, ageMs: PRINT_SPINNER_FAIL_MS }),
     ).toBe("failed");
+  });
+
+  it("Phase 3: pendingMs (local observation) wins over ageMs (foreign stamp)", () => {
+    // The foreign age anchor claims the ticket is past the threshold, but
+    // THIS device first observed the print-pending state a moment ago — the
+    // local window is young, so it keeps spinning.
+    expect(
+      printSpinnerState({
+        ...trying,
+        ageMs: PRINT_SPINNER_FAIL_MS + 60_000,
+        pendingMs: 1_000,
+      }),
+    ).toBe("trying");
+    // Conversely, a local observation past the threshold decides even when
+    // the foreign age anchor is unknown or claims the ticket is new.
+    expect(
+      printSpinnerState({ ...trying, ageMs: null, pendingMs: PRINT_SPINNER_FAIL_MS }),
+    ).toBe("failed");
+    expect(
+      printSpinnerState({ ...trying, ageMs: 1_000, pendingMs: PRINT_SPINNER_FAIL_MS + 1 }),
+    ).toBe("failed");
+    // pendingMs exactly at the threshold flips, like ageMs.
+    expect(
+      printSpinnerState({ ...trying, ageMs: 0, pendingMs: PRINT_SPINNER_FAIL_MS }),
+    ).toBe("failed");
+    expect(
+      printSpinnerState({ ...trying, ageMs: 0, pendingMs: PRINT_SPINNER_FAIL_MS - 1 }),
+    ).toBe("trying");
   });
 });
 
@@ -1016,5 +1044,141 @@ describe("decidePrint — stranded failover (item 9)", () => {
     expect(decidePrint(fold, { ...base, me: B, capable: true }).kind).toBe(
       "wait",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2 — per-author ordinal (`seq`) replaces raw-stamp ordering for every
+// same-author comparison (open-pass test, PASS_AFTER_REASSIGN, latest-pass).
+// A skewed foreign stamp must no longer shadow or rewind the author's own
+// order; a counter rewind degrades to the stamp behaviour, never worse.
+// ---------------------------------------------------------------------------
+describe("foldPrintBaton — per-author seq ordering (Phase 2)", () => {
+  const seqRow = (
+    action: string,
+    author: string,
+    time_stamp: number,
+    seq: number,
+    payload: any = {},
+  ): PrintRow => ({ action, author, time_stamp, payload: { ...payload, seq }, seq });
+
+  it("open-pass test: seq orders a pass before a reassign despite a skewed stamp", () => {
+    // A slow-clock author: pass stamped 9000 (looks older than the reassign's
+    // 100) but seq says the pass came first. The chain must walk.
+    const rows = [
+      seqRow("PRINT_PASS", A, 9000, 1),
+      seqRow("PRINT_REASSIGN", A, 100, 2, { to: B }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toEqual([]);
+    expect(fold.state).toBe("assigned");
+    expect(fold.chain).toEqual([A, B]);
+    expect(fold.holder).toBe(B);
+  });
+
+  it("open-pass test: a pass strictly after the reassign (seq) is REASSIGN_WITHOUT_PASS", () => {
+    const rows = [
+      seqRow("PRINT_REASSIGN", A, 100, 2, { to: B }),
+      seqRow("PRINT_PASS", A, 9000, 3),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toContain("REASSIGN_WITHOUT_PASS");
+    expect(fold.state).toBe("conflict");
+  });
+
+  it("PASS_AFTER_REASSIGN: seq decides, not the stamp", () => {
+    // seq says the pass came after the reassign, but the stamp says before.
+    const rows = [
+      seqRow("PRINT_PASS", A, 100, 1),
+      seqRow("PRINT_REASSIGN", A, 9000, 2, { to: B }),
+      seqRow("PRINT_PASS", A, 50, 3),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toContain("PASS_AFTER_REASSIGN");
+  });
+
+  it("PASS_AFTER_REASSIGN: a pass at the same seq point is tolerated", () => {
+    const rows = [
+      seqRow("PRINT_PASS", A, 100, 1),
+      seqRow("PRINT_REASSIGN", A, 9000, 1, { to: B }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toEqual([]);
+    expect(fold.state).toBe("assigned");
+  });
+
+  it("seq collision tiebreaks on the author's own stamp (rewind degrades to stamps)", () => {
+    // A device-restore rewound the counter: pass and reassign share seq 1.
+    // The author's own stamps then decide — the pre-seq behaviour.
+    const rows = [
+      seqRow("PRINT_PASS", A, 500, 1),
+      seqRow("PRINT_REASSIGN", A, 100, 1, { to: B }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toContain("REASSIGN_WITHOUT_PASS");
+  });
+
+  it("legacy rows (no seq) fall back to time_stamp within the author", () => {
+    const rows: PrintRow[] = [
+      { action: "PRINT_PASS", author: A, time_stamp: 100, payload: {} },
+      { action: "PRINT_REASSIGN", author: A, time_stamp: 200, payload: { to: B } },
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toEqual([]);
+    expect(fold.state).toBe("assigned");
+    expect(fold.holder).toBe(B);
+  });
+
+  it("mixed legacy + seq rows compare on the stamp (no cross-form ordering)", () => {
+    // A legacy pass (no seq) vs a seq'd reassign: the fallback is the stamp.
+    const rows: PrintRow[] = [
+      { action: "PRINT_PASS", author: A, time_stamp: 100, payload: {} },
+      seqRow("PRINT_REASSIGN", A, 200, 5, { to: B }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toEqual([]);
+    expect(fold.state).toBe("assigned");
+  });
+
+  it("latest-pass scan uses seq: a newer stranded pass sets the flag", () => {
+    const rows = [
+      seqRow("PRINT_PASS", A, 100, 1, { reason: "stranded" }),
+      seqRow("PRINT_PASS", A, 200, 2),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.stranded).toBe(false);
+  });
+
+  it("latest-pass scan uses seq: a newer normal pass clears the flag", () => {
+    const rows = [
+      seqRow("PRINT_PASS", A, 9000, 1, { reason: "stranded" }),
+      seqRow("PRINT_PASS", A, 100, 2),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.stranded).toBe(false);
+  });
+
+  it("latest-pass scan uses seq: a newer stranded pass (lower stamp) sets the flag", () => {
+    const rows = [
+      seqRow("PRINT_PASS", A, 9000, 1),
+      seqRow("PRINT_PASS", A, 100, 2, { reason: "stranded" }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.stranded).toBe(true);
+  });
+
+  it("seq never orders across authors — only same-author rows compare", () => {
+    // B's seq 1 pass vs A's seq 9 reassign: the fold must not treat B's pass
+    // as covering A's reassign (different author) — the chain walks to B via
+    // A's own pass, and B's pass is then a holder pass, not a conflict.
+    const rows = [
+      seqRow("PRINT_PASS", A, 100, 9),
+      seqRow("PRINT_PASS", B, 200, 1),
+      seqRow("PRINT_REASSIGN", A, 300, 10, { to: B }),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.conflict).toEqual([]);
+    expect(fold.chain).toEqual([A, B]);
+    expect(fold.holder).toBe(B);
   });
 });

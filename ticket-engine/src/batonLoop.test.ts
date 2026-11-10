@@ -32,17 +32,36 @@ const TICKET = {
 function makeDeps(
   over: Partial<BatonDeps<typeof TICKET, object, { uuid: string }>> = {},
   deviceId: string = DEVICE_A,
+  observedAt?: number,
 ) {
   const appendLog = vi.fn(async (_input: any) => {});
   const printTicket = vi.fn(async (_args: any) => true);
   const getPrintRows = vi.fn(async (_uuid: string): Promise<PrintRow[]> => []);
   const getChainSeedRow = vi.fn(async (_uuid: string): Promise<PrintRow | null> => null);
+  // Per-device ordinal (Phase 2): a fresh counter per makeDeps, mirroring a
+  // device's persisted `print_seq` key.
+  let seq = 0;
+  // Phase 3: local observation times — a map keyed by ticket, set once. When
+  // `observedAt` is given, the FIRST observation of any ticket returns that
+  // pinned value (the caller is pinning when this device first saw the state);
+  // otherwise the first observation is `Date.now()`.
+  const observed = new Map<string, number>();
+  const observe = (ticket_uuid: string) => {
+    const existing = observed.get(ticket_uuid);
+    if (existing) return existing;
+    const now = observedAt ?? Date.now();
+    observed.set(ticket_uuid, now);
+    return now;
+  };
   const deps: BatonDeps<typeof TICKET, object, { uuid: string }> = {
     getPrintRows,
     getChainSeedRow,
     appendLog,
     getServerOffset: async () => 0,
     deviceUuid: () => deviceId,
+    nextPrintSeq: async () => ++seq,
+    observeRequest: (ticket_uuid: string) => observe(ticket_uuid),
+    observeCreatorStrand: (ticket_uuid: string) => observe(ticket_uuid),
     isKitchenCapable: () => true,
     printTicket,
     ...over,
@@ -103,6 +122,7 @@ describe("PRINT_ROWS_SQL / mapPrintRows / parsePrintPayload", () => {
         time_stamp: 123,
         payload: { reason: "print_failed", device_id: "dev-1" },
         device_id: "dev-1",
+        seq: null,
       },
       {
         action: "PRINT_REQUEST",
@@ -110,6 +130,7 @@ describe("PRINT_ROWS_SQL / mapPrintRows / parsePrintPayload", () => {
         time_stamp: 456,
         payload: {},
         device_id: null,
+        seq: null,
       },
     ]);
   });
@@ -230,6 +251,7 @@ describe("CHAIN_SEED_SQL — the chain[0] seed row", () => {
       time_stamp: 100,
       payload: { device_id: DEVICE_A },
       device_id: DEVICE_A,
+      seq: null,
     });
     expect(seedDeviceOf(mapped[0]!)).toBe(DEVICE_A);
 
@@ -300,6 +322,9 @@ describe("runBatonPrint", () => {
   });
 
   it("waiter past its own request's alert window gets outcome alert", async () => {
+    // Phase 3: the window is measured from THIS device's first local
+    // observation of its own request — pinned here 61 s ago — never from the
+    // request row's foreign `time_stamp`.
     const { deps } = makeDeps(
       {
         getPrintRows: async () => [
@@ -310,6 +335,7 @@ describe("runBatonPrint", () => {
         isKitchenCapable: () => true,
       },
       DEVICE_B,
+      100_000 - PRINT_ALERT_MS - 1,
     );
     const result = await runBatonPrint(deps, {
       ...args,
@@ -337,6 +363,7 @@ describe("runBatonPrint", () => {
     // client reports capable=false), passes, then reassigns to admin-2 who
     // also can't print. Ticket created >60s ago. The original device
     // (admin-1) should get outcome 'alert'.
+    const observedAt = 100_000 - PRINT_ALERT_MS - 1; // >60s before now
     const { deps } = makeDeps({
       isKitchenCapable: () => false,
       getPrintRows: async () => [
@@ -345,11 +372,9 @@ describe("runBatonPrint", () => {
         { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
       ],
       getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-    });
-    const createdAt = 100_000 - PRINT_ALERT_MS - 1; // >60s before now
+    }, DEVICE_A, observedAt);
     const result = await runBatonPrint(deps, {
       ...args,
-      ticket: { ...TICKET, time_stamp: createdAt },
       admin: { uuid: "admin-1" },
     });
     expect(result.outcome).toBe("alert");
@@ -359,17 +384,16 @@ describe("runBatonPrint", () => {
     // Creator admin-1 tried to print, transport refused (PRINT_PASS
     // print_failed). No other device requested, no reassign. After 60s
     // the original device should get the alert.
+    const observedAt = 100_000 - PRINT_ALERT_MS - 1;
     const { deps } = makeDeps({
       isKitchenCapable: () => false,
       getPrintRows: async () => [
         { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: "print_failed", device_id: DEVICE_A } },
       ],
       getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-    });
-    const createdAt = 100_000 - PRINT_ALERT_MS - 1;
+    }, DEVICE_A, observedAt);
     const result = await runBatonPrint(deps, {
       ...args,
-      ticket: { ...TICKET, time_stamp: createdAt },
       admin: { uuid: "admin-1" },
     });
     expect(result.outcome).toBe("alert");
@@ -381,17 +405,16 @@ describe("runBatonPrint", () => {
     // Failover (item 9): the creator's send was refused, so it wrote a
     // `stranded` pass (not print_failed). With no peer capable the fold ends
     // stranded; after 60 s the creator must still get the alert.
+    const observedAt = 100_000 - PRINT_ALERT_MS - 1;
     const { deps } = makeDeps({
       isKitchenCapable: () => false,
       getPrintRows: async () => [
         { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A } },
       ],
       getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-    });
-    const createdAt = 100_000 - PRINT_ALERT_MS - 1;
+    }, DEVICE_A, observedAt);
     const result = await runBatonPrint(deps, {
       ...args,
-      ticket: { ...TICKET, uuid: "t-stranded-alert", time_stamp: createdAt },
       admin: { uuid: "admin-1" },
     });
     expect(result.outcome).toBe("alert");
@@ -400,17 +423,16 @@ describe("runBatonPrint", () => {
   });
 
   it("original device with local print failure <60 s arms alertInMs timer", async () => {
+    const observedAt = 100_000 - 30_000;
     const { deps } = makeDeps({
       isKitchenCapable: () => false,
       getPrintRows: async () => [
         { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: "print_failed", device_id: DEVICE_A } },
       ],
       getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-    });
-    const createdAt = 100_000 - 30_000;
+    }, DEVICE_A, observedAt);
     const result = await runBatonPrint(deps, {
       ...args,
-      ticket: { ...TICKET, uuid: "t-alert-pf-pending", time_stamp: createdAt },
       admin: { uuid: "admin-1" },
     });
     expect(result.outcome).toBe("waiting");
@@ -419,25 +441,28 @@ describe("runBatonPrint", () => {
   });
 
   it("original device arms alertInMs timer before the 60 s window fires", async () => {
-    const { deps } = makeDeps({
-      isKitchenCapable: () => false,
-      getPrintRows: async () => [
-        { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
-        { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
-        { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
-      ],
-      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
-    });
-    // Ticket created 30s ago — not yet 60s, so alert not yet active.
-    const createdAt = 100_000 - 30_000;
+    // Phase 3: the strand window starts at this device's first local
+    // observation (pinned 30 s ago) — not at any row's stamp.
+    const observedAt = 100_000 - 30_000;
+    const { deps } = makeDeps(
+      {
+        isKitchenCapable: () => false,
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
+          { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
+          { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
+        ],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_A,
+      observedAt,
+    );
     const result = await runBatonPrint(deps, {
       ...args,
-      ticket: { ...TICKET, time_stamp: createdAt },
       admin: { uuid: "admin-1" },
     });
     expect(result.outcome).toBe("waiting");
-    expect(result.alertInMs).toBeGreaterThan(0);
-    expect(result.alertInMs).toBeLessThanOrEqual(PRINT_ALERT_MS);
+    expect(result.alertInMs).toBe(30_000); // armed from local observation, not the row stamps
   });
 
   it("conflicted fold → outcome conflict, nothing appended", async () => {
@@ -471,7 +496,8 @@ describe("runBatonPrint", () => {
       expect(appendLog).toHaveBeenCalledTimes(1);
       const written = appendLog.mock.calls[0]![0];
       expect(written.action).toBe(PRINT_SUCCESS);
-      expect(written.payload).toEqual({ device_id: DEVICE_A });
+      // Phase 2: the per-device ordinal rides the payload beside device_id.
+      expect(written.payload).toEqual({ device_id: DEVICE_A, seq: 1 });
       expect(written.admin_uuid).toBe("admin-1"); // admin stays the admin
     });
 
@@ -483,7 +509,7 @@ describe("runBatonPrint", () => {
       await runBatonPrint(deps, args);
       expect(appendLog.mock.calls[0]![0]).toMatchObject({
         action: "PRINT_PASS",
-        payload: { reason: "not_capable", device_id: DEVICE_A },
+        payload: { reason: "not_capable", device_id: DEVICE_A, seq: 1 },
       });
       for (const [written] of appendLog.mock.calls) {
         expect(written.payload.device_id).toBe(DEVICE_A);
@@ -581,6 +607,8 @@ describe("runBatonPrint", () => {
   });
 
   it("a pending PRINT_REQUEST inside its 60 s window arms alertInMs from my request time", async () => {
+    // Phase 3: "my request time" is this device's first local observation of
+    // its own request (pinned 5 s ago), never the request row's stamp.
     const { deps, appendLog } = makeDeps(
       {
         getPrintRows: async () => [
@@ -590,9 +618,10 @@ describe("runBatonPrint", () => {
         getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
       },
       DEVICE_B,
+      95_000,
     );
     const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
-    // now = Date.now() = 100_000; my request is 5 s old → 55 s until it strands.
+    // now = Date.now() = 100_000; observed 5 s ago → 55 s until it strands.
     expect(result).toEqual({ outcome: "waiting", alertInMs: 55_000 });
     expect(appendLog).not.toHaveBeenCalled();
   });
@@ -608,9 +637,10 @@ describe("runBatonPrint", () => {
         getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
       },
       DEVICE_B,
+      60_000,
     );
     const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
-    // now = Date.now() + 10_000 = 110_000 → 50 s since the request →
+    // Observed 60 s ago (local); now = Date.now() + 10_000 = 110_000 →
     // alertInMs = 60_000 + 60_000 − 110_000. With offset 0 it would be 20_000.
     expect(result).toEqual({ outcome: "waiting", alertInMs: 10_000 });
   });
@@ -626,23 +656,26 @@ describe("runBatonPrint", () => {
         getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
       },
       DEVICE_B,
+      45_000,
     );
     const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
-    // Server clock says 65 s elapsed (≥ 60 s) → alert; the local clock alone
-    // would only see 55 s and keep waiting.
+    // Observed 45 s ago (local); server clock adds 10 s → 65 s elapsed
+    // (≥ 60 s) → alert; the local clock alone would only see 55 s and keep
+    // waiting.
     expect(result).toEqual({ outcome: "alert" });
   });
 
-  it("a ticket time_stamp of 0 / non-numeric never arms the creator-strand alert", async () => {
+  it("foreign/falsy ticket stamps never arm the creator-strand alert — local observation alone decides", async () => {
+    // Phase 3: the window is measured ONLY from this device's local
+    // observation (pinned 30 s ago below). A falsy, garbage, or hours-ahead
+    // `ticket.time_stamp` — another device's clock — can neither arm nor
+    // suppress it.
     const rows: PrintRow[] = [
       { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
       { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
       { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
     ];
-    // `Number(ts) || undefined` makes both falsy/unparseable stamps undefined:
-    // the creator-strand alert (and its alertInMs stand-down arm) can never
-    // fire from them. A raw `Number(0)` would fire the alert (now − 0 ≥ 60 s).
-    for (const time_stamp of [0, "abc"] as const) {
+    for (const time_stamp of [0, "abc", 9_999_999_999] as const) {
       const { deps, appendLog } = makeDeps(
         {
           isKitchenCapable: () => false,
@@ -650,20 +683,41 @@ describe("runBatonPrint", () => {
           getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
         },
         DEVICE_A,
+        100_000 - 30_000,
       );
       const result = await runBatonPrint(deps, {
         ...args,
         ticket: { ...TICKET, time_stamp },
       });
-      expect(result).toEqual({ outcome: "waiting" }); // no alert, no alertInMs
+      // Window open (30 s of 60 s elapsed from local observation): a timer,
+      // never an immediate alert — and never armed by the stamp.
+      expect(result).toEqual({ outcome: "waiting", alertInMs: 30_000 });
       expect(appendLog).not.toHaveBeenCalled();
     }
   });
 
+  it("a foreign row stamp hours in the past cannot fire the requester alert early", async () => {
+    // The request row claims it was made 10 hours ago (slow-clock device),
+    // but this device first observed it 5 s ago → still waiting, timer armed.
+    const { deps } = makeDeps(
+      {
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
+          { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 100_000 - 36_000_000, payload: { device_id: DEVICE_B } },
+        ],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+      100_000 - 5_000,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+    expect(result).toEqual({ outcome: "waiting", alertInMs: 55_000 });
+  });
+
   it("server device (deviceUuid null): stand-down before 60 s arms alertInMs", async () => {
     // The server is chain[0] and has reassigned away; its creator-strand
-    // window has not expired yet → the stand-down arm returns the remaining
-    // time instead of a bare waiting.
+    // window (local observation pinned 30 s ago) has not expired yet → the
+    // stand-down arm returns the remaining time instead of a bare waiting.
     const { deps, appendLog } = makeDeps(
       {
         isKitchenCapable: () => false,
@@ -676,11 +730,11 @@ describe("runBatonPrint", () => {
         deviceUuid: () => null as any,
       },
       DEVICE_A,
+      100_000 - 30_000,
     );
-    const createdAt = 100_000 - 30_000;
     const result = await runBatonPrint(deps, {
       ...args,
-      ticket: { ...TICKET, uuid: "t-server-alert", time_stamp: createdAt },
+      ticket: { ...TICKET, uuid: "t-server-alert" },
     });
     // me === null === chain[0], reassignAuthors includes null, window open.
     expect(result).toEqual({ outcome: "waiting", alertInMs: 30_000 });

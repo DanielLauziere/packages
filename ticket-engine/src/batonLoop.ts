@@ -80,6 +80,8 @@ export function mapPrintRows(
       // The acting device, read straight from the row payload (the fold also
       // falls back to `payload.device_id` for rows mapped elsewhere).
       device_id: (payload?.device_id as string) || null,
+      // Per-author ordinal (Phase 2), read from the row payload.
+      seq: typeof payload?.seq === 'number' ? payload.seq : null,
     };
   });
 }
@@ -137,6 +139,22 @@ export interface BatonDeps<Ticket, TLG, TAdmin> {
   getServerOffset(): Promise<number>;
   /** This device's stable id (`device_uuid`) — the baton's identity. */
   deviceUuid(): string;
+  /** Per-device monotonic ordinal for PRINT_* rows this device authors
+   *  (Phase 2). Returned value must be strictly greater than every value
+   *  previously returned on this device; the counter is persisted in local
+   *  metadata so it survives restarts. The fold uses it to order same-author
+   *  rows (pass vs reassign) without any cross-device clock. */
+  nextPrintSeq(): Promise<number>;
+  /** Phase 3: local observation time for this device's own unanswered
+   *  PRINT_REQUEST on a ticket — set once (first observation) and persisted
+   *  in local storage keyed by ticket. Arms the requester-strand 60 s alert.
+   *  Called only when this device has a PRINT_REQUEST row in the fold. May be
+   *  async (a client's local storage can be async); the loop awaits it. */
+  observeRequest(ticket_uuid: string): number | Promise<number>;
+  /** Phase 3: local observation time for the creator-strand state (this
+   *  device's own failed send or reassign) — set once and persisted in local
+   *  storage keyed by ticket. Arms the original-device 60 s strand alert. */
+  observeCreatorStrand(ticket_uuid: string): number | Promise<number>;
   /** Config-level capability (silent mode + printer configured for this
    *  platform). Re-checked each iteration; cooldown handled by the loop. */
   isKitchenCapable(): boolean;
@@ -169,8 +187,10 @@ async function appendPrintLog<Ticket extends { uuid: string; location_group_uuid
     action,
     time_stamp: Date.now(),
     // The acting device rides in the payload — `admin_uuid` stays the admin
-    // (backlog item 4). The fold reads this key to identify actors.
-    payload: { ...payload, device_id: deps.deviceUuid() },
+    // (backlog item 4). The fold reads this key to identify actors. `seq` is
+    // the per-device ordinal the fold uses to order this device's own rows
+    // (Phase 2) — one counter per device, persisted in local metadata.
+    payload: { ...payload, device_id: deps.deviceUuid(), seq: await deps.nextPrintSeq() },
     admin_uuid,
   });
 }
@@ -217,14 +237,21 @@ export async function runBatonPrint<
           me,
     );
     const now = Date.now() + offset;
-    const createdAt = Number(ticket.time_stamp) || undefined;
     const capable = deps.isKitchenCapable();
+    // Phase 3: local observation of the creator-strand state — set once, so
+    // the 60 s window is measured from when this device first saw its own
+    // failed send / reassign, not from any foreign row stamp.
+    const observedAt = await deps.observeCreatorStrand(ticket.uuid);
     const decision = decidePrint(fold, {
       me,
       capable,
       now,
-      requestedAt: myRequest ? myRequest.time_stamp : null,
-      createdAt,
+      // The requester window is armed the first time this device sees its own
+      // unanswered PRINT_REQUEST.
+      requestedObservedAt: myRequest
+        ? await deps.observeRequest(ticket.uuid)
+        : null,
+      observedAt,
     });
 
     switch (decision.kind) {
@@ -293,10 +320,10 @@ export async function runBatonPrint<
           fold.chain.length > 0 &&
           fold.chain[0] === me &&
           !fold.terminal &&
-          createdAt != null &&
+          observedAt != null &&
           (fold.reassignAuthors.includes(me) || fold.printFailAuthors.includes(me))
         ) {
-          const remaining = createdAt + PRINT_ALERT_MS - now;
+          const remaining = observedAt + PRINT_ALERT_MS - now;
           if (remaining > 0 && remaining <= PRINT_ALERT_MS) {
             return {
               outcome: advanced ? 'advanced' : 'waiting',
@@ -307,11 +334,13 @@ export async function runBatonPrint<
         return { outcome: advanced ? 'advanced' : 'waiting' };
 
       case 'wait': {
-        // Waiter on my own request: arm the 60 s (!) alert timer.
+        // Waiter on my own request: arm the 60 s (!) alert timer from the
+        // local observation time, never the request row's foreign stamp.
         if (myRequest && !fold.terminal && fold.holder !== me) {
+          const requestedObservedAt = await deps.observeRequest(ticket.uuid);
           return {
             outcome: advanced ? 'advanced' : 'waiting',
-            alertInMs: Math.max(0, myRequest.time_stamp + PRINT_ALERT_MS - now),
+            alertInMs: Math.max(0, requestedObservedAt + PRINT_ALERT_MS - now),
           };
         }
         // Original device with a local print failure (no reassign): arm the
@@ -322,9 +351,9 @@ export async function runBatonPrint<
           fold.chain[0] === me &&
           !fold.terminal &&
           fold.printFailAuthors.includes(me) &&
-          createdAt != null
+          observedAt != null
         ) {
-          const remaining = createdAt + PRINT_ALERT_MS - now;
+          const remaining = observedAt + PRINT_ALERT_MS - now;
           if (remaining > 0 && remaining <= PRINT_ALERT_MS) {
             return {
               outcome: advanced ? 'advanced' : 'waiting',
