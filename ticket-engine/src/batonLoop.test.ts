@@ -435,6 +435,47 @@ describe("runBatonPrint", () => {
     expect(deps.printTicket).not.toHaveBeenCalled();
   });
 
+  it("creator reassigns to a waiting requester even when its strand window already elapsed", async () => {
+    // Never-print regression: the creator's send was refused (stranded pass)
+    // and a capable peer's PRINT_REQUEST arrived ≥60 s after the creator's
+    // first observation (slow sync round trip). The alert must not block the
+    // chain: the loop appends PRINT_REASSIGN{to: requester} first — only
+    // afterwards, as the ex-holder, does the creator surface its alert.
+    const observedAt = 100_000 - PRINT_ALERT_MS - 1;
+    const passRow = { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A } };
+    const requestRow = { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } };
+    const reassignRow = { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } };
+    const appended: any[] = [];
+    const appendLog = vi.fn(async (input: any) => {
+      appended.push(input);
+    });
+    const { deps, printTicket } = makeDeps({
+      isKitchenCapable: () => true,
+      appendLog,
+      // Mirror the real DB: rows this device appends become visible to the
+      // loop's next iteration.
+      getPrintRows: async () =>
+        appended.some((i) => i.action === "PRINT_REASSIGN")
+          ? [passRow, requestRow, reassignRow]
+          : [passRow, requestRow],
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+    }, DEVICE_A, observedAt);
+    const result = await runBatonPrint(deps, {
+      ...args,
+      admin: { uuid: "admin-1" },
+    });
+    // The handoff happened: exactly one REASSIGN to the waiting requester.
+    expect(appendLog).toHaveBeenCalledTimes(1);
+    expect(appendLog.mock.calls[0][0]).toMatchObject({
+      action: "PRINT_REASSIGN",
+      payload: expect.objectContaining({ to: DEVICE_B, device_id: DEVICE_A }),
+    });
+    expect(printTicket).not.toHaveBeenCalled();
+    // Post-handoff the creator is the ex-holder: its (!) surface shows until
+    // a SUCCESS lands (pinned by decidePrint's creator-alert rule).
+    expect(result.outcome).toBe("alert");
+  });
+
   it("original device with local print failure <60 s arms alertInMs timer", async () => {
     const observedAt = 100_000 - 30_000;
     const { deps } = makeDeps({

@@ -359,34 +359,42 @@ export function decidePrint(
 
   // Original-device stranded-print alert: this device is the creator (chain[0])
   // and already tried to print — either it passed the baton (PRINT_REASSIGN)
-  // or it failed locally (PRINT_PASS with reason='print_failed') — but no
-  // PRINT_SUCCESS has landed and the ticket is past the 60 s strand window.
-  // Surface the alert so the original device can take manual action instead
-  // of standing down silently. Only the creator (fold.chain[0]) arms this.
-  if (
+  // or it failed locally (PRINT_PASS with reason='print_failed'/'stranded') —
+  // but no PRINT_SUCCESS has landed and the ticket is past the 60 s strand
+  // window. Surface the alert so the original device can take manual action
+  // instead of standing down silently. Only the creator (fold.chain[0]) arms
+  // this.
+  //
+  // The alert is a SURFACE, never a blocker: it is evaluated only where this
+  // device would otherwise wait (below), so a holder with a productive move —
+  // send, pass, or a pending reassign to a waiting requester — always takes
+  // it, no matter how old its strand window is. Before this, the alert ran
+  // first and a creator whose PASS→REQUEST→REASSIGN round trip landed ≥60 s
+  // after feed entry returned 'alert' forever: the chain stalled and the
+  // ticket only resolved via PRINT_FAILED at 5 min (never-print bug).
+  const creatorStrandAlert =
     fold.chain.length > 0 &&
     fold.chain[0] === me &&
     !fold.terminal &&
     ctx.observedAt != null &&
     now - ctx.observedAt >= PRINT_ALERT_MS &&
-    (fold.reassignAuthors.includes(me) || fold.printFailAuthors.includes(me))
-  ) {
-    return { kind: "alert" };
-  }
-
-  if (fold.reassignAuthors.includes(me)) {
-    return { kind: "stand-down" };
-  }
+    (fold.reassignAuthors.includes(me) || fold.printFailAuthors.includes(me));
 
   if (fold.holder === me) {
-    // Failover (item 9): a stranded pass means this device already had its one
-    // send and it was refused. Never send again — reassign or wait.
-    if (fold.stranded) {
+    // Refusal evidence: this device already had its one send and it was
+    // refused — a `stranded` handoff (item 9) or a legacy `print_failed`
+    // pass; both fold into printFailAuthors (every stranded pass author is
+    // pushed there too). Never send again even when capable: reassign to a
+    // waiting requester, else alert/wait. Without this gate a capable
+    // creator holding its own refused pass fell through to `send` below,
+    // retrying the dead printer forever and suppressing the alert — the
+    // chain then only died at PRINT_FAILED (never-print bug).
+    if (fold.stranded || fold.printFailAuthors.includes(me)) {
       if (fold.decider) {
         const to = fold.requests.find((r) => r !== null && r !== me);
         if (to) return { kind: "reassign", to };
       }
-      return { kind: "wait" };
+      return creatorStrandAlert ? { kind: "alert" } : { kind: "wait" };
     }
     if (capable) return { kind: "send" };
     if (!fold.passAuthors.includes(me)) return { kind: "pass" };
@@ -394,7 +402,15 @@ export function decidePrint(
       const to = fold.requests.find((r) => r !== null && r !== me);
       if (to) return { kind: "reassign", to };
     }
-    return { kind: "wait" };
+    return creatorStrandAlert ? { kind: "alert" } : { kind: "wait" };
+  }
+
+  if (creatorStrandAlert) {
+    return { kind: "alert" };
+  }
+
+  if (fold.reassignAuthors.includes(me)) {
+    return { kind: "stand-down" };
   }
 
   // Failover (item 9): a stranded holder's floor is open — a capable device

@@ -738,6 +738,78 @@ describe("decidePrint — guards", () => {
     ).toBe("stand-down");
   });
 
+  it("creator holder reassigns to a waiting requester even past the 60 s strand window", () => {
+    // Never-print regression: A created the ticket, its one send was refused
+    // (stranded pass), B and C requested — but the round trip landed ≥60 s
+    // after A's first observation. The alert is a surface, not a blocker: A
+    // must reassign (first requester in fold order) instead of returning
+    // 'alert' forever and letting the chain die at PRINT_FAILED.
+    const rows = [
+      row("PRINT_PASS", A, 1000, { reason: "stranded" }),
+      row("PRINT_REQUEST", B, 2000),
+      row("PRINT_REQUEST", C, 3000),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.holder).toBe(A);
+    expect(fold.stranded).toBe(true);
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: true, observedAt }),
+    ).toEqual({ kind: "reassign", to: B });
+  });
+
+  it("creator holder with a print_failed pass reassigns past 60 s (non-stranded evidence)", () => {
+    // Same rule when the evidence is a print_failed (not stranded) pass: the
+    // holder's productive move wins over the creator alert.
+    const rows = [
+      row("PRINT_PASS", A, 1000, { reason: "print_failed" }),
+      row("PRINT_REQUEST", B, 2000),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.stranded).toBe(false);
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: false, observedAt }),
+    ).toEqual({ kind: "reassign", to: B });
+  });
+
+  it("creator holder still alerts past 60 s when no requester is waiting", () => {
+    // The alert surface itself is unchanged: with nothing to reassign to,
+    // the strand window decides.
+    const rows = [row("PRINT_PASS", A, 1000, { reason: "stranded" })];
+    const fold = foldPrintBaton(rows, A);
+    const observedAt = base.now - PRINT_ALERT_MS - 1;
+    expect(
+      decidePrint(fold, { ...base, me: A, capable: true, observedAt }).kind,
+    ).toBe("alert");
+  });
+
+  it("a capable holder with its own refusal evidence never re-sends", () => {
+    // Never-print regression (send gate): the one-send rule is not limited
+    // to `stranded` — a legacy `print_failed` pass is the same evidence.
+    // A capable holder reassigns to a waiting requester; with nobody
+    // waiting it waits instead of retrying the printer that already
+    // refused it (each device tries once, never retries).
+    const withRequester = foldPrintBaton(
+      [
+        row("PRINT_PASS", A, 1000, { reason: "print_failed" }),
+        row("PRINT_REQUEST", B, 2000),
+      ],
+      A,
+    );
+    expect(
+      decidePrint(withRequester, { ...base, me: A, capable: true }),
+    ).toEqual({ kind: "reassign", to: B });
+
+    const alone = foldPrintBaton(
+      [row("PRINT_PASS", A, 1000, { reason: "print_failed" })],
+      A,
+    );
+    expect(decidePrint(alone, { ...base, me: A, capable: true })).toEqual({
+      kind: "wait",
+    });
+  });
+
   it("original-device alert does not fire when a non-creator device reassigned", () => {
     // B reassigned (not the creator). Even if >60 s and no success, B should
     // stand down — only the original device (creator) arms the alert.
