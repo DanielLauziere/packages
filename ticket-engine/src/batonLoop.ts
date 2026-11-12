@@ -45,15 +45,24 @@ export const PRINT_ROWS_SQL = `SELECT action, payload, "time_stamp", admin_uuid
      ORDER BY "time_stamp", uuid`;
 
 /**
- * SQL for the chain seed: the ticket's FIRST log row of ANY action. That row
- * carries `payload.device_id` (stamped once by the ticket-create path) and is
- * what chain[0] is seeded from. PRINT_ROWS_SQL deliberately filters to the
- * print actions, so the seed needs its own query.
+ * SQL for the chain seed: the ticket's FIRST log row of ANY action that
+ * carries `payload.device_id` (stamped once by the ticket-create path) — that
+ * is what chain[0] is seeded from. The device-first ordering exists because
+ * the sync wire collapses per-row timestamps (one `time_stamp` per ticket
+ * group), so ties are common and the (time_stamp, uuid)-first row can be an
+ * unstamped sibling: seeding from it fell back to the ADMIN author while
+ * every PASS author is a device → PASS_FROM_NON_HOLDER → conflict → a
+ * permanent silent stall (Round 4). Falls back to the plain
+ * (time_stamp, uuid)-first row for legacy tickets where no row carries a
+ * device (all actors are admins there, so the admin author is correct).
+ * `instr` rather than `json_extract` on purpose: it can never throw on a
+ * malformed legacy payload. PRINT_ROWS_SQL deliberately filters to the print
+ * actions, so the seed needs its own query.
  */
-export const CHAIN_SEED_SQL = `SELECT action, payload, "time_stamp", admin_uuid
+export const CHAIN_SEED_SQL = `SELECT uuid, action, payload, "time_stamp", admin_uuid
      FROM ticket_log
      WHERE ticket_uuid = ?
-     ORDER BY "time_stamp", uuid
+     ORDER BY instr(payload, '"device_id"') > 0 DESC, "time_stamp", uuid
      LIMIT 1`;
 
 export function parsePrintPayload(raw: string | null): Record<string, unknown> {
@@ -102,6 +111,47 @@ export function seedDeviceOf(row: PrintRow | null): string | null {
   );
 }
 
+/** Device on a row's payload, else null — never the admin author. */
+function rowDeviceOf(row: PrintRow | null): string | null {
+  if (!row) return null;
+  const id = row.device_id ?? (row.payload?.device_id as string | undefined);
+  return typeof id === "string" && id ? id : null;
+}
+
+/**
+ * chain[0] for a fold: the seed row's device when it carries one. A seed row
+ * WITHOUT `payload.device_id` is common only in two valid cases:
+ *   1) a collapsed-wire tie on a device-created ticket (round 4): the true
+ *      creator is the first row in the ticket that does carry `device_id`
+ *   2) a guest/server ticket: the server is the creator and its rows carry no
+ *      device at all — in that case the seed stays empty (`""` / null), not the
+ *      first requester's device.
+ *
+ * A pure-admin fallback is only valid when the seed row itself is admin-authored
+ * and there is no real device-carrying row in the ticket at all (legacy tickets
+ * or admin-only rows).
+ */
+export function chainSeedDevice(
+  seedRow: PrintRow | null,
+  rows: PrintRow[],
+): string | null {
+  const seedDevice = rowDeviceOf(seedRow);
+  if (seedDevice) return seedDevice;
+
+  // Server/guest tickets are seeded by the server device itself; they never
+  // adopt a later device request as their creator just because it happened to
+  // have a payload.device_id.
+  if (seedRow && (seedRow.author == null || seedRow.author === '')) {
+    return null;
+  }
+
+  for (const row of rows) {
+    const device = rowDeviceOf(row);
+    if (device) return device;
+  }
+  return seedDeviceOf(seedRow);
+}
+
 /** Fold = engine foldPrintBaton over the ticket's PRINT_* rows. */
 export async function readPrintFold<
   Ticket extends { uuid: string; admin_uuid?: string | null; device_uuid?: string | null },
@@ -112,7 +162,7 @@ export async function readPrintFold<
 ): Promise<{ fold: PrintFold; rows: PrintRow[] }> {
   const rows = await getRows(ticket.uuid);
   const seedRow = getSeedRow ? await getSeedRow(ticket.uuid) : null;
-  const fold = foldPrintBaton(rows, seedDeviceOf(seedRow));
+  const fold = foldPrintBaton(rows, chainSeedDevice(seedRow, rows));
   return { fold, rows };
 }
 
@@ -235,8 +285,11 @@ export async function runBatonPrint<
   let advanced = false;
 
   // chain[0] is the device of the ticket's first log row (any action), which
-  // carries payload.device_id (backlog item 4).
-  const seed = seedDeviceOf(await deps.getChainSeedRow(ticket.uuid));
+  // carries payload.device_id (backlog item 4). A seed row without a device
+  // (wire-collapsed unstamped sibling, legacy ticket) falls back to the first
+  // device-carrying PRINT row — see chainSeedDevice. Read once; re-derived
+  // per iteration against the current rows.
+  const seedRow = await deps.getChainSeedRow(ticket.uuid);
 
   // Phase 4: remaining time on this device's local 5:00 give-up window,
   // recomputed each iteration from the read-only pending observation.
@@ -250,7 +303,7 @@ export async function runBatonPrint<
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const rows = await deps.getPrintRows(ticket.uuid);
-    const fold = foldPrintBaton(rows, seed);
+    const fold = foldPrintBaton(rows, chainSeedDevice(seedRow, rows));
     const myRequest = rows.find(
       (r) =>
         r.action === PRINT_REQUEST &&
@@ -433,8 +486,8 @@ export async function manualTakeover<
   admin: TAdmin,
 ): Promise<boolean> {
   const rows = await deps.getPrintRows(ticket.uuid);
-  const seed = await deps.getChainSeedRow(ticket.uuid);
-  const fold = foldPrintBaton(rows, seedDeviceOf(seed));
+  const seedRow = await deps.getChainSeedRow(ticket.uuid);
+  const fold = foldPrintBaton(rows, chainSeedDevice(seedRow, rows));
   if (!manualTakeoverAllowed(fold)) return false;
   await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, { manual: true });
   return true;

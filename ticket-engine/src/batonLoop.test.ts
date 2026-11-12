@@ -13,7 +13,8 @@ import {
   type BatonDeps,
 } from "./batonLoop.js";
 import type { PrintRow } from "./printProtocol.js";
-import { PRINT_ALERT_MS, PRINT_FAILED, PRINT_REASON_STRANDED, PRINT_SPINNER_FAIL_MS, PRINT_SUCCESS, foldPrintBaton } from "./printProtocol.js";
+import { PRINT_ALERT_MS, PRINT_FAILED, PRINT_REASON_STRANDED, PRINT_SPINNER_FAIL_MS, PRINT_SUCCESS, decidePrint, foldPrintBaton } from "./printProtocol.js";
+import { decodeTicketLogGroup, encodeTicketLogGroup, type TicketLogWireInput } from "./ticketLogWire.js";
 
 // The ticket's creating device comes from its FIRST log row (any action) —
 // the chain[0] seed
@@ -274,10 +275,172 @@ describe("CHAIN_SEED_SQL — the chain[0] seed row", () => {
     db.close();
   });
 
-  it("selects one row ordered by time_stamp,uuid with no action filter", () => {
+  it("prefers a device-carrying row, then time_stamp,uuid — no action filter", () => {
     expect(CHAIN_SEED_SQL).not.toContain("action IN");
-    expect(CHAIN_SEED_SQL).toContain('ORDER BY "time_stamp", uuid');
+    // Round 4: the wire collapses per-row time_stamps, so ties are common and
+    // the (time_stamp, uuid)-first row can be an unstamped sibling with no
+    // payload.device_id — the device-carrying row must win outright.
+    expect(CHAIN_SEED_SQL).toContain(`instr(payload, '"device_id"') > 0 DESC`);
+    expect(CHAIN_SEED_SQL).toContain('"time_stamp", uuid');
     expect(CHAIN_SEED_SQL).toContain("LIMIT 1");
+  });
+});
+
+// Round 4 (2026-11-11): the compact wire carries ONE time_stamp per ticket
+// group (the max row stamp — encodeTicketLogGroup), and both decoders stamp
+// every row of the group with it. First-arrival-wins inserts then leave each
+// device holding a patchwork of per-exchange maxes, so rows TIE and the
+// (time_stamp, uuid)-first seed pick lands on an unstamped sibling with no
+// `payload.device_id`. The seed fell back to the ADMIN author while every
+// PASS author is a device → PASS_FROM_NON_HOLDER → conflict → `attention` →
+// runBatonPrint returned {outcome:'conflict'}: no row written, no retry
+// timer, fingerprint stored → a permanent silent stall with zero logged
+// errors (the three silent tickets of round 4: A-t2, T-t1, T-t2).
+describe("Round 4 regression — the wire's timestamp collapse must not strand the chain", () => {
+  function makeDb() {
+    const db = new DatabaseSync(":memory:");
+    db.exec(`
+      CREATE TABLE ticket_log (
+        uuid TEXT PRIMARY KEY,
+        ticket_uuid TEXT,
+        action TEXT,
+        payload TEXT,
+        time_stamp INTEGER,
+        admin_uuid TEXT
+      )
+    `);
+    return db;
+  }
+
+  // The collapsed seed: first row by (time_stamp, uuid), no device anywhere
+  // in its payload.
+  const UNSTAMPED_SEED: PrintRow = {
+    action: "ADD_ITEM",
+    author: "admin-1",
+    time_stamp: 500,
+    payload: {},
+  };
+  const STRANDED: PrintRow[] = [
+    {
+      action: "PRINT_PASS",
+      author: "admin-1",
+      time_stamp: 1000,
+      payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A },
+    },
+  ];
+
+  it("CHAIN_SEED_SQL picks the device-carrying row over an unstamped sibling", () => {
+    const db = makeDb();
+    const insert = db.prepare(
+      `INSERT INTO ticket_log (uuid, ticket_uuid, action, payload, time_stamp, admin_uuid)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    // The T-t2 shape: collapse ties the unstamped sibling to the stamped
+    // create row and the sibling wins the uuid tiebreak (6a… < d0…).
+    insert.run("a-unstamped", "t-1", "ADD_ITEM", JSON.stringify({ menu_item_uuid: "m" }), 100, "admin-1");
+    insert.run("z-create", "t-1", "ADD_ITEM", JSON.stringify({ device_id: DEVICE_A }), 100, "admin-1");
+    expect((db.prepare(CHAIN_SEED_SQL).get("t-1") as any).uuid).toBe("z-create");
+
+    // …and the variant where the unstamped sibling arrives with an EARLIER
+    // collapsed stamp: the device row still wins outright.
+    insert.run("b-early-unstamped", "t-2", "ADD_ITEM", JSON.stringify({}), 50, "admin-1");
+    insert.run("c-create", "t-2", "ADD_ITEM", JSON.stringify({ device_id: DEVICE_A }), 100, "admin-1");
+    expect((db.prepare(CHAIN_SEED_SQL).get("t-2") as any).uuid).toBe("c-create");
+    db.close();
+  });
+
+  it("readPrintFold: an unstamped seed folds the stranded pass to a request, not a conflict", async () => {
+    const { fold } = await readPrintFold(
+      async () => STRANDED,
+      TICKET,
+      async () => UNSTAMPED_SEED,
+    );
+    expect(fold.conflict).toEqual([]);
+    expect(fold.state).toBe("solicit");
+    expect(fold.stranded).toBe(true);
+    // A capable peer that is not the holder takes the floor…
+    expect(decidePrint(fold, { me: DEVICE_B, capable: true, now: 100_000 })).toEqual({
+      kind: "request",
+    });
+    // …where seeding the fold with the admin author (the pre-fix fallback)
+    // was exactly the Round-4 stall: conflict → attention.
+    expect(foldPrintBaton(STRANDED, "admin-1").state).toBe("conflict");
+  });
+
+  it("runBatonPrint: a capable peer requests instead of stalling in conflict", async () => {
+    const { deps, appendLog, printTicket } = makeDeps(
+      {
+        getPrintRows: async () => STRANDED,
+        getChainSeedRow: async () => UNSTAMPED_SEED,
+      },
+      DEVICE_B,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-1" } });
+    expect(result.outcome).toBe("advanced");
+    expect(appendLog.mock.calls[0]![0]).toMatchObject({ action: "PRINT_REQUEST" });
+    expect(printTicket).not.toHaveBeenCalled();
+  });
+
+  it("wire round-trip: a collapsed group still seeds the creating device and folds open", async () => {
+    const authored: TicketLogWireInput[] = [
+      {
+        uuid: "z-create",
+        action: "ADD_ITEM",
+        payload: { device_id: DEVICE_A, menu_item_uuid: "m" },
+        time_stamp: 1000,
+        admin_uuid: "admin-1",
+      },
+      {
+        uuid: "a-item",
+        action: "ADD_ITEM",
+        payload: { menu_item_uuid: "n" },
+        time_stamp: 1100,
+        admin_uuid: "admin-1",
+      },
+      {
+        uuid: "c-pass",
+        action: "PRINT_PASS",
+        payload: { reason: PRINT_REASON_STRANDED, device_id: DEVICE_A },
+        time_stamp: 1200,
+        admin_uuid: "admin-1",
+      },
+    ];
+    const wire = encodeTicketLogGroup(authored);
+    // One stamp per group = the max row stamp; the decoder stamps every row
+    // with it, which is what the receiving device then persists.
+    expect(wire.time_stamp).toBe(1200);
+    const decoded = decodeTicketLogGroup("t-1", "lg-1", wire);
+    expect(decoded.every((r) => r.time_stamp === 1200)).toBe(true);
+
+    const db = makeDb();
+    const insert = db.prepare(
+      `INSERT INTO ticket_log (uuid, ticket_uuid, action, payload, time_stamp, admin_uuid)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    for (const row of decoded) {
+      insert.run(
+        row.uuid,
+        row.ticket_uuid,
+        row.action,
+        JSON.stringify(row.payload),
+        row.time_stamp,
+        row.admin_uuid ?? null,
+      );
+    }
+    const seedRow = mapPrintRows([db.prepare(CHAIN_SEED_SQL).get("t-1") as any])[0] ?? null;
+    // Under the old (time_stamp, uuid)-first seed the unstamped a-item won
+    // the tie and seeded the fold with the admin → conflict. The device must
+    // win through the real wire path.
+    expect(seedDeviceOf(seedRow)).toBe(DEVICE_A);
+
+    const rowsOf = async () => mapPrintRows(db.prepare(PRINT_ROWS_SQL).all("t-1") as any);
+    const { fold } = await readPrintFold(rowsOf, TICKET, async () => seedRow);
+    expect(fold.conflict).toEqual([]);
+    expect(fold.stranded).toBe(true);
+    expect(decidePrint(fold, { me: DEVICE_B, capable: true, now: 100_000 })).toEqual({
+      kind: "request",
+    });
+    db.close();
   });
 });
 
