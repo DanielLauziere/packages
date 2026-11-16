@@ -34,6 +34,7 @@ import {
 } from './applyTicketLog.js';
 import type { DbAdapter } from './dbAdapter.js';
 import { RETRY_BACKOFF_CAP_STEPS } from './consts.js';
+import { rowTimeStamp } from './ticketLogWire.js';
 
 /** Log row as read from ticket_log / exchanged with peers (both clients'
  *  `TicketLog` satisfies it). */
@@ -169,6 +170,12 @@ export async function insertLog(
   log: TicketLogRow,
 ): Promise<void> {
   const entry = fromSyncLog(log);
+  // The stored row and everything downstream of it must agree on the time.
+  // A lifecycle row's payload carries its real pre-wire time (see
+  // `withCompletionTimeStamp`); a synced device restores it so lag metrics
+  // read the same as on the authoring device.
+  const restored = rowTimeStamp(entry);
+  if (restored != null) entry.time_stamp = restored;
 
   // Skip only when the log is actually applied (time_stamp set) — a mere
   // claim row must not block re-inserting the ticket_log row.
@@ -195,7 +202,11 @@ export async function insertLog(
       entry.location_group_uuid,
       entry.action,
       payloadString,
-      entry.time_stamp,
+      // The wire stamps every row of a ticket group with the group's newest
+      // time, which zeroes any metric subtracting two of the ticket's own
+      // rows. A lifecycle row carries its real time in the payload — restore
+      // it, so a synced device measures lags the same as the authoring one.
+      rowTimeStamp(entry) ?? entry.time_stamp,
       entry.admin_uuid ?? null,
     ],
   );

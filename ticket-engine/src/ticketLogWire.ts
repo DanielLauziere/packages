@@ -71,6 +71,25 @@ export interface DecodedTicketLog extends TicketLogWireInput {
   location_group_uuid: string
 }
 
+/**
+ * A lifecycle row's own pre-wire time, which `encodeTicketLogGroup` rides in
+ * its payload. Returns null for a row with no usable value (legacy row, or a
+ * non-lifecycle action) — callers then keep the group stamp.
+ */
+export const rowTimeStamp = (row: {
+  action: string
+  payload: unknown
+}): number | null => {
+  const payload = row.payload
+  if (payload == null || typeof payload !== 'object' || Array.isArray(payload))
+    return null
+  if (!LIFECYCLE_ROW_ACTIONS.has(row.action)) return null
+  const value = (payload as Record<string, unknown>).timeStamp
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+    ? value
+    : null
+}
+
 export const actionIdForTicketLog = (action: string): number => {
   const id = ACTION_ID_BY_NAME[action]
   if (id === undefined) {
@@ -89,19 +108,32 @@ const actionNameForTicketLog = (id: number): string => {
 
 /**
  * The compact wire drops per-row timestamps — `decodeTicketLogGroup` stamps
- * every row with the group's last-adjustment time. The completion time must
- * therefore ride the payload: every SET_STATUS_COMPLETE that crosses the wire
- * carries `p.timeStamp` (its own pre-wire row time), which is what the shared
- * age-badge anchor (`TICKET_AGE_ANCHOR_SQL`) reads back. Existing payloads
- * keep their value; only rows without a usable one are backfilled (legacy
- * rows — the stored row time is the best completion value available).
+ * every row with the group's last-adjustment time. Any metric that subtracts
+ * two of a ticket's own rows (the Start dashboard's acceptance lag,
+ * ready-to-paid, time-to-paid) therefore reads zero on a device that received
+ * the ticket by sync. So each lifecycle row carries its own pre-wire time in
+ * its payload as `timeStamp`, and `insertLog` restores it.
+ *
+ * `SET_STATUS_COMPLETE` started this; ACCEPTED/READY/PAID need it for the lag
+ * metrics. Existing payloads keep their value; only rows without a usable one
+ * are backfilled (legacy rows — the stored row time is the best value
+ * available).
  */
+const LIFECYCLE_ROW_ACTIONS = new Set([
+  'SET_STATUS_COMPLETE',
+  'SET_STATUS_ACCEPTED',
+  'SET_STATUS_READY',
+  'SET_STATUS_PAID',
+])
+
 const withCompletionTimeStamp = (
   payload: unknown,
   time_stamp: number,
+  action?: string,
 ): unknown => {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload))
     return payload
+  if (action != null && !LIFECYCLE_ROW_ACTIONS.has(action)) return payload
   const obj = payload as Record<string, unknown>
   const existing = obj.timeStamp
   if (
@@ -138,10 +170,7 @@ export const encodeTicketLogGroup = (
     wireLogs.push({
       u: log.uuid,
       a: actionIdForTicketLog(log.action),
-      p:
-        log.action === 'SET_STATUS_COMPLETE'
-          ? withCompletionTimeStamp(log.payload, log.time_stamp)
-          : log.payload,
+      p: withCompletionTimeStamp(log.payload, log.time_stamp, log.action),
     })
 
     if (log.action === 'SET_STATUS_COMPLETE') {

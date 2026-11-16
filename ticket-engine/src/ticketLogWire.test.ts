@@ -7,6 +7,7 @@ import {
   decodeTicketLogGroup,
   encodeTicketLogBuckets,
   encodeTicketLogGroup,
+  rowTimeStamp,
   type TicketLogWireInput,
 } from './ticketLogWire.js'
 
@@ -352,5 +353,69 @@ describe('server-authored rows (empty-string admin)', () => {
       { uuid: 'c', action: 'PRINT_REASSIGN', payload: {}, time_stamp: 1200, admin_uuid: 'adm-1' },
     ])
     expect(wire.admin_uuid).toEqual(['', 'adm-1'])
+  })
+})
+
+describe('per-row lifecycle times on the wire', () => {
+  // The Start dashboard subtracts two of a ticket's own rows (acceptance lag,
+  // ready-to-paid, time-to-paid). The wire stamps every row with the group's
+  // newest time, which zeroes those on any device that received the ticket by
+  // sync — while the authoring device keeps real per-row times.
+  const lifecycle = [
+    { uuid: 'c', action: 'SET_STATUS_COMPLETE', payload: {}, time_stamp: 1000 },
+    { uuid: 'a', action: 'SET_STATUS_ACCEPTED', payload: {}, time_stamp: 5000 },
+    { uuid: 'r', action: 'SET_STATUS_READY', payload: {}, time_stamp: 21000 },
+    { uuid: 'p', action: 'SET_STATUS_PAID', payload: {}, time_stamp: 31000 },
+    { uuid: 'i', action: 'ADD_ITEM', payload: {}, time_stamp: 500 },
+  ]
+
+  it('rides each lifecycle row\'s own time in its payload', () => {
+    const wire = encodeTicketLogGroup(lifecycle)
+    expect(wire.time_stamp).toBe(31000)
+    const payloadOf = (u: string) =>
+      (wire.logs.find((l) => l.u === u)!.p as Record<string, number>).timeStamp
+    expect(payloadOf('c')).toBe(1000)
+    expect(payloadOf('a')).toBe(5000)
+    expect(payloadOf('r')).toBe(21000)
+    expect(payloadOf('p')).toBe(31000)
+  })
+
+  it('leaves non-lifecycle payloads alone', () => {
+    const wire = encodeTicketLogGroup(lifecycle)
+    const item = wire.logs.find((l) => l.u === 'i')!
+    expect(item.p).toEqual({})
+  })
+
+  it('round-trips: decode collapses the row time but rowTimeStamp recovers it', () => {
+    const rows = decodeTicketLogGroup('t', 'lg', encodeTicketLogGroup(lifecycle))
+    // The collapse is the wire's documented behaviour.
+    expect(rows.every((r) => r.time_stamp === 31000)).toBe(true)
+    const timeOf = (u: string) => rowTimeStamp(rows.find((r) => r.uuid === u)!)
+    expect(timeOf('c')).toBe(1000)
+    expect(timeOf('a')).toBe(5000)
+    expect(timeOf('r')).toBe(21000)
+    expect(timeOf('p')).toBe(31000)
+    // A non-lifecycle row has nothing to recover — caller keeps the stamp.
+    expect(timeOf('i')).toBeNull()
+  })
+
+  it('keeps an existing payload timeStamp instead of overwriting it', () => {
+    const wire = encodeTicketLogGroup([
+      {
+        uuid: 'p',
+        action: 'SET_STATUS_PAID',
+        payload: { price_whole: 12, price_hundredths: 50, timeStamp: 4242 },
+        time_stamp: 31000,
+      },
+    ])
+    expect((wire.logs[0]!.p as Record<string, number>).timeStamp).toBe(4242)
+  })
+
+  it('recovers a real lag, not zero', () => {
+    const rows = decodeTicketLogGroup('t', 'lg', encodeTicketLogGroup(lifecycle))
+    const at = (action: string) => rowTimeStamp(rows.find((r) => r.action === action)!)!
+    expect(at('SET_STATUS_PAID') - at('SET_STATUS_READY')).toBe(10000)
+    expect(at('SET_STATUS_PAID') - at('SET_STATUS_COMPLETE')).toBe(30000)
+    expect(at('SET_STATUS_ACCEPTED') - at('SET_STATUS_COMPLETE')).toBe(4000)
   })
 })

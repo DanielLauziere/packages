@@ -100,6 +100,7 @@ export {
   decodeTicketLogGroup,
   encodeTicketLogBuckets,
   decodeTicketLogBuckets,
+  rowTimeStamp,
 } from "./ticketLogWire.js";
 export type { TicketLogWireInput, DecodedTicketLog } from "./ticketLogWire.js";
 export {

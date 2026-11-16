@@ -8,6 +8,10 @@ import {
   type TicketLogRow,
 } from "./ticketLogLedger.js";
 import type { TicketLogEntry } from "./applyTicketLog.js";
+import {
+  decodeTicketLogGroup,
+  encodeTicketLogGroup,
+} from "./ticketLogWire.js";
 
 type Recorded = { sql: string; params?: any[] };
 
@@ -351,5 +355,68 @@ describe("fromSyncLog time_stamp coercion", () => {
       .map((r) => r.params![0]);
     // 999 < 1000 numerically → the older log claims first.
     expect(claims).toEqual(["lg-late", "lg-early"]);
+  });
+});
+
+describe("insertLog restores a synced row's own time", () => {
+  // A ticket group crosses the wire with one timestamp for every row. The
+  // lifecycle rows carry their real time in the payload; insertLog must put it
+  // back, or the Start dashboard's lag metrics read zero on the receiving
+  // device while the authoring device reads them correctly.
+  const lifecycle = [
+    { uuid: "c", action: "SET_STATUS_COMPLETE", payload: {}, time_stamp: 1000 },
+    { uuid: "a", action: "SET_STATUS_ACCEPTED", payload: {}, time_stamp: 5000 },
+    { uuid: "r", action: "SET_STATUS_READY", payload: {}, time_stamp: 21000 },
+    { uuid: "p", action: "SET_STATUS_PAID", payload: {}, time_stamp: 31000 },
+  ];
+
+  it("writes the payload time, not the collapsed group time", async () => {
+    const { deps } = makeDeps();
+    const rows = decodeTicketLogGroup(
+      "t-1",
+      "lg-1",
+      encodeTicketLogGroup(lifecycle),
+    );
+    // The wire collapsed every row to the group time…
+    expect(rows.every((row) => row.time_stamp === 31000)).toBe(true);
+
+    const recorded: Recorded[] = [];
+    const capture = {
+      ...deps,
+      run: async (sql: string, params?: any[]) => {
+        recorded.push({ sql, params });
+      },
+    };
+    for (const row of rows) await insertLog(capture, row);
+
+    const byUuid = new Map<string, any[]>();
+    for (const r of recorded) {
+      if (!r.sql.includes("INSERT OR IGNORE INTO ticket_log")) continue;
+      byUuid.set(r.params![0] as string, r.params!);
+    }
+    // …and insertLog restored each row's own time.
+    expect(byUuid.get("c")![5]).toBe(1000);
+    expect(byUuid.get("a")![5]).toBe(5000);
+    expect(byUuid.get("r")![5]).toBe(21000);
+    expect(byUuid.get("p")![5]).toBe(31000);
+  });
+
+  it("keeps the group time for a non-lifecycle row", async () => {
+    const { deps } = makeDeps();
+    const recorded: Recorded[] = [];
+    const capture = {
+      ...deps,
+      run: async (sql: string, params?: any[]) => {
+        recorded.push({ sql, params });
+      },
+    };
+    await insertLog(
+      capture,
+      makeRow({ uuid: "i", action: "ADD_ITEM", time_stamp: 31000 }),
+    );
+    const insert = recorded.find((r) =>
+      r.sql.includes("INSERT OR IGNORE INTO ticket_log"),
+    );
+    expect(insert?.params?.[5]).toBe(31000);
   });
 });
