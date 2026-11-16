@@ -41,6 +41,18 @@ export type AddPaymentPayload = {
   complete: boolean;
 };
 
+/**
+ * The amount the ticket was charged at payment time, split like every other
+ * price in the system. Carried on the paid log (not a separate price action)
+ * so a device that was offline when the ticket was paid still knows the true
+ * grand total — items, modifiers, promotions, tip and tax — without asking the
+ * server. `SET_STATUS_COMPLETE` carries `timeStamp` for the same reason.
+ */
+export type SetStatusPaidPayload = {
+  price_whole: number;
+  price_hundredths: number;
+};
+
 export type PrintSuccessPayload = {
   manual?: boolean;
 };

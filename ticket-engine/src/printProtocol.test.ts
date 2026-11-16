@@ -707,6 +707,95 @@ describe("decidePrint — guards", () => {
     });
   });
 
+  it("a reassign never targets a device already in the chain (no REASSIGN_CYCLE)", () => {
+    // A→B, B passes, then A (the ex-holder, still in the chain) requests
+    // again. Reassigning back to A folds to A→B→A = REASSIGN_CYCLE, and a
+    // conflict suppresses every surface, stalling the ticket forever.
+    const rows = [
+      row("PRINT_PASS", A, 10),
+      row("PRINT_REQUEST", B, 20),
+      row("PRINT_REASSIGN", A, 30, { to: B }),
+      row("PRINT_PASS", B, 40),
+      row("PRINT_REQUEST", A, 50),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.chain).toEqual([A, B]);
+    expect(fold.requests).toEqual([B, A]);
+    expect(fold.decider).toBe(true);
+    expect(decidePrint(fold, { ...base, me: B, capable: false })).toEqual({
+      kind: "wait",
+    });
+  });
+
+  it("a reassign still picks a requester not already in the chain", () => {
+    const rows = [
+      row("PRINT_PASS", A, 10),
+      row("PRINT_REQUEST", B, 20),
+      row("PRINT_REASSIGN", A, 30, { to: B }),
+      row("PRINT_PASS", B, 40),
+      row("PRINT_REQUEST", C, 50),
+    ];
+    const fold = foldPrintBaton(rows, A);
+    expect(fold.chain).toEqual([A, B]);
+    expect(decidePrint(fold, { ...base, me: B, capable: false })).toEqual({
+      kind: "reassign",
+      to: C,
+    });
+  });
+
+  it("nobody announced: an `open` fold this device watched ≥60 s alerts", () => {
+    // Creator A holds the baton and has written no PRINT_* row at all. B can
+    // neither request (only a holder may pass from `open`) nor print; without
+    // this surface the first signal would be PRINT_FAILED at 5 min.
+    const fold = foldPrintBaton([], A);
+    expect(fold.state).toBe("open");
+    expect(
+      decidePrint(fold, {
+        ...base,
+        me: B,
+        capable: false,
+        observedAt: base.now - PRINT_ALERT_MS,
+      }).kind,
+    ).toBe("alert");
+  });
+
+  it("nobody announced: no alert before the 60 s local window elapses", () => {
+    const fold = foldPrintBaton([], A);
+    expect(
+      decidePrint(fold, {
+        ...base,
+        me: B,
+        capable: false,
+        observedAt: base.now - PRINT_ALERT_MS + 1,
+      }).kind,
+    ).toBe("wait");
+  });
+
+  it("nobody announced: silent_print off suppresses the alert (nothing is expected)", () => {
+    const fold = foldPrintBaton([], A);
+    expect(
+      decidePrint(fold, {
+        ...base,
+        me: B,
+        capable: false,
+        silentPrintOn: false,
+        observedAt: base.now - PRINT_ALERT_MS,
+      }).kind,
+    ).toBe("wait");
+  });
+
+  it("nobody announced: the creator itself never arms this alert", () => {
+    const fold = foldPrintBaton([], A);
+    expect(
+      decidePrint(fold, {
+        ...base,
+        me: A,
+        capable: false,
+        observedAt: base.now - PRINT_ALERT_MS,
+      }).kind,
+    ).toBe("pass");
+  });
+
   it("original-device alert: creator sees alert (>60 s, reassign but no success)", () => {
     // A created the ticket, passed the baton (PRINT_PASS), then reassigned to B.
     // No PRINT_SUCCESS. Ticket created >60 s ago → A (the original device)

@@ -134,7 +134,16 @@ function rowDeviceOf(row: PrintRow | null): string | null {
 export function chainSeedDevice(
   seedRow: PrintRow | null,
   rows: PrintRow[],
+  ticketAdminUuid?: string | null,
 ): string | null {
+  // Guest/server ticket (`ticket.admin_uuid IS NULL`): the server is the
+  // creator and device A. It must never adopt a device from a later row — on a
+  // guest ticket the first device-stamped row is a *requester* (the server's
+  // own PASS carries no device), and seeding from it turned that PASS into
+  // PASS_FROM_NON_HOLDER → CONFLICT the moment a peer asked to print, so the
+  // ticket never printed. Mirrors Go's ChainSeed (earliest row author "" ⇒ "").
+  if (ticketAdminUuid === null) return null;
+
   const seedDevice = rowDeviceOf(seedRow);
   if (seedDevice) return seedDevice;
 
@@ -162,7 +171,10 @@ export async function readPrintFold<
 ): Promise<{ fold: PrintFold; rows: PrintRow[] }> {
   const rows = await getRows(ticket.uuid);
   const seedRow = getSeedRow ? await getSeedRow(ticket.uuid) : null;
-  const fold = foldPrintBaton(rows, chainSeedDevice(seedRow, rows));
+  const fold = foldPrintBaton(
+    rows,
+    chainSeedDevice(seedRow, rows, ticket.admin_uuid),
+  );
   return { fold, rows };
 }
 
@@ -190,7 +202,11 @@ export interface BatonDeps<Ticket, TLG, TAdmin> {
     payload: Record<string, unknown>;
     admin_uuid: string;
   }): Promise<unknown>;
-  /** Server-clock offset in ms for decidePrint's `now`. */
+  /** Server-clock offset in ms, used only to stamp PRINT_* rows like every
+   *  other ticket_log row. NEVER used for a time window: every window in this
+   *  protocol compares against a device-local observation (`Date.now()`), so
+   *  adding the server offset here shrank/suppressed them by the skew (a
+   *  device clock behind the server could declare PRINT_FAILED instantly). */
   getServerOffset(): Promise<number>;
   /** This device's stable id (`device_uuid`) — the baton's identity. */
   deviceUuid(): string;
@@ -215,10 +231,15 @@ export interface BatonDeps<Ticket, TLG, TAdmin> {
    *  no observation (silent print off / never rendered the ticket), and
    *  never creates one. The loop publishes PRINT_FAILED only once this
    *  device's own 5:00 window has elapsed from it. */
-  getPrintPendingObservedAt?(ticket_uuid: string): number | Promise<number> | null;
+  getPrintPendingObservedAt?(ticket_uuid: string): number | Promise<number | null> | null;
   /** Config-level capability (silent mode + printer configured for this
    *  platform). Re-checked each iteration; cooldown handled by the loop. */
   isKitchenCapable(): boolean;
+  /** `location_group.silent_print` on this device's local data. Gates the
+   *  "nobody announced" alert and the durable `PRINT_FAILED` declaration: with
+   *  the switch off nothing is expected to print. Optional (defaults to true)
+   *  so non-client callers stay source-compatible. */
+  isSilentPrintOn?(): boolean;
   /** Deliver the ticket bytes — the client's print transport.
    *  `job_id` is the baton's idempotent-retry marker (ticket_uuid). The
    *  relay transport sends it so a retried send after a lost response does
@@ -241,12 +262,17 @@ async function appendPrintLog<Ticket extends { uuid: string; location_group_uuid
   admin_uuid: string,
   action: string,
   payload: Record<string, unknown>,
+  serverOffset = 0,
 ): Promise<void> {
   await deps.appendLog({
     ticket_uuid: ticket.uuid,
     location_group_uuid: ticket.location_group_uuid,
     action,
-    time_stamp: Date.now(),
+    // Stamp PRINT_* rows on the same (server-aligned) clock as every other
+    // ticket_log row. Cross-author request order is decided by `time_stamp`,
+    // so a device-local stamp let a skewed device win the reassign; same-author
+    // ordering is `seq`-protected either way.
+    time_stamp: Date.now() + serverOffset,
     // The acting device rides in the payload — `admin_uuid` stays the admin
     // (backlog item 4). The fold reads this key to identify actors. `seq` is
     // the per-device ordinal the fold uses to order this device's own rows
@@ -303,15 +329,19 @@ export async function runBatonPrint<
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const rows = await deps.getPrintRows(ticket.uuid);
-    const fold = foldPrintBaton(rows, chainSeedDevice(seedRow, rows));
+    const fold = foldPrintBaton(
+      rows,
+      chainSeedDevice(seedRow, rows, ticket.admin_uuid),
+    );
     const myRequest = rows.find(
       (r) =>
         r.action === PRINT_REQUEST &&
         (r.device_id ?? (r.payload?.device_id as string | undefined) ?? null) ===
           me,
     );
-    const now = Date.now() + offset;
+    const now = Date.now();
     const capable = deps.isKitchenCapable();
+    const silentOn = deps.isSilentPrintOn ? deps.isSilentPrintOn() : true;
 
     // Phase 4: the durable 5-minute give-up. The window runs from THIS
     // device's own spinner-start observation (read-only — the UI arms it; no
@@ -321,14 +351,27 @@ export async function runBatonPrint<
     // declaration to land does the work for every device, and its count bump
     // re-folds peers before their own timers fire). Conflicts keep the
     // attention verdict, so they never publish over it.
+    //
+    // Two more gates:
+    //  - `silentOn`: with the restaurant switch off nothing is expected to
+    //    print, so a stale observation (armed before the switch was turned
+    //    off) must not declare the strand failed.
+    //  - `state !== 'assigned'`: a wall-clock timeout must never revoke a live
+    //    assignment. If a holder holds the baton and may be printing right
+    //    now, a peer's local timer cannot declare the whole chain failed; the
+    //    60 s strand alert (and the local spinner) remain the surfaces.
     const pendingObservedAt =
       (await deps.getPrintPendingObservedAt?.(ticket.uuid)) ?? null;
     failArmMs =
-      pendingObservedAt != null && !fold.terminal && fold.state !== 'conflict'
+      silentOn &&
+      pendingObservedAt != null &&
+      !fold.terminal &&
+      fold.state !== 'conflict' &&
+      fold.state !== 'assigned'
         ? pendingObservedAt + PRINT_SPINNER_FAIL_MS - now
         : undefined;
     if (failArmMs != null && failArmMs <= 0) {
-      await appendPrintLog(deps, ticket, admin.uuid, PRINT_FAILED, {});
+      await appendPrintLog(deps, ticket, admin.uuid, PRINT_FAILED, {}, offset);
       advanced = true;
       // Re-read: the fold now resolves failed and decidePrint stands this
       // device — and every other — down on the next iteration.
@@ -343,6 +386,7 @@ export async function runBatonPrint<
       me,
       capable,
       now,
+      silentPrintOn: silentOn,
       // The requester window is armed the first time this device sees its own
       // unanswered PRINT_REQUEST.
       requestedObservedAt: myRequest
@@ -368,7 +412,7 @@ export async function runBatonPrint<
         }
 
         if (printed) {
-          await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, {});
+          await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, {}, offset);
           return { outcome: 'printed' };
         }
 
@@ -380,25 +424,27 @@ export async function runBatonPrint<
         // stranded and the 60 s alert fires.
         await appendPrintLog(deps, ticket, admin.uuid, PRINT_PASS, {
           reason: PRINT_REASON_STRANDED,
-        });
+        }, offset);
         // Stop here: this device is out of the chain. Re-iterating would
         // re-read the fold, see itself as holder with an open pass and no
-        // requests, and send again — the exact retry this replaces.
-        return { outcome: 'advanced' };
+        // requests, and send again — the exact retry this replaces. Keep the
+        // armed windows (the 60 s strand alert and the 5 min give-up) so a
+        // stranded holder still surfaces even if no further feed change lands.
+        return withFailTimer({ outcome: 'advanced' });
       }
 
       case 'pass':
-        await appendPrintLog(deps, ticket, admin.uuid, PRINT_PASS, { reason: 'not_capable' });
+        await appendPrintLog(deps, ticket, admin.uuid, PRINT_PASS, { reason: 'not_capable' }, offset);
         advanced = true;
         continue;
 
       case 'request':
-        await appendPrintLog(deps, ticket, admin.uuid, PRINT_REQUEST, {});
+        await appendPrintLog(deps, ticket, admin.uuid, PRINT_REQUEST, {}, offset);
         advanced = true;
         continue;
 
       case 'reassign':
-        await appendPrintLog(deps, ticket, admin.uuid, PRINT_REASSIGN, { to: decision.to });
+        await appendPrintLog(deps, ticket, admin.uuid, PRINT_REASSIGN, { to: decision.to }, offset);
         advanced = true;
         continue;
 
@@ -461,6 +507,25 @@ export async function runBatonPrint<
             });
           }
         }
+        // Nobody announced: decidePrint surfaces an `open` fold this device has
+        // watched for the full 60 s window (creator holds the baton but wrote
+        // no PRINT_* row). Before the window elapses decidePrint returns
+        // 'wait', so arm the timer here or the alert would only appear on the
+        // next unrelated feed change.
+        if (
+          fold.state === 'open' &&
+          fold.holder !== me &&
+          silentOn &&
+          observedAt != null
+        ) {
+          const remaining = observedAt + PRINT_ALERT_MS - now;
+          if (remaining > 0 && remaining <= PRINT_ALERT_MS) {
+            return withFailTimer({
+              outcome: advanced ? 'advanced' : 'waiting',
+              alertInMs: remaining,
+            });
+          }
+        }
         return withFailTimer({ outcome: advanced ? 'advanced' : 'waiting' });
       }
     }
@@ -487,8 +552,12 @@ export async function manualTakeover<
 ): Promise<boolean> {
   const rows = await deps.getPrintRows(ticket.uuid);
   const seedRow = await deps.getChainSeedRow(ticket.uuid);
-  const fold = foldPrintBaton(rows, chainSeedDevice(seedRow, rows));
+  const fold = foldPrintBaton(
+    rows,
+    chainSeedDevice(seedRow, rows, ticket.admin_uuid),
+  );
   if (!manualTakeoverAllowed(fold)) return false;
-  await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, { manual: true });
+  const offset = await deps.getServerOffset();
+  await appendPrintLog(deps, ticket, admin.uuid, PRINT_SUCCESS, { manual: true }, offset);
   return true;
 }

@@ -171,6 +171,34 @@ describe("PRINT_ROWS_SQL / mapPrintRows / parsePrintPayload", () => {
     expect(fold.holder).toBeNull();
   });
 
+  it("guest ticket (admin_uuid null) seeds chain[0] = null, not a requester device", async () => {
+    // CHAIN_SEED_SQL prefers device-carrying rows, so on a guest ticket the
+    // server's own PASS (author NULL, no device) is not the seed row — the
+    // first human PRINT_REQUEST is. Seeding from it made the server's PASS a
+    // PASS_FROM_NON_HOLDER conflict the moment a peer asked to print.
+    const rows: PrintRow[] = [
+      { action: "PRINT_PASS", author: null, time_stamp: 10, payload: {} },
+      { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 20, payload: { device_id: DEVICE_B } },
+    ];
+    const guest = { ...TICKET, admin_uuid: null };
+    const { fold } = await readPrintFold(
+      async () => rows,
+      guest,
+      async () => rows[1]!, // the device-carrying requester row
+    );
+    expect(fold.chain[0]).toBeNull();
+    expect(fold.state).toBe("solicit");
+    expect(fold.conflict).toEqual([]);
+
+    // Same rows on a normal ticket still seed the first device.
+    const normal = await readPrintFold(
+      async () => rows,
+      TICKET,
+      async () => rows[1]!,
+    );
+    expect(normal.fold.chain[0]).toBe(DEVICE_B);
+  });
+
   it("mapPrintRows(null) maps to an empty list", () => {
     // Defensive null tolerance on the driver result (rows ?? []).
     expect(mapPrintRows(null as any)).toEqual([]);
@@ -682,6 +710,54 @@ describe("runBatonPrint", () => {
     expect(result.alertInMs).toBe(30_000); // armed from local observation, not the row stamps
   });
 
+  it("nobody announced: arms the 60 s alert timer on an open fold this device watches", async () => {
+    // Creator DEVICE_A holds the baton but has written no PRINT_* row. DEVICE_B
+    // is watching: decidePrint returns 'wait' until the window elapses, so the
+    // loop must arm alertInMs or the (!) would only surface on the next
+    // unrelated feed change (the first signal otherwise: PRINT_FAILED at 5 min).
+    const { deps, appendLog } = makeDeps(
+      {
+        isKitchenCapable: () => false,
+        getPrintRows: async () => [],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+      100_000 - 30_000,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+    expect(result).toEqual({ outcome: "waiting", alertInMs: 30_000 });
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("nobody announced: silent_print off arms nothing and never alerts", async () => {
+    const { deps } = makeDeps(
+      {
+        isKitchenCapable: () => false,
+        isSilentPrintOn: () => false,
+        getPrintRows: async () => [],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+      100_000 - PRINT_ALERT_MS - 1,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+    expect(result).toEqual({ outcome: "waiting" });
+  });
+
+  it("nobody announced: alerts once the local window has fully elapsed", async () => {
+    const { deps } = makeDeps(
+      {
+        isKitchenCapable: () => false,
+        getPrintRows: async () => [],
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_B,
+      100_000 - PRINT_ALERT_MS,
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
+    expect(result).toEqual({ outcome: "alert" });
+  });
+
   it("conflicted fold → outcome conflict, nothing appended", async () => {
     // A PRINT_PASS authored by a non-holder (DEVICE_B) folds to
     // PASS_FROM_NON_HOLDER → decidePrint 'attention' → 'conflict'.
@@ -843,7 +919,7 @@ describe("runBatonPrint", () => {
     expect(appendLog).not.toHaveBeenCalled();
   });
 
-  it("a non-zero getServerOffset shifts the pending-request alert window", async () => {
+  it("getServerOffset is ignored by the pending-request alert window", async () => {
     const { deps } = makeDeps(
       {
         getServerOffset: async () => 10_000,
@@ -857,12 +933,13 @@ describe("runBatonPrint", () => {
       60_000,
     );
     const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
-    // Observed 60 s ago (local); now = Date.now() + 10_000 = 110_000 →
-    // alertInMs = 60_000 + 60_000 − 110_000. With offset 0 it would be 20_000.
-    expect(result).toEqual({ outcome: "waiting", alertInMs: 10_000 });
+    // Windows are device-local: observed 60 s ago at now = Date.now() = 100_000
+    // → alertInMs = 20_000. The +10 s server offset stamps rows but must not
+    // shrink the window (a skewed server could otherwise strand instantly).
+    expect(result).toEqual({ outcome: "waiting", alertInMs: 20_000 });
   });
 
-  it("a positive server offset can tip a pending request over the alert window", async () => {
+  it("a positive server offset cannot tip a pending request over the alert window", async () => {
     const { deps } = makeDeps(
       {
         getServerOffset: async () => 10_000,
@@ -876,10 +953,9 @@ describe("runBatonPrint", () => {
       45_000,
     );
     const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-2" } });
-    // Observed 45 s ago (local); server clock adds 10 s → 65 s elapsed
-    // (≥ 60 s) → alert; the local clock alone would only see 55 s and keep
-    // waiting.
-    expect(result).toEqual({ outcome: "alert" });
+    // Observed 55 s ago (local). Adding the +10 s server offset would fake
+    // 65 s elapsed and alert early; the device-local window keeps waiting.
+    expect(result).toEqual({ outcome: "waiting", alertInMs: 5_000 });
   });
 
   it("foreign/falsy ticket stamps never arm the creator-strand alert — local observation alone decides", async () => {
@@ -1163,6 +1239,30 @@ describe("failover — a refused holder hands the baton off (item 9)", () => {
     expect(stranded.holder).toBe(DEVICE_A);
     expect(stranded.decider).toBe(true);
   });
+
+  it("a refused send keeps the armed 5 min give-up timer", async () => {
+    // The handoff returns early (no re-iteration), but the loop must still
+    // re-run when this device's own give-up window elapses — otherwise a
+    // stranded holder with no further feed change never surfaces the failure.
+    const { deps, appendLog, printTicket } = makeDeps(
+      {
+        getPrintPendingObservedAt: async () => 100_000 - 60_000,
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+      },
+      DEVICE_A,
+    );
+    printTicket.mockResolvedValue(false);
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-1" } });
+    expect(printTicket).toHaveBeenCalledTimes(1);
+    expect(appendLog.mock.calls[0]![0]).toMatchObject({
+      action: "PRINT_PASS",
+      payload: { reason: PRINT_REASON_STRANDED },
+    });
+    expect(result).toEqual({
+      outcome: "advanced",
+      failInMs: PRINT_SPINNER_FAIL_MS - 60_000,
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1273,6 +1373,41 @@ describe("Phase 4 — PRINT_FAILED publisher", () => {
     });
     const result = await runBatonPrint(deps, args);
     expect(result).toEqual({ outcome: "failed" });
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("silent_print off suppresses the declaration (a stale observation)", async () => {
+    // The switch was turned off after this device armed its observation:
+    // nothing is expected to print, so the elapsed window must not fail it.
+    const { deps, appendLog } = makePersistedDeps({
+      isSilentPrintOn: () => false,
+      getChainSeedRow: async () => seedCreatorRow(DEVICE_B),
+      getPrintPendingObservedAt: elapsedObs,
+    });
+    const result = await runBatonPrint(deps, args);
+    expect(result.outcome).not.toBe("failed");
+    expect(appendLog).not.toHaveBeenCalled();
+  });
+
+  it("a live assignment is never revoked by a wall-clock timeout", async () => {
+    // A passed, B requested, A reassigned to B → state assigned: B holds the
+    // baton and may be printing right now. A third device's elapsed local
+    // window must not declare the whole chain failed; the 60 s strand alert
+    // and the local spinner remain the surfaces.
+    const { deps, appendLog } = makePersistedDeps(
+      {
+        getChainSeedRow: async () => seedCreatorRow(DEVICE_A),
+        getPrintRows: async () => [
+          { action: "PRINT_PASS", author: "admin-1", time_stamp: 1000, payload: { device_id: DEVICE_A } },
+          { action: "PRINT_REQUEST", author: "admin-2", time_stamp: 2000, payload: { device_id: DEVICE_B } },
+          { action: "PRINT_REASSIGN", author: "admin-1", time_stamp: 3000, payload: { to: DEVICE_B, device_id: DEVICE_A } },
+        ],
+        getPrintPendingObservedAt: elapsedObs,
+      },
+      "dev-3",
+    );
+    const result = await runBatonPrint(deps, { ...args, admin: { uuid: "admin-3" } });
+    expect(result.outcome).not.toBe("failed");
     expect(appendLog).not.toHaveBeenCalled();
   });
 });

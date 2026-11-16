@@ -328,6 +328,11 @@ export interface PrintDeviceContext {
   me: string | null;
   capable: boolean;
   now: number;
+  /** `location_group.silent_print` on this device's local data. Gates the
+   *  "nobody announced" surface: with the restaurant switch off nothing is
+   *  expected to print, so an `open` fold is not a strand. Defaults to true
+   *  when omitted (tests / legacy callers). */
+  silentPrintOn?: boolean;
   /** When THIS device first observed its own unanswered `PRINT_REQUEST`
    * (Phase 3: device-local observation time, never the row's foreign
    * `time_stamp`). Arms the 60 s requester-strand alert. */
@@ -347,6 +352,25 @@ export type PrintDecision =
   | { kind: "attention" }
   | { kind: "stand-down" }
   | { kind: "wait" };
+
+/**
+ * First request that may legally take the baton: not this device, not a device
+ * already in the chain (it already had its turn — reassigning back creates a
+ * REASSIGN_CYCLE conflict that stalls the ticket forever), and not a device
+ * whose send was already refused (`printFailAuthors` — retrying a dead printer
+ * cannot succeed). Returns null when nobody can take it.
+ */
+function nextReassignTarget(fold: PrintFold, me: string | null): string | null {
+  return (
+    fold.requests.find(
+      (r) =>
+        r !== null &&
+        r !== me &&
+        !fold.chain.includes(r) &&
+        !fold.printFailAuthors.includes(r),
+    ) ?? null
+  );
+}
 
 export function decidePrint(
   fold: PrintFold,
@@ -391,7 +415,7 @@ export function decidePrint(
     // chain then only died at PRINT_FAILED (never-print bug).
     if (fold.stranded || fold.printFailAuthors.includes(me)) {
       if (fold.decider) {
-        const to = fold.requests.find((r) => r !== null && r !== me);
+        const to = nextReassignTarget(fold, me);
         if (to) return { kind: "reassign", to };
       }
       return creatorStrandAlert ? { kind: "alert" } : { kind: "wait" };
@@ -399,7 +423,7 @@ export function decidePrint(
     if (capable) return { kind: "send" };
     if (!fold.passAuthors.includes(me)) return { kind: "pass" };
     if (fold.decider) {
-      const to = fold.requests.find((r) => r !== null && r !== me);
+      const to = nextReassignTarget(fold, me);
       if (to) return { kind: "reassign", to };
     }
     return creatorStrandAlert ? { kind: "alert" } : { kind: "wait" };
@@ -429,6 +453,23 @@ export function decidePrint(
     fold.holder !== me &&
     ctx.requestedObservedAt != null &&
     now - ctx.requestedObservedAt >= PRINT_ALERT_MS
+  ) {
+    return { kind: "alert" };
+  }
+
+  // Nobody announced: this device is watching an `open` fold — the creator
+  // holds the baton but has written no PRINT_* row at all (its app is
+  // closed/backgrounded, or it died before its first attempt). Nobody may
+  // request from `open` (only the holder may pass), so without this surface
+  // the first signal would be the 5-minute PRINT_FAILED. Surface only — the
+  // window is this device's own first observation of the ticket's print state,
+  // so a foreign clock cannot arm it, and no automatic takeover happens.
+  if (
+    fold.state === "open" &&
+    fold.holder !== me &&
+    ctx.silentPrintOn !== false &&
+    ctx.observedAt != null &&
+    now - ctx.observedAt >= PRINT_ALERT_MS
   ) {
     return { kind: "alert" };
   }
