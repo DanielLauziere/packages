@@ -111,11 +111,9 @@ describe('getPrinterTypeName', () => {
 })
 
 describe('getShortPermissionLabel', () => {
-  it('maps known permission uuids', () => {
-    expect(getShortPermissionLabel(UPDATE_LOYALTY)).toBe('permUpdateLoyalty')
-    expect(getShortPermissionLabel(SEE_ANALYTICS)).toBe('permSeeAnalytics')
-  })
-  it('passes unknown uuids through', () => {
+  it('passes uuids through — labels come from permission.name now', () => {
+    expect(getShortPermissionLabel(UPDATE_LOYALTY)).toBe(UPDATE_LOYALTY)
+    expect(getShortPermissionLabel(SEE_ANALYTICS)).toBe(SEE_ANALYTICS)
     expect(getShortPermissionLabel('nope')).toBe('nope')
   })
 })

@@ -81,33 +81,15 @@ export function getPrinterTypeName(type: string): string {
   }
 }
 
-const PERM_UPDATE_LOYALTY = 'ba15e452-f491-4fe9-ac05-f632b06ea202';
-const PERM_UPDATE_PERSONNEL = '3c3c424b-c10c-4598-9397-1247c8efc8b8';
-const PERM_UPDATE_RESTAURANT = 'fa8caf79-6a89-4005-a84f-bfcb6a9d57b3';
-const PERM_UPDATE_MENU = 'da320500-cff4-40e1-a041-8a5cd7aa3b45';
-const PERM_ADJUST_ORDERS = 'df3eee32-488e-420f-843f-48b27295c892';
-const PERM_SEE_TOTALS = '0d6aaf00-6303-44d7-9663-5782e4165e00';
-const PERM_SEE_ANALYTICS = '885ffd6d-e223-447b-94af-452007ae119a';
-
+/**
+ * Short label for a permission uuid. The uuid→label switch maps were removed
+ * with the permissions rework (docs/features/PERMISSIONS.md): the catalog
+ * `permission.name` is the single source of truth for a permission's label and
+ * clients render `t(name)`. Kept as an identity passthrough so existing call
+ * sites degrade to showing the raw uuid rather than breaking the build.
+ */
 export function getShortPermissionLabel(uuid: string): string {
-  switch (uuid) {
-    case PERM_UPDATE_LOYALTY:
-      return 'permUpdateLoyalty';
-    case PERM_UPDATE_PERSONNEL:
-      return 'permUpdateStaff';
-    case PERM_UPDATE_RESTAURANT:
-      return 'permUpdateRestaurant';
-    case PERM_UPDATE_MENU:
-      return 'permUpdateMenu';
-    case PERM_ADJUST_ORDERS:
-      return 'permAdjustOrders';
-    case PERM_SEE_TOTALS:
-      return 'permSeeTotals';
-    case PERM_SEE_ANALYTICS:
-      return 'permSeeAnalytics';
-    default:
-      return uuid;
-  }
+  return uuid;
 }
 
 export function toPostgresTimestampTz(date = new Date()): string {
