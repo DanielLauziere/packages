@@ -263,6 +263,11 @@ export const calculateLocationTickets = ({
       } else {
         discount = promot.discount_whole * 100 + promot.discount_hundredths;
       }
+      // An itemless reward must never take the ticket below zero. Without this
+      // floor the subtotal stays negative whenever tax/tip are zero, which then
+      // drives the earned-points math and the persisted ticket price negative.
+      // See omni/docs/.planz/loyalty-points-promotions-review.md item 2.
+      discount = Math.min(discount, Math.max(0, total_cents));
       total_cents -= discount;
       itemlessDiscounts.push(discount);
     }

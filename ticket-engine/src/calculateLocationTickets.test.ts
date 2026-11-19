@@ -1122,6 +1122,93 @@ describe('negative grand total recovery', () => {
   })
 })
 
+// ---------- ITEMLESS DISCOUNT FLOOR (doc item 2) ----------
+//
+// An itemless reward larger than the ticket used to subtract the whole amount,
+// driving `total_cents` negative whenever tax/tip were zero. The negative
+// subtotal then (a) fed the earned-points math, and (b) was written to the
+// ticket row's price, while the recovery block only removed the reward from
+// the display object — the persisted ticket_promotion row stayed and every
+// recalc re-applied it. The discount is now floored at the subtotal.
+
+describe('itemless discount floor', () => {
+  it('a reward larger than the ticket floors the subtotal at 0 and keeps the reward', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 100 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5, points_required: 10 })],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    // The reward is applied for real now, not removed from the display.
+    expect(ts[0]!.applied_promotions).toHaveLength(1)
+    expect(ts[0]!.redeemed_points).toBe(10)
+  })
+
+  it('a fixed reward exactly equal to the subtotal leaves 0, not negative', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 5, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5 })],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    expect(ts[0]!.applied_promotions).toHaveLength(1)
+  })
+
+  it('a percentage reward over 100% cannot take the subtotal negative', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [
+        makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 200 }),
+      ],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    expect(ts[0]!.applied_promotions).toHaveLength(1)
+  })
+
+  it('the negative subtotal no longer feeds the earned-points math', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 100 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [
+        makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5, points_required: 10 }),
+        makePromo(61, { type: 'LOYALTY', points_multiplier: 10 }),
+      ],
+    })
+    // Subtotal is 0, so nothing is earned on it; only the redemption is spent.
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.total_points).toBe(0)
+    expect(ts[0]!.end_points).toBe(90)
+  })
+
+  it('two oversized rewards floor at 0 once, not cumulatively negative', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60), makeTP(51, 1, 61)],
+      promotions: [
+        makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5 }),
+        makePromo(61, { type: 'REWARD', itemless: true, discount_whole: 5 }),
+      ],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    expect(ts[0]!.applied_promotions).toHaveLength(2)
+  })
+})
+
 // ---------- ITEM DESCRIPTION ----------
 
 describe('item description', () => {
