@@ -1,4 +1,5 @@
 import { calculateCombos } from "./calculateCombos.js";
+import { isPromotionScheduled } from "./promotionSchedule.js";
 import {
   BogoMenuItemDB,
   ComboComboMenuItemDB,
@@ -28,12 +29,29 @@ export type CalculateLocationTicketsInput = {
   comboComboMenuItems: ComboComboMenuItemDB[];
   tip_percentage: number;
   tax_percentage: number;
+  /**
+   * Clock used for promotion scheduling (`all_week` / day flags). Optional:
+   * defaults to the device clock. Inject it in tests, and in any client whose
+   * schedule must follow the server's timezone rather than the device's.
+   * See omni/docs/.planz/loyalty-points-promotions-review.md item 5.
+   */
+  now?: Date;
 };
 
 export type LocationTicketMemo = Map<
   string,
   { signature: string; value: ReturnCompleteTicket }
 >;
+
+/**
+ * Cache key for the schedule clock: minute resolution. The schedule only has
+ * day granularity, but keying to the minute means a promotion that becomes
+ * active at midnight is picked up without waiting for an unrelated recalc.
+ */
+function scheduleNowKey(now?: Date): string {
+  const d = now ?? new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}-${d.getMinutes()}`;
+}
 
 /**
  * The one ticket display order — tablero board, floor-map sheet, and every
@@ -89,8 +107,10 @@ export const calculateLocationTickets = ({
   comboComboMenuItems,
   tip_percentage,
   tax_percentage,
+  now,
 }: CalculateLocationTicketsInput): ReturnCompleteTicket[] => {
   const returnTickets: ReturnCompleteTicket[] = [];
+  const scheduleNow = now ?? new Date();
 
   let multiplier = 0;
   for (const promotion of promotions) {
@@ -409,7 +429,11 @@ export const calculateLocationTickets = ({
         }
       }
 
-      if (eligable && promotion.active) {
+      if (
+        eligable &&
+        promotion.active &&
+        isPromotionScheduled(promotion, scheduleNow)
+      ) {
         ticket.eligable_promotions.push(promot);
       } else {
         ticket.ineligable_promotions.push(promot);
@@ -438,6 +462,10 @@ export function calculateLocationTicketsMemoized(
     input.comboComboMenuItems,
     input.tip_percentage,
     input.tax_percentage,
+    // Scheduling reads the clock: a stale entry would keep offering yesterday's
+    // day-scheduled promotion. Keyed to the minute — the finest resolution the
+    // schedule has.
+    scheduleNowKey(input.now),
   ]);
   const itemsByTicket = new Map<string, TicketMenuItemDB[]>();
   for (const row of input.ticket_menu_items) {

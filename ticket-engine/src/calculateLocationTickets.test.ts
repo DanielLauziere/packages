@@ -137,6 +137,9 @@ const makePromo = (
   discount_whole: 0,
   discount_hundredths: 0,
   location_group_uuid: uSeq(1),
+  // DB default (`all_week` DEFAULT 1) and what a promotion created without
+  // touching the day toggles stores. A schedule test overrides this to false.
+  all_week: true,
   ...overrides,
 })
 
@@ -168,6 +171,7 @@ const run = (overrides: {
   comboComboMenuItems?: ComboComboMenuItemDB[]
   tip_percentage?: number
   tax_percentage?: number
+  now?: Date
 }) =>
   calculateLocationTickets({
     tickets: overrides.tickets ?? [],
@@ -182,6 +186,7 @@ const run = (overrides: {
     comboComboMenuItems: overrides.comboComboMenuItems ?? [],
     tip_percentage: overrides.tip_percentage ?? 0,
     tax_percentage: overrides.tax_percentage ?? 0,
+    now: overrides.now,
   })
 
 // ---------- EMPTY / EDGE ----------
@@ -1319,6 +1324,168 @@ describe('itemless eligibility edges', () => {
       promotions: [makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5, points_required: 50 })],
     })
     expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+})
+
+// ---------- DAY-OF-WEEK SCHEDULE (doc item 5) ----------
+//
+// `all_week` / `mon`..`sun` were persisted and edited in the admin form but no
+// eligibility path read them, so a "Monday only" promotion was offered on
+// Wednesday. The rule mirrors the server's SQL filter
+// (`promotionModel.GetByLocationGroupAndSchedule`):
+//   offerable <=> all_week OR <todays flag>
+// The `*_start_time`/`*_end_time` pairs are deliberately not consulted — no UI
+// edits them and every stored value is 0, so a 0..0 window would disable every
+// day-scheduled promotion.
+
+// 2026-01-05 is a Monday (getDay() === 1); 2026-01-07 is a Wednesday (3).
+const MONDAY = new Date(2026, 0, 5, 12, 0, 0)
+const WEDNESDAY = new Date(2026, 0, 7, 12, 0, 0)
+
+describe('day-of-week schedule', () => {
+  const scheduledPromo = (seq: number, overrides: Partial<PromotionDB>) =>
+    makePromo(seq, {
+      type: 'REWARD',
+      itemless: true,
+      points_required: 10,
+      all_week: false,
+      ...overrides,
+    })
+
+  it('a Monday-only promotion is offered on Monday', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { mon: true })],
+      now: MONDAY,
+    })
+    expect(ts[0]!.eligable_promotions.map((p) => p.uuid)).toEqual([uSeq(60)])
+  })
+
+  it('a Monday-only promotion is NOT offered on Wednesday', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { mon: true })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+    expect(ts[0]!.ineligable_promotions.map((p) => p.uuid)).toEqual([uSeq(60)])
+  })
+
+  it('all_week ignores the day flags entirely', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { all_week: true, mon: false })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  it('a promotion with no day flag set is not offered on any day', () => {
+    // `all_week: false` plus no day flag — the admin form's "no day selected".
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { mon: false })],
+      now: MONDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+
+  it('a promotion carrying no schedule fields at all stays unrestricted', () => {
+    // Partial row / older caller: no schedule info means "no restriction known",
+    // matching the stored default (all_week DEFAULT 1) — never silently drop it.
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, points_required: 10, all_week: undefined })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  it('the schedule gates a bogo promotion too', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      bogo_menu_items: [makeBogo(80, 60, 20)],
+      promotions: [
+        makePromo(60, {
+          type: 'PROMOTION',
+          bogo_buy: uSeq(60),
+          all_week: false,
+          mon: true,
+        }),
+      ],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+
+  it('the schedule gates an already-applied promotion off the eligible list', () => {
+    // A reward applied on Monday must not be re-offered on Wednesday.
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [scheduledPromo(60, { mon: true })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+
+  it('a loyalty multiplier applies on a day the loyalty promo is scheduled for', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [
+        makePromo(60, {
+          type: 'LOYALTY',
+          points_multiplier: 3,
+          all_week: false,
+          mon: true,
+        }),
+      ],
+      now: MONDAY,
+    })
+    expect(ts[0]!.total_points).toBe(Math.floor((1000 * 3) / 100))
+  })
+
+  it('memoized: a day change re-evaluates the schedule', () => {
+    const input = {
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      bogo_menu_items: [],
+      ticketPromotions: [],
+      promotions: [scheduledPromo(60, { mon: true })],
+      tables: [],
+      modifiers: [],
+      ticketMenuItemsModifier: [],
+      comboComboMenuItems: [],
+      tip_percentage: 0,
+      tax_percentage: 0,
+      now: MONDAY,
+    }
+    const cache = new Map()
+    const monday = calculateLocationTicketsMemoized(input, cache)
+    expect(monday[0]!.eligable_promotions).toHaveLength(1)
+
+    const wednesday = calculateLocationTicketsMemoized(
+      { ...input, now: WEDNESDAY },
+      cache,
+    )
+    expect(wednesday[0]!.eligable_promotions).toHaveLength(0)
   })
 })
 
