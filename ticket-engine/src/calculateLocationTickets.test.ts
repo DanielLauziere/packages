@@ -574,6 +574,95 @@ describe('promotions on items', () => {
     expect(ts[0]!.total_cents).toBe(1000)
   })
 
+  // ---------- ONE ITEM-LEVEL PROMOTION PER ITEM (doc item 8) ----------
+  //
+  // The display loop used to price EVERY ticket_promotions row for an item, so
+  // two surviving rows subtracted both discounts from the same line and the
+  // ticket landed below the item's own price. Only the first is priced.
+
+  describe('one item-level promotion per item', () => {
+    it('two rows on one item price only the first', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 5, 0)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+        ],
+        promotions: [
+          makePromo(60, { discount_whole: 1 }),
+          makePromo(61, { discount_whole: 1 }),
+        ],
+      })
+      const mi = ts[0]!.menu_items[0]!
+      expect(mi.applied_promotions).toHaveLength(1)
+      expect(ts[0]!.applied_promotions).toHaveLength(1)
+      expect(mi.price_whole).toBe(4)
+      expect(ts[0]!.total_cents).toBe(400)
+    })
+
+    it('two REWARD rows count points once', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 100 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 5, 0)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+        ],
+        promotions: [
+          makePromo(60, { type: 'REWARD', discount_whole: 1, points_required: 7 }),
+          makePromo(61, { type: 'REWARD', discount_whole: 1, points_required: 9 }),
+        ],
+      })
+      expect(ts[0]!.redeemed_points).toBe(7)
+      expect(ts[0]!.end_points).toBe(100 - 7 + Math.floor((400 * 0) / 100))
+    })
+
+    it('the two rows cannot push the ticket below the item price', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+        ],
+        promotions: [
+          makePromo(60, { discount_whole: 3 }),
+          makePromo(61, { discount_whole: 3 }),
+        ],
+      })
+      // One $3 discount would already floor the item at 0; a second must not
+      // take the ticket negative.
+      expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+      expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+      expect(ts[0]!.total_cents).toBeGreaterThanOrEqual(0)
+    })
+
+    it('a second promotion on a different item still applies', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20), makeTMI(11, 1, 21)],
+        menu_items: [makeMenuItem(20, 5, 0), makeMenuItem(21, 5, 0)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(52, 1, 62, { ticket_menu_item_uuid: uSeq(11) }),
+        ],
+        promotions: [
+          makePromo(60, { discount_whole: 1 }),
+          makePromo(61, { discount_whole: 1 }),
+          makePromo(62, { discount_whole: 1 }),
+        ],
+      })
+      expect(ts[0]!.menu_items[0]!.applied_promotions).toHaveLength(1)
+      expect(ts[0]!.menu_items[1]!.applied_promotions).toHaveLength(1)
+      expect(ts[0]!.total_cents).toBe(800)
+    })
+  })
+
   // ---------- ITEM-LEVEL DISCOUNT FLOOR (doc item 7) ----------
   //
   // `final = cents - discount` had no clamp, so a fixed discount larger than

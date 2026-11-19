@@ -234,6 +234,13 @@ export const calculateLocationTickets = ({
       for (const tp of ticketPromotions) {
         if (tp.ticket_menu_item_uuid !== tmi.uuid) continue;
 
+        // One item carries at most one promotion. The apply path replaces the
+        // row on APPLY_PROMOTION, but two can survive out-of-order sync or a
+        // direct write; pricing them both made `total_cents` less than the
+        // item and counted every reward's points.
+        // See omni/docs/.planz/loyalty-points-promotions-review.md item 8.
+        if (returnMenuItem.applied_promotions.length > 0) continue;
+
         const promotion = promotions.find((p) => p.uuid === tp.promotion_uuid);
         if (!promotion) continue;
 
