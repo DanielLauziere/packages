@@ -237,6 +237,33 @@ describe('getMenuItemPrice', () => {
       getMenuItemPrice({ price_whole: 5, price_hundredths: 5 }),
     ).toBe('$5.05')
   })
+
+  // Item 7 of omni/docs/.planz/loyalty-points-promotions-review.md: the item
+  // price pair used to be writable as (-1, 55), which this formatter rendered
+  // as "$-1.55". The calculator clamps now; the formatter is the last line of
+  // defence for any caller that builds the pair itself.
+  it('never renders a negative sale price from a negative remainder', () => {
+    expect(getMenuItemPrice({ price_whole: -1, price_hundredths: 55 })).toBe('$0.00')
+  })
+
+  it('never renders a negative sale price from a negative whole part', () => {
+    expect(getMenuItemPrice({ price_whole: -3, price_hundredths: 25 })).toBe('$0.00')
+  })
+
+  it('normalises an over-99 remainder instead of printing it verbatim', () => {
+    expect(getMenuItemPrice({ price_whole: 1, price_hundredths: 155 })).toBe('$2.55')
+  })
+
+  it('never renders a negative original price', () => {
+    const out = getMenuItemPrice({
+      price_whole: 0,
+      price_hundredths: 0,
+      original_price_whole: -1,
+      original_price_hundredths: 55,
+    })
+    expect(out).not.toContain('$-')
+    expect(out).toContain('$0.00')
+  })
 })
 
 describe('fillHourSeries', () => {

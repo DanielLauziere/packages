@@ -574,6 +574,102 @@ describe('promotions on items', () => {
     expect(ts[0]!.total_cents).toBe(1000)
   })
 
+  // ---------- ITEM-LEVEL DISCOUNT FLOOR (doc item 7) ----------
+  //
+  // `final = cents - discount` had no clamp, so a fixed discount larger than
+  // the item left price_whole negative and price_hundredths positive
+  // (`-65 % 100 === -65` in JS): a $1.15 discount on a $0.50 item produced
+  // `price_whole = -1, price_hundredths = 55`, i.e. a line total of -$0.45 that
+  // pulled the whole ticket below zero.
+
+  describe('item-level discount floor', () => {
+    it('a fixed discount larger than the item floors the item at 0.00', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [makePromo(60, { discount_whole: 1, discount_hundredths: 15 })],
+      })
+      const mi = ts[0]!.menu_items[0]!
+      expect(mi.price_whole).toBe(0)
+      expect(mi.price_hundredths).toBe(0)
+      expect(mi.price_whole * 100 + mi.price_hundredths).toBeGreaterThanOrEqual(0)
+      // The original price survives for the strike-through.
+      expect(mi.original_price_whole).toBe(0)
+      expect(mi.original_price_hundredths).toBe(50)
+      expect(ts[0]!.total_cents).toBe(0)
+    })
+
+    it('the item line total is never negative, however large the discount', () => {
+      for (const whole of [1, 5, 100]) {
+        const ts = run({
+          tickets: [makeTicket(1)],
+          ticket_menu_items: [makeTMI(10, 1, 20)],
+          menu_items: [makeMenuItem(20, 0, 50)],
+          ticketPromotions: [
+            makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          ],
+          promotions: [makePromo(60, { discount_whole: whole })],
+        })
+        const cents =
+          ts[0]!.menu_items[0]!.price_whole * 100 +
+          ts[0]!.menu_items[0]!.price_hundredths
+        expect(cents).toBeGreaterThanOrEqual(0)
+        expect(ts[0]!.total_cents).toBeGreaterThanOrEqual(0)
+      }
+    })
+
+    it('a discount exactly equal to the item price leaves 0, not negative', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [makePromo(60, { discount_hundredths: 50 })],
+      })
+      expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+      expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+    })
+
+    it('a percentage reward over 100% cannot take the item negative', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 100 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [
+          makePromo(60, {
+            type: 'REWARD',
+            promotion_is_percentage: true,
+            discount_percent: 200,
+            points_required: 10,
+          }),
+        ],
+      })
+      expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+      expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+      expect(ts[0]!.total_cents).toBe(0)
+      // The reward still applies — only its discount is capped.
+      expect(ts[0]!.applied_promotions).toHaveLength(1)
+    })
+
+    it('the floored item does not drag the ticket total negative', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [
+          makeTMI(10, 1, 20),
+          makeTMI(11, 1, 21),
+        ],
+        menu_items: [makeMenuItem(20, 0, 50), makeMenuItem(21, 3, 0)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [makePromo(60, { discount_whole: 2 })],
+      })
+      expect(ts[0]!.grand_total_cents).toBe(300)
+      expect(ts[0]!.total_cents).toBe(300)
+    })
+  })
+
   it('loyalty type promo on item does NOT apply discount', () => {
     const ts = run({
       tickets: [makeTicket(1)],
@@ -1229,8 +1325,13 @@ describe('item description', () => {
 
 // ---------- NEGATIVE GRAND TOTAL, NO ITEMLESS ----------
 
+// Item 7 of omni/docs/.planz/loyalty-points-promotions-review.md: an
+// item-level discount larger than the item used to be the one way to push a
+// ticket's grand total below zero. The item line is now floored at 0, so that
+// class of negative ticket cannot be produced from the pricing path.
+
 describe('negative grand total no itemless recovery', () => {
-  it('stays negative when no itemless promos exist', () => {
+  it('an oversized item-level discount floors the item at 0 and keeps the ticket at 0', () => {
     const ts = run({
       tickets: [makeTicket(1)],
       ticket_menu_items: [makeTMI(10, 1, 20)],
@@ -1238,10 +1339,12 @@ describe('negative grand total no itemless recovery', () => {
       ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
       promotions: [makePromo(60, { discount_whole: 100 })],
     })
-    expect(ts[0]!.grand_total_cents).toBeLessThan(0)
+    expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+    expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBeGreaterThanOrEqual(0)
   })
 
-  it('all itemless removed still negative', () => {
+  it('a non-itemless item discount floors the item, then the itemless recovery runs', () => {
     const ts = run({
       tickets: [makeTicket(1)],
       ticket_menu_items: [makeTMI(10, 1, 20)],
@@ -1255,7 +1358,9 @@ describe('negative grand total no itemless recovery', () => {
         makePromo(61, { type: 'REWARD', itemless: true, discount_whole: 1000 }),
       ],
     })
-    expect(ts[0]!.grand_total_cents).toBeLessThan(0)
+    // The item discount is capped at $5 (the item price), so the subtotal is 0
+    // and the oversized itemless reward is still applied for 0.
+    expect(ts[0]!.grand_total_cents).toBeGreaterThanOrEqual(0)
   })
 })
 

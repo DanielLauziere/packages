@@ -251,7 +251,12 @@ export const calculateLocationTickets = ({
           } else {
             discount = promot.discount_whole * 100 + promot.discount_hundredths;
           }
-          const final = cents - discount;
+          // An item-level discount can never exceed the item's own price: a
+          // $1.15 fixed discount on a $0.50 item used to leave
+          // `price_whole = -1, price_hundredths = 55`, so the item's line total
+          // was negative and pulled the ticket below zero.
+          // See omni/docs/.planz/loyalty-points-promotions-review.md item 7.
+          const final = Math.max(0, cents - discount);
           returnMenuItem.price_whole = Math.floor(final / 100);
           returnMenuItem.price_hundredths = final % 100;
         }
