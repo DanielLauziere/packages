@@ -384,8 +384,14 @@ export const calculateLocationTickets = ({
       }
 
       if (promotion.type === "REWARD" && promotion.itemless) {
-        const discount =
-          promot.discount_whole * 100 + promot.discount_hundredths;
+        // Eligibility must read the same representation the discount math
+        // uses: percentage rewards store their value in `discount_percent`,
+        // leaving `discount_whole/hundredths` at 0 — a fixed-only guard would
+        // pass 0 <= grand_total for every ticket, offering a 100%-off reward
+        // on a $0.01 ticket. See omni/docs/.planz/loyalty-points-promotions-review.md item 1.
+        const discount = promot.promotion_is_percentage
+          ? Math.floor((ticket.grand_total_cents * promot.discount_percent) / 100)
+          : promot.discount_whole * 100 + promot.discount_hundredths;
         if (
           discount <= ticket.grand_total_cents &&
           ticket.guests_points - ticket.redeemed_points >=

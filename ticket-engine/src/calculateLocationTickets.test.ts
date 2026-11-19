@@ -1170,12 +1170,56 @@ describe('negative grand total no itemless recovery', () => {
 // ---------- ITEMLESS ELIGIBILITY EDGES ----------
 
 describe('itemless eligibility edges', () => {
-  it('percentage itemless reward eligible (discount_whole=0 <= grand_total)', () => {
+  // Item 1 of omni/docs/.planz/loyalty-points-promotions-review.md: a
+  // percentage reward stores its value in `discount_percent`, so an
+  // eligibility guard that reads only `discount_whole/hundredths` (both 0)
+  // offers it on any ticket. 20% of $10 is $2, which fits, so this stays
+  // eligible.
+  it('percentage itemless reward eligible when its percent fits the ticket', () => {
     const ts = run({
       tickets: [makeTicket(1, { points: 50 })],
       ticket_menu_items: [makeTMI(10, 1, 20)],
       menu_items: [makeMenuItem(20, 10, 0)],
       promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 20, points_required: 10 })],
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  // Item 1 regression: the fixed-only guard read `discount_whole/hundredths`
+  // (0 for a percentage reward) and passed 0 <= grand_total for ANY ticket, so
+  // a reward whose percent exceeds the ticket was offered. 150% of $10 is $15,
+  // which does not fit — ineligible.
+  it('percentage itemless reward ineligible when its percent exceeds the ticket', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 150, points_required: 10 })],
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+    expect(ts[0]!.ineligable_promotions).toHaveLength(1)
+  })
+
+  // 57% of $3.00 is $1.71, which fits the ticket — eligible.
+  it('percentage itemless reward eligible on a mid-size ticket', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 57, points_required: 10 })],
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  // 57% of $1.00 is $0.57, which fits the ticket — eligible. This is the
+  // doc's own "confirm" scenario (57% reward, cheap item) and it must keep
+  // being offered; the fix only withdraws rewards that cannot fit.
+  it('percentage itemless reward eligible when the percent fits a $1 ticket', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 1, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 57, points_required: 10 })],
     })
     expect(ts[0]!.eligable_promotions).toHaveLength(1)
   })
