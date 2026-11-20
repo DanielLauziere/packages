@@ -2005,3 +2005,27 @@ describe('calculateCombos internal edges', () => {
     expect(ts[0]!.menu_items).toHaveLength(0)
   })
 })
+
+// Item 14 of omni/docs/.planz/loyalty-points-promotions-review.md.
+//
+// A guest row that is missing (or a ticket with no guest) reads as 0 points on
+// every engine. That is the truthful display value, and it must stay explicit:
+// the eligibility DECISION now reads the authoritative balance server-side, so
+// this pin guards the display half from being "fixed" into something invented.
+describe('missing guest points read as 0', () => {
+  it('a null/undefined balance coalesces to 0, never NaN or undefined', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: undefined as unknown as number })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+    })
+    expect(ts[0]!.guests_points).toBe(0)
+    expect(Number.isFinite(ts[0]!.guests_points)).toBe(true)
+  })
+
+  it('an explicit 0 is distinct from absent only in the DB, not here', () => {
+    const zero = run({ tickets: [makeTicket(1, { points: 0 })] })
+    const held = run({ tickets: [makeTicket(1, { points: 500 })] })
+    expect(zero[0]!.guests_points).toBe(0)
+    expect(held[0]!.guests_points).toBe(500)
+  })
+})
