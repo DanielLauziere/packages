@@ -113,15 +113,21 @@ export const calculateLocationTickets = ({
   const scheduleNow = now ?? new Date();
 
   let multiplier = 0;
+  let hasActiveLoyalty = false;
   for (const promotion of promotions) {
-    if (
-      promotion.active &&
-      promotion.type === "LOYALTY" &&
-      promotion.points_multiplier > multiplier
-    ) {
-      multiplier = promotion.points_multiplier;
+    if (promotion.active && promotion.type === "LOYALTY") {
+      hasActiveLoyalty = true;
+      if (promotion.points_multiplier > multiplier) {
+        multiplier = promotion.points_multiplier;
+      }
     }
   }
+  // An active loyalty program means the guest EARNS at the plain per-dollar
+  // rate. A row configured with `points_multiplier = 0` (the DB default; the
+  // admin form's min is client-side only) used to leave the max at 0, so the
+  // program showed as active while the guest earned nothing.
+  // See omni/docs/.planz/loyalty-points-promotions-review.md item 9.
+  if (hasActiveLoyalty && multiplier === 0) multiplier = 1;
 
   for (const currentTicket of tickets) {
     let total_cents = 0;

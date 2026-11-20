@@ -1006,6 +1006,44 @@ describe('points', () => {
     expect(ts[0]!.guests_points).toBe(0)
     expect(ts[0]!.end_points).toBe(ts[0]!.total_points)
   })
+
+  // Item 9 of omni/docs/.planz/loyalty-points-promotions-review.md.
+  describe('active loyalty with a zero multiplier', () => {
+    it('earns at the plain per-dollar rate instead of nothing', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 100 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 10, 0)],
+        promotions: [makePromo(60, { type: 'LOYALTY', points_multiplier: 0 })],
+      })
+      expect(ts[0]!.total_points).toBe(Math.floor((1000 * 1) / 100))
+      expect(ts[0]!.end_points).toBe(100 + Math.floor((1000 * 1) / 100))
+    })
+
+    it('a real multiplier still wins over the zero-config default', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 10, 0)],
+        promotions: [
+          makePromo(60, { type: 'LOYALTY', points_multiplier: 0 }),
+          makePromo(61, { type: 'LOYALTY', points_multiplier: 4 }),
+        ],
+      })
+      expect(ts[0]!.total_points).toBe(Math.floor((1000 * 4) / 100))
+    })
+
+    it('an INACTIVE zero-multiplier program earns nothing (no active loyalty)', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 50 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 10, 0)],
+        promotions: [makePromo(60, { type: 'LOYALTY', active: false, points_multiplier: 0 })],
+      })
+      expect(ts[0]!.total_points).toBe(0)
+      expect(ts[0]!.end_points).toBe(50)
+    })
+  })
 })
 
 // ---------- TIP / TAX ----------
