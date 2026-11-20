@@ -1043,7 +1043,99 @@ describe('points', () => {
       expect(ts[0]!.total_points).toBe(0)
       expect(ts[0]!.end_points).toBe(50)
     })
-  })
+
+    // Item 12 of omni/docs/.planz/loyalty-points-promotions-review.md.
+    describe('negative points_required', () => {
+        it('a reward with a negative cost never grants points', () => {
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 10, 0)],
+            ticketPromotions: [makeTP(50, 1, 60)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -100,
+              }),
+            ],
+          })
+          // redeemed_points stays at or above zero, so end_points cannot exceed the
+          // guest's real balance.
+          expect(ts[0]!.redeemed_points).toBe(0)
+          expect(ts[0]!.end_points).toBeLessThanOrEqual(ts[0]!.guests_points)
+          expect(ts[0]!.end_points).toBe(
+            ts[0]!.guests_points - 0 + Math.floor((1000 * 0) / 100),
+          )
+        })
+
+        it('the negative reward is still applied for its discount', () => {
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 10, 0)],
+            ticketPromotions: [makeTP(50, 1, 60)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -100,
+                discount_whole: 2,
+              }),
+            ],
+          })
+          expect(ts[0]!.applied_promotions).toHaveLength(1)
+          expect(ts[0]!.total_cents).toBe(800)
+          expect(ts[0]!.redeemed_points).toBe(0)
+        })
+
+        it('a positive cost still subtracts normally', () => {
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 10, 0)],
+            ticketPromotions: [makeTP(50, 1, 60)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: 30,
+                discount_whole: 2,
+              }),
+            ],
+          })
+          expect(ts[0]!.redeemed_points).toBe(30)
+          expect(ts[0]!.end_points).toBe(50 - 30 + 0)
+        })
+
+        it('the negative-clamped recovery pass agrees with the primary pass', () => {
+          // An oversized itemless discount floors the total at 0, which removes
+          // rewards in the recovery block; that recomputation must clamp too.
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 3, 0)],
+            ticketPromotions: [makeTP(50, 1, 60), makeTP(51, 1, 61)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -10,
+                discount_whole: 10,
+              }),
+              makePromo(61, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -10,
+                discount_whole: 10,
+              }),
+            ],
+          })
+          expect(ts[0]!.redeemed_points).toBeGreaterThanOrEqual(0)
+          expect(ts[0]!.end_points).toBeLessThanOrEqual(ts[0]!.guests_points)
+        })
+      })
+    })
 })
 
 // ---------- TIP / TAX ----------

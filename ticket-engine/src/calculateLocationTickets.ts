@@ -312,7 +312,12 @@ export const calculateLocationTickets = ({
 
     for (const promo of ticket.applied_promotions) {
       if (promo.type === "REWARD") {
-        ticket.redeemed_points += promo.points_required;
+        // A reward COSTS points, so its contribution can never be negative.
+        // The server normalises points_required on the way in, but a legacy or
+        // hand-edited row can still hold a negative value — without this clamp
+        // it would push redeemed_points below zero and GRANT points.
+        // See omni/docs/.planz/loyalty-points-promotions-review.md item 12.
+        ticket.redeemed_points += Math.max(0, promo.points_required ?? 0);
       }
     }
 
@@ -364,7 +369,8 @@ export const calculateLocationTickets = ({
       ticket.redeemed_points = 0;
       for (const promo of ticket.applied_promotions) {
         if (promo.type === "REWARD") {
-          ticket.redeemed_points += promo.points_required;
+          // Same clamp as the primary pass — a reward cannot grant points.
+          ticket.redeemed_points += Math.max(0, promo.points_required ?? 0);
         }
       }
       // Recalculate
