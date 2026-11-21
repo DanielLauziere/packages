@@ -1308,6 +1308,68 @@ describe('single-digit cents formatting', () => {
   })
 })
 
+// ---------- SIGN-SAFE MONEY FORMATTING (doc item 19) ----------
+//
+// The tip/tax/grand strings were built with `("0" + (c % 100)).slice(-2)`, and
+// JS `%` keeps the dividend's sign, so a negative amount produced "-1.-5". Tip
+// and tax derive from the clamped non-negative subtotal, so this needs a
+// negative location-group percentage (or a legacy row) to surface -- but the
+// string reaches clients and receipts.
+
+describe('money formatting is sign-safe', () => {
+  const fmtOf = (over: { tip_percentage?: number; tax_percentage?: number }) => {
+    const ts = run({
+      tickets: [makeTicket(1, { fulfillment_uuid: EATIN })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 0, 99)],
+      ...over,
+    })
+    return {
+      total: ts[0]!.total,
+      tip: ts[0]!.tip_total,
+      tax: ts[0]!.tax_total,
+      grand: ts[0]!.grand_total,
+    }
+  }
+
+  it('non-negative amounts are unchanged', () => {
+    const f = fmtOf({ tip_percentage: 0, tax_percentage: 0 })
+    expect(f.total).toBe('0.99')
+    expect(f.tip).toBe('0.00')
+    expect(f.tax).toBe('0.00')
+    expect(f.grand).toBe('0.99')
+  })
+
+  it('single-digit cents keep their leading zero', () => {
+    const f = fmtOf({ tip_percentage: 10, tax_percentage: 0 })
+    // 10% of 99c = 9c -> "0.09", not "0.9".
+    expect(f.tip).toBe('0.09')
+  })
+
+  it('a negative tip formats as a well-formed negative amount', () => {
+    // floor(-20% of 99c) = -20c -> "-0.20" (was "-1.-20").
+    const f = fmtOf({ tip_percentage: -20, tax_percentage: 0 })
+    expect(f.tip).toBe('-0.20')
+  })
+
+  it('a negative tax formats as a well-formed negative amount', () => {
+    const f = fmtOf({ tip_percentage: 0, tax_percentage: -20 })
+    expect(f.tax).toBe('-0.20')
+  })
+
+  it('a negative grand total formats as a well-formed negative amount', () => {
+    // -20% tax on 99c -> tax -19c, grand 80c; make both negative instead.
+    const f = fmtOf({ tip_percentage: -500, tax_percentage: -500 })
+    for (const v of [f.total, f.tip, f.tax, f.grand]) {
+      const body = v.startsWith('-') ? v.slice(1) : v
+      const [whole, frac] = body.split('.')
+      expect(frac).toHaveLength(2)
+      expect(/^\d+$/.test(whole)).toBe(true)
+      expect(/^\d+$/.test(frac!)).toBe(true)
+    }
+  })
+})
+
 // ---------- TABLE UUID NOT IN MAP ----------
 
 describe('table edge cases', () => {

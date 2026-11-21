@@ -326,8 +326,19 @@ export const calculateLocationTickets = ({
       ticket.guests_points - ticket.redeemed_points + ticket.total_points;
     ticket.total_cents = total_cents;
 
-    const format = (c: number) =>
-      `${Math.floor(c / 100)}.${("0" + (c % 100)).slice(-2)}`;
+    // Sign-safe money formatting.
+    //
+    // Both engines used `c % 100` for the cents part, which keeps the sign of a
+    // negative value: -5 became `-1.-5` in JS and `0.0-5` in Go. Tip and tax are
+    // derived from the (clamped, non-negative) subtotal, so this only surfaces
+    // with a negative location-group percentage or a legacy row — but the string
+    // is sent to clients and printed, so it must be well-formed either way.
+    // See omni/docs/.planz/loyalty-points-promotions-review.md item 19.
+    const format = (c: number) => {
+      const sign = c < 0 ? '-' : ''
+      const abs = Math.abs(c)
+      return `${sign}${Math.floor(abs / 100)}.${('0' + (abs % 100)).slice(-2)}`
+    };
     ticket.total = format(total_cents);
 
     const tipCents =
