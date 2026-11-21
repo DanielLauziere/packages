@@ -1,4 +1,5 @@
 import { calculateCombos } from "./calculateCombos.js";
+import { isPromotionScheduled } from "./promotionSchedule.js";
 import {
   BogoMenuItemDB,
   ComboComboMenuItemDB,
@@ -28,12 +29,29 @@ export type CalculateLocationTicketsInput = {
   comboComboMenuItems: ComboComboMenuItemDB[];
   tip_percentage: number;
   tax_percentage: number;
+  /**
+   * Clock used for promotion scheduling (`all_week` / day flags). Optional:
+   * defaults to the device clock. Inject it in tests, and in any client whose
+   * schedule must follow the server's timezone rather than the device's.
+   * See omni/docs/.planz/loyalty-points-promotions-review.md item 5.
+   */
+  now?: Date;
 };
 
 export type LocationTicketMemo = Map<
   string,
   { signature: string; value: ReturnCompleteTicket }
 >;
+
+/**
+ * Cache key for the schedule clock: minute resolution. The schedule only has
+ * day granularity, but keying to the minute means a promotion that becomes
+ * active at midnight is picked up without waiting for an unrelated recalc.
+ */
+function scheduleNowKey(now?: Date): string {
+  const d = now ?? new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}-${d.getMinutes()}`;
+}
 
 /**
  * The one ticket display order — tablero board, floor-map sheet, and every
@@ -89,19 +107,27 @@ export const calculateLocationTickets = ({
   comboComboMenuItems,
   tip_percentage,
   tax_percentage,
+  now,
 }: CalculateLocationTicketsInput): ReturnCompleteTicket[] => {
   const returnTickets: ReturnCompleteTicket[] = [];
+  const scheduleNow = now ?? new Date();
 
   let multiplier = 0;
+  let hasActiveLoyalty = false;
   for (const promotion of promotions) {
-    if (
-      promotion.active &&
-      promotion.type === "LOYALTY" &&
-      promotion.points_multiplier > multiplier
-    ) {
-      multiplier = promotion.points_multiplier;
+    if (promotion.active && promotion.type === "LOYALTY") {
+      hasActiveLoyalty = true;
+      if (promotion.points_multiplier > multiplier) {
+        multiplier = promotion.points_multiplier;
+      }
     }
   }
+  // An active loyalty program means the guest EARNS at the plain per-dollar
+  // rate. A row configured with `points_multiplier = 0` (the DB default; the
+  // admin form's min is client-side only) used to leave the max at 0, so the
+  // program showed as active while the guest earned nothing.
+  // See omni/docs/.planz/loyalty-points-promotions-review.md item 9.
+  if (hasActiveLoyalty && multiplier === 0) multiplier = 1;
 
   for (const currentTicket of tickets) {
     let total_cents = 0;
@@ -214,6 +240,13 @@ export const calculateLocationTickets = ({
       for (const tp of ticketPromotions) {
         if (tp.ticket_menu_item_uuid !== tmi.uuid) continue;
 
+        // One item carries at most one promotion. The apply path replaces the
+        // row on APPLY_PROMOTION, but two can survive out-of-order sync or a
+        // direct write; pricing them both made `total_cents` less than the
+        // item and counted every reward's points.
+        // See omni/docs/.planz/loyalty-points-promotions-review.md item 8.
+        if (returnMenuItem.applied_promotions.length > 0) continue;
+
         const promotion = promotions.find((p) => p.uuid === tp.promotion_uuid);
         if (!promotion) continue;
 
@@ -231,7 +264,12 @@ export const calculateLocationTickets = ({
           } else {
             discount = promot.discount_whole * 100 + promot.discount_hundredths;
           }
-          const final = cents - discount;
+          // An item-level discount can never exceed the item's own price: a
+          // $1.15 fixed discount on a $0.50 item used to leave
+          // `price_whole = -1, price_hundredths = 55`, so the item's line total
+          // was negative and pulled the ticket below zero.
+          // See omni/docs/.planz/loyalty-points-promotions-review.md item 7.
+          const final = Math.max(0, cents - discount);
           returnMenuItem.price_whole = Math.floor(final / 100);
           returnMenuItem.price_hundredths = final % 100;
         }
@@ -263,13 +301,23 @@ export const calculateLocationTickets = ({
       } else {
         discount = promot.discount_whole * 100 + promot.discount_hundredths;
       }
+      // An itemless reward must never take the ticket below zero. Without this
+      // floor the subtotal stays negative whenever tax/tip are zero, which then
+      // drives the earned-points math and the persisted ticket price negative.
+      // See omni/docs/.planz/loyalty-points-promotions-review.md item 2.
+      discount = Math.min(discount, Math.max(0, total_cents));
       total_cents -= discount;
       itemlessDiscounts.push(discount);
     }
 
     for (const promo of ticket.applied_promotions) {
       if (promo.type === "REWARD") {
-        ticket.redeemed_points += promo.points_required;
+        // A reward COSTS points, so its contribution can never be negative.
+        // The server normalises points_required on the way in, but a legacy or
+        // hand-edited row can still hold a negative value — without this clamp
+        // it would push redeemed_points below zero and GRANT points.
+        // See omni/docs/.planz/loyalty-points-promotions-review.md item 12.
+        ticket.redeemed_points += Math.max(0, promo.points_required ?? 0);
       }
     }
 
@@ -278,8 +326,19 @@ export const calculateLocationTickets = ({
       ticket.guests_points - ticket.redeemed_points + ticket.total_points;
     ticket.total_cents = total_cents;
 
-    const format = (c: number) =>
-      `${Math.floor(c / 100)}.${("0" + (c % 100)).slice(-2)}`;
+    // Sign-safe money formatting.
+    //
+    // Both engines used `c % 100` for the cents part, which keeps the sign of a
+    // negative value: -5 became `-1.-5` in JS and `0.0-5` in Go. Tip and tax are
+    // derived from the (clamped, non-negative) subtotal, so this only surfaces
+    // with a negative location-group percentage or a legacy row — but the string
+    // is sent to clients and printed, so it must be well-formed either way.
+    // See omni/docs/.planz/loyalty-points-promotions-review.md item 19.
+    const format = (c: number) => {
+      const sign = c < 0 ? '-' : ''
+      const abs = Math.abs(c)
+      return `${sign}${Math.floor(abs / 100)}.${('0' + (abs % 100)).slice(-2)}`
+    };
     ticket.total = format(total_cents);
 
     const tipCents =
@@ -321,7 +380,8 @@ export const calculateLocationTickets = ({
       ticket.redeemed_points = 0;
       for (const promo of ticket.applied_promotions) {
         if (promo.type === "REWARD") {
-          ticket.redeemed_points += promo.points_required;
+          // Same clamp as the primary pass — a reward cannot grant points.
+          ticket.redeemed_points += Math.max(0, promo.points_required ?? 0);
         }
       }
       // Recalculate
@@ -384,8 +444,14 @@ export const calculateLocationTickets = ({
       }
 
       if (promotion.type === "REWARD" && promotion.itemless) {
-        const discount =
-          promot.discount_whole * 100 + promot.discount_hundredths;
+        // Eligibility must read the same representation the discount math
+        // uses: percentage rewards store their value in `discount_percent`,
+        // leaving `discount_whole/hundredths` at 0 — a fixed-only guard would
+        // pass 0 <= grand_total for every ticket, offering a 100%-off reward
+        // on a $0.01 ticket. See omni/docs/.planz/loyalty-points-promotions-review.md item 1.
+        const discount = promot.promotion_is_percentage
+          ? Math.floor((ticket.grand_total_cents * promot.discount_percent) / 100)
+          : promot.discount_whole * 100 + promot.discount_hundredths;
         if (
           discount <= ticket.grand_total_cents &&
           ticket.guests_points - ticket.redeemed_points >=
@@ -398,7 +464,11 @@ export const calculateLocationTickets = ({
         }
       }
 
-      if (eligable && promotion.active) {
+      if (
+        eligable &&
+        promotion.active &&
+        isPromotionScheduled(promotion, scheduleNow)
+      ) {
         ticket.eligable_promotions.push(promot);
       } else {
         ticket.ineligable_promotions.push(promot);
@@ -427,6 +497,10 @@ export function calculateLocationTicketsMemoized(
     input.comboComboMenuItems,
     input.tip_percentage,
     input.tax_percentage,
+    // Scheduling reads the clock: a stale entry would keep offering yesterday's
+    // day-scheduled promotion. Keyed to the minute — the finest resolution the
+    // schedule has.
+    scheduleNowKey(input.now),
   ]);
   const itemsByTicket = new Map<string, TicketMenuItemDB[]>();
   for (const row of input.ticket_menu_items) {

@@ -137,6 +137,9 @@ const makePromo = (
   discount_whole: 0,
   discount_hundredths: 0,
   location_group_uuid: uSeq(1),
+  // DB default (`all_week` DEFAULT 1) and what a promotion created without
+  // touching the day toggles stores. A schedule test overrides this to false.
+  all_week: true,
   ...overrides,
 })
 
@@ -168,6 +171,7 @@ const run = (overrides: {
   comboComboMenuItems?: ComboComboMenuItemDB[]
   tip_percentage?: number
   tax_percentage?: number
+  now?: Date
 }) =>
   calculateLocationTickets({
     tickets: overrides.tickets ?? [],
@@ -182,6 +186,7 @@ const run = (overrides: {
     comboComboMenuItems: overrides.comboComboMenuItems ?? [],
     tip_percentage: overrides.tip_percentage ?? 0,
     tax_percentage: overrides.tax_percentage ?? 0,
+    now: overrides.now,
   })
 
 // ---------- EMPTY / EDGE ----------
@@ -569,6 +574,191 @@ describe('promotions on items', () => {
     expect(ts[0]!.total_cents).toBe(1000)
   })
 
+  // ---------- ONE ITEM-LEVEL PROMOTION PER ITEM (doc item 8) ----------
+  //
+  // The display loop used to price EVERY ticket_promotions row for an item, so
+  // two surviving rows subtracted both discounts from the same line and the
+  // ticket landed below the item's own price. Only the first is priced.
+
+  describe('one item-level promotion per item', () => {
+    it('two rows on one item price only the first', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 5, 0)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+        ],
+        promotions: [
+          makePromo(60, { discount_whole: 1 }),
+          makePromo(61, { discount_whole: 1 }),
+        ],
+      })
+      const mi = ts[0]!.menu_items[0]!
+      expect(mi.applied_promotions).toHaveLength(1)
+      expect(ts[0]!.applied_promotions).toHaveLength(1)
+      expect(mi.price_whole).toBe(4)
+      expect(ts[0]!.total_cents).toBe(400)
+    })
+
+    it('two REWARD rows count points once', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 100 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 5, 0)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+        ],
+        promotions: [
+          makePromo(60, { type: 'REWARD', discount_whole: 1, points_required: 7 }),
+          makePromo(61, { type: 'REWARD', discount_whole: 1, points_required: 9 }),
+        ],
+      })
+      expect(ts[0]!.redeemed_points).toBe(7)
+      expect(ts[0]!.end_points).toBe(100 - 7 + Math.floor((400 * 0) / 100))
+    })
+
+    it('the two rows cannot push the ticket below the item price', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+        ],
+        promotions: [
+          makePromo(60, { discount_whole: 3 }),
+          makePromo(61, { discount_whole: 3 }),
+        ],
+      })
+      // One $3 discount would already floor the item at 0; a second must not
+      // take the ticket negative.
+      expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+      expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+      expect(ts[0]!.total_cents).toBeGreaterThanOrEqual(0)
+    })
+
+    it('a second promotion on a different item still applies', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20), makeTMI(11, 1, 21)],
+        menu_items: [makeMenuItem(20, 5, 0), makeMenuItem(21, 5, 0)],
+        ticketPromotions: [
+          makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(51, 1, 61, { ticket_menu_item_uuid: uSeq(10) }),
+          makeTP(52, 1, 62, { ticket_menu_item_uuid: uSeq(11) }),
+        ],
+        promotions: [
+          makePromo(60, { discount_whole: 1 }),
+          makePromo(61, { discount_whole: 1 }),
+          makePromo(62, { discount_whole: 1 }),
+        ],
+      })
+      expect(ts[0]!.menu_items[0]!.applied_promotions).toHaveLength(1)
+      expect(ts[0]!.menu_items[1]!.applied_promotions).toHaveLength(1)
+      expect(ts[0]!.total_cents).toBe(800)
+    })
+  })
+
+  // ---------- ITEM-LEVEL DISCOUNT FLOOR (doc item 7) ----------
+  //
+  // `final = cents - discount` had no clamp, so a fixed discount larger than
+  // the item left price_whole negative and price_hundredths positive
+  // (`-65 % 100 === -65` in JS): a $1.15 discount on a $0.50 item produced
+  // `price_whole = -1, price_hundredths = 55`, i.e. a line total of -$0.45 that
+  // pulled the whole ticket below zero.
+
+  describe('item-level discount floor', () => {
+    it('a fixed discount larger than the item floors the item at 0.00', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [makePromo(60, { discount_whole: 1, discount_hundredths: 15 })],
+      })
+      const mi = ts[0]!.menu_items[0]!
+      expect(mi.price_whole).toBe(0)
+      expect(mi.price_hundredths).toBe(0)
+      expect(mi.price_whole * 100 + mi.price_hundredths).toBeGreaterThanOrEqual(0)
+      // The original price survives for the strike-through.
+      expect(mi.original_price_whole).toBe(0)
+      expect(mi.original_price_hundredths).toBe(50)
+      expect(ts[0]!.total_cents).toBe(0)
+    })
+
+    it('the item line total is never negative, however large the discount', () => {
+      for (const whole of [1, 5, 100]) {
+        const ts = run({
+          tickets: [makeTicket(1)],
+          ticket_menu_items: [makeTMI(10, 1, 20)],
+          menu_items: [makeMenuItem(20, 0, 50)],
+          ticketPromotions: [
+            makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) }),
+          ],
+          promotions: [makePromo(60, { discount_whole: whole })],
+        })
+        const cents =
+          ts[0]!.menu_items[0]!.price_whole * 100 +
+          ts[0]!.menu_items[0]!.price_hundredths
+        expect(cents).toBeGreaterThanOrEqual(0)
+        expect(ts[0]!.total_cents).toBeGreaterThanOrEqual(0)
+      }
+    })
+
+    it('a discount exactly equal to the item price leaves 0, not negative', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [makePromo(60, { discount_hundredths: 50 })],
+      })
+      expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+      expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+    })
+
+    it('a percentage reward over 100% cannot take the item negative', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 100 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 0, 50)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [
+          makePromo(60, {
+            type: 'REWARD',
+            promotion_is_percentage: true,
+            discount_percent: 200,
+            points_required: 10,
+          }),
+        ],
+      })
+      expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+      expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+      expect(ts[0]!.total_cents).toBe(0)
+      // The reward still applies — only its discount is capped.
+      expect(ts[0]!.applied_promotions).toHaveLength(1)
+    })
+
+    it('the floored item does not drag the ticket total negative', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [
+          makeTMI(10, 1, 20),
+          makeTMI(11, 1, 21),
+        ],
+        menu_items: [makeMenuItem(20, 0, 50), makeMenuItem(21, 3, 0)],
+        ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
+        promotions: [makePromo(60, { discount_whole: 2 })],
+      })
+      expect(ts[0]!.grand_total_cents).toBe(300)
+      expect(ts[0]!.total_cents).toBe(300)
+    })
+  })
+
   it('loyalty type promo on item does NOT apply discount', () => {
     const ts = run({
       tickets: [makeTicket(1)],
@@ -816,6 +1006,136 @@ describe('points', () => {
     expect(ts[0]!.guests_points).toBe(0)
     expect(ts[0]!.end_points).toBe(ts[0]!.total_points)
   })
+
+  // Item 9 of omni/docs/.planz/loyalty-points-promotions-review.md.
+  describe('active loyalty with a zero multiplier', () => {
+    it('earns at the plain per-dollar rate instead of nothing', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 100 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 10, 0)],
+        promotions: [makePromo(60, { type: 'LOYALTY', points_multiplier: 0 })],
+      })
+      expect(ts[0]!.total_points).toBe(Math.floor((1000 * 1) / 100))
+      expect(ts[0]!.end_points).toBe(100 + Math.floor((1000 * 1) / 100))
+    })
+
+    it('a real multiplier still wins over the zero-config default', () => {
+      const ts = run({
+        tickets: [makeTicket(1)],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 10, 0)],
+        promotions: [
+          makePromo(60, { type: 'LOYALTY', points_multiplier: 0 }),
+          makePromo(61, { type: 'LOYALTY', points_multiplier: 4 }),
+        ],
+      })
+      expect(ts[0]!.total_points).toBe(Math.floor((1000 * 4) / 100))
+    })
+
+    it('an INACTIVE zero-multiplier program earns nothing (no active loyalty)', () => {
+      const ts = run({
+        tickets: [makeTicket(1, { points: 50 })],
+        ticket_menu_items: [makeTMI(10, 1, 20)],
+        menu_items: [makeMenuItem(20, 10, 0)],
+        promotions: [makePromo(60, { type: 'LOYALTY', active: false, points_multiplier: 0 })],
+      })
+      expect(ts[0]!.total_points).toBe(0)
+      expect(ts[0]!.end_points).toBe(50)
+    })
+
+    // Item 12 of omni/docs/.planz/loyalty-points-promotions-review.md.
+    describe('negative points_required', () => {
+        it('a reward with a negative cost never grants points', () => {
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 10, 0)],
+            ticketPromotions: [makeTP(50, 1, 60)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -100,
+              }),
+            ],
+          })
+          // redeemed_points stays at or above zero, so end_points cannot exceed the
+          // guest's real balance.
+          expect(ts[0]!.redeemed_points).toBe(0)
+          expect(ts[0]!.end_points).toBeLessThanOrEqual(ts[0]!.guests_points)
+          expect(ts[0]!.end_points).toBe(
+            ts[0]!.guests_points - 0 + Math.floor((1000 * 0) / 100),
+          )
+        })
+
+        it('the negative reward is still applied for its discount', () => {
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 10, 0)],
+            ticketPromotions: [makeTP(50, 1, 60)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -100,
+                discount_whole: 2,
+              }),
+            ],
+          })
+          expect(ts[0]!.applied_promotions).toHaveLength(1)
+          expect(ts[0]!.total_cents).toBe(800)
+          expect(ts[0]!.redeemed_points).toBe(0)
+        })
+
+        it('a positive cost still subtracts normally', () => {
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 10, 0)],
+            ticketPromotions: [makeTP(50, 1, 60)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: 30,
+                discount_whole: 2,
+              }),
+            ],
+          })
+          expect(ts[0]!.redeemed_points).toBe(30)
+          expect(ts[0]!.end_points).toBe(50 - 30 + 0)
+        })
+
+        it('the negative-clamped recovery pass agrees with the primary pass', () => {
+          // An oversized itemless discount floors the total at 0, which removes
+          // rewards in the recovery block; that recomputation must clamp too.
+          const ts = run({
+            tickets: [makeTicket(1, { points: 50 })],
+            ticket_menu_items: [makeTMI(10, 1, 20)],
+            menu_items: [makeMenuItem(20, 3, 0)],
+            ticketPromotions: [makeTP(50, 1, 60), makeTP(51, 1, 61)],
+            promotions: [
+              makePromo(60, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -10,
+                discount_whole: 10,
+              }),
+              makePromo(61, {
+                type: 'REWARD',
+                itemless: true,
+                points_required: -10,
+                discount_whole: 10,
+              }),
+            ],
+          })
+          expect(ts[0]!.redeemed_points).toBeGreaterThanOrEqual(0)
+          expect(ts[0]!.end_points).toBeLessThanOrEqual(ts[0]!.guests_points)
+        })
+      })
+    })
 })
 
 // ---------- TIP / TAX ----------
@@ -988,6 +1308,68 @@ describe('single-digit cents formatting', () => {
   })
 })
 
+// ---------- SIGN-SAFE MONEY FORMATTING (doc item 19) ----------
+//
+// The tip/tax/grand strings were built with `("0" + (c % 100)).slice(-2)`, and
+// JS `%` keeps the dividend's sign, so a negative amount produced "-1.-5". Tip
+// and tax derive from the clamped non-negative subtotal, so this needs a
+// negative location-group percentage (or a legacy row) to surface -- but the
+// string reaches clients and receipts.
+
+describe('money formatting is sign-safe', () => {
+  const fmtOf = (over: { tip_percentage?: number; tax_percentage?: number }) => {
+    const ts = run({
+      tickets: [makeTicket(1, { fulfillment_uuid: EATIN })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 0, 99)],
+      ...over,
+    })
+    return {
+      total: ts[0]!.total,
+      tip: ts[0]!.tip_total,
+      tax: ts[0]!.tax_total,
+      grand: ts[0]!.grand_total,
+    }
+  }
+
+  it('non-negative amounts are unchanged', () => {
+    const f = fmtOf({ tip_percentage: 0, tax_percentage: 0 })
+    expect(f.total).toBe('0.99')
+    expect(f.tip).toBe('0.00')
+    expect(f.tax).toBe('0.00')
+    expect(f.grand).toBe('0.99')
+  })
+
+  it('single-digit cents keep their leading zero', () => {
+    const f = fmtOf({ tip_percentage: 10, tax_percentage: 0 })
+    // 10% of 99c = 9c -> "0.09", not "0.9".
+    expect(f.tip).toBe('0.09')
+  })
+
+  it('a negative tip formats as a well-formed negative amount', () => {
+    // floor(-20% of 99c) = -20c -> "-0.20" (was "-1.-20").
+    const f = fmtOf({ tip_percentage: -20, tax_percentage: 0 })
+    expect(f.tip).toBe('-0.20')
+  })
+
+  it('a negative tax formats as a well-formed negative amount', () => {
+    const f = fmtOf({ tip_percentage: 0, tax_percentage: -20 })
+    expect(f.tax).toBe('-0.20')
+  })
+
+  it('a negative grand total formats as a well-formed negative amount', () => {
+    // -20% tax on 99c -> tax -19c, grand 80c; make both negative instead.
+    const f = fmtOf({ tip_percentage: -500, tax_percentage: -500 })
+    for (const v of [f.total, f.tip, f.tax, f.grand]) {
+      const body = v.startsWith('-') ? v.slice(1) : v
+      const [whole, frac] = body.split('.')
+      expect(frac).toHaveLength(2)
+      expect(/^\d+$/.test(whole)).toBe(true)
+      expect(/^\d+$/.test(frac!)).toBe(true)
+    }
+  })
+})
+
 // ---------- TABLE UUID NOT IN MAP ----------
 
 describe('table edge cases', () => {
@@ -1122,6 +1504,93 @@ describe('negative grand total recovery', () => {
   })
 })
 
+// ---------- ITEMLESS DISCOUNT FLOOR (doc item 2) ----------
+//
+// An itemless reward larger than the ticket used to subtract the whole amount,
+// driving `total_cents` negative whenever tax/tip were zero. The negative
+// subtotal then (a) fed the earned-points math, and (b) was written to the
+// ticket row's price, while the recovery block only removed the reward from
+// the display object — the persisted ticket_promotion row stayed and every
+// recalc re-applied it. The discount is now floored at the subtotal.
+
+describe('itemless discount floor', () => {
+  it('a reward larger than the ticket floors the subtotal at 0 and keeps the reward', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 100 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5, points_required: 10 })],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    // The reward is applied for real now, not removed from the display.
+    expect(ts[0]!.applied_promotions).toHaveLength(1)
+    expect(ts[0]!.redeemed_points).toBe(10)
+  })
+
+  it('a fixed reward exactly equal to the subtotal leaves 0, not negative', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 5, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5 })],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    expect(ts[0]!.applied_promotions).toHaveLength(1)
+  })
+
+  it('a percentage reward over 100% cannot take the subtotal negative', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [
+        makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 200 }),
+      ],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    expect(ts[0]!.applied_promotions).toHaveLength(1)
+  })
+
+  it('the negative subtotal no longer feeds the earned-points math', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 100 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [
+        makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5, points_required: 10 }),
+        makePromo(61, { type: 'LOYALTY', points_multiplier: 10 }),
+      ],
+    })
+    // Subtotal is 0, so nothing is earned on it; only the redemption is spent.
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.total_points).toBe(0)
+    expect(ts[0]!.end_points).toBe(90)
+  })
+
+  it('two oversized rewards floor at 0 once, not cumulatively negative', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      ticketPromotions: [makeTP(50, 1, 60), makeTP(51, 1, 61)],
+      promotions: [
+        makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5 }),
+        makePromo(61, { type: 'REWARD', itemless: true, discount_whole: 5 }),
+      ],
+    })
+    expect(ts[0]!.total_cents).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBe(0)
+    expect(ts[0]!.applied_promotions).toHaveLength(2)
+  })
+})
+
 // ---------- ITEM DESCRIPTION ----------
 
 describe('item description', () => {
@@ -1137,8 +1606,13 @@ describe('item description', () => {
 
 // ---------- NEGATIVE GRAND TOTAL, NO ITEMLESS ----------
 
+// Item 7 of omni/docs/.planz/loyalty-points-promotions-review.md: an
+// item-level discount larger than the item used to be the one way to push a
+// ticket's grand total below zero. The item line is now floored at 0, so that
+// class of negative ticket cannot be produced from the pricing path.
+
 describe('negative grand total no itemless recovery', () => {
-  it('stays negative when no itemless promos exist', () => {
+  it('an oversized item-level discount floors the item at 0 and keeps the ticket at 0', () => {
     const ts = run({
       tickets: [makeTicket(1)],
       ticket_menu_items: [makeTMI(10, 1, 20)],
@@ -1146,10 +1620,12 @@ describe('negative grand total no itemless recovery', () => {
       ticketPromotions: [makeTP(50, 1, 60, { ticket_menu_item_uuid: uSeq(10) })],
       promotions: [makePromo(60, { discount_whole: 100 })],
     })
-    expect(ts[0]!.grand_total_cents).toBeLessThan(0)
+    expect(ts[0]!.menu_items[0]!.price_whole).toBe(0)
+    expect(ts[0]!.menu_items[0]!.price_hundredths).toBe(0)
+    expect(ts[0]!.grand_total_cents).toBeGreaterThanOrEqual(0)
   })
 
-  it('all itemless removed still negative', () => {
+  it('a non-itemless item discount floors the item, then the itemless recovery runs', () => {
     const ts = run({
       tickets: [makeTicket(1)],
       ticket_menu_items: [makeTMI(10, 1, 20)],
@@ -1163,19 +1639,65 @@ describe('negative grand total no itemless recovery', () => {
         makePromo(61, { type: 'REWARD', itemless: true, discount_whole: 1000 }),
       ],
     })
-    expect(ts[0]!.grand_total_cents).toBeLessThan(0)
+    // The item discount is capped at $5 (the item price), so the subtotal is 0
+    // and the oversized itemless reward is still applied for 0.
+    expect(ts[0]!.grand_total_cents).toBeGreaterThanOrEqual(0)
   })
 })
 
 // ---------- ITEMLESS ELIGIBILITY EDGES ----------
 
 describe('itemless eligibility edges', () => {
-  it('percentage itemless reward eligible (discount_whole=0 <= grand_total)', () => {
+  // Item 1 of omni/docs/.planz/loyalty-points-promotions-review.md: a
+  // percentage reward stores its value in `discount_percent`, so an
+  // eligibility guard that reads only `discount_whole/hundredths` (both 0)
+  // offers it on any ticket. 20% of $10 is $2, which fits, so this stays
+  // eligible.
+  it('percentage itemless reward eligible when its percent fits the ticket', () => {
     const ts = run({
       tickets: [makeTicket(1, { points: 50 })],
       ticket_menu_items: [makeTMI(10, 1, 20)],
       menu_items: [makeMenuItem(20, 10, 0)],
       promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 20, points_required: 10 })],
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  // Item 1 regression: the fixed-only guard read `discount_whole/hundredths`
+  // (0 for a percentage reward) and passed 0 <= grand_total for ANY ticket, so
+  // a reward whose percent exceeds the ticket was offered. 150% of $10 is $15,
+  // which does not fit — ineligible.
+  it('percentage itemless reward ineligible when its percent exceeds the ticket', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 150, points_required: 10 })],
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+    expect(ts[0]!.ineligable_promotions).toHaveLength(1)
+  })
+
+  // 57% of $3.00 is $1.71, which fits the ticket — eligible.
+  it('percentage itemless reward eligible on a mid-size ticket', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 3, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 57, points_required: 10 })],
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  // 57% of $1.00 is $0.57, which fits the ticket — eligible. This is the
+  // doc's own "confirm" scenario (57% reward, cheap item) and it must keep
+  // being offered; the fix only withdraws rewards that cannot fit.
+  it('percentage itemless reward eligible when the percent fits a $1 ticket', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 1, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, promotion_is_percentage: true, discount_percent: 57, points_required: 10 })],
     })
     expect(ts[0]!.eligable_promotions).toHaveLength(1)
   })
@@ -1188,6 +1710,168 @@ describe('itemless eligibility edges', () => {
       promotions: [makePromo(60, { type: 'REWARD', itemless: true, discount_whole: 5, points_required: 50 })],
     })
     expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+})
+
+// ---------- DAY-OF-WEEK SCHEDULE (doc item 5) ----------
+//
+// `all_week` / `mon`..`sun` were persisted and edited in the admin form but no
+// eligibility path read them, so a "Monday only" promotion was offered on
+// Wednesday. The rule mirrors the server's SQL filter
+// (`promotionModel.GetByLocationGroupAndSchedule`):
+//   offerable <=> all_week OR <todays flag>
+// The `*_start_time`/`*_end_time` pairs are deliberately not consulted — no UI
+// edits them and every stored value is 0, so a 0..0 window would disable every
+// day-scheduled promotion.
+
+// 2026-01-05 is a Monday (getDay() === 1); 2026-01-07 is a Wednesday (3).
+const MONDAY = new Date(2026, 0, 5, 12, 0, 0)
+const WEDNESDAY = new Date(2026, 0, 7, 12, 0, 0)
+
+describe('day-of-week schedule', () => {
+  const scheduledPromo = (seq: number, overrides: Partial<PromotionDB>) =>
+    makePromo(seq, {
+      type: 'REWARD',
+      itemless: true,
+      points_required: 10,
+      all_week: false,
+      ...overrides,
+    })
+
+  it('a Monday-only promotion is offered on Monday', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { mon: true })],
+      now: MONDAY,
+    })
+    expect(ts[0]!.eligable_promotions.map((p) => p.uuid)).toEqual([uSeq(60)])
+  })
+
+  it('a Monday-only promotion is NOT offered on Wednesday', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { mon: true })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+    expect(ts[0]!.ineligable_promotions.map((p) => p.uuid)).toEqual([uSeq(60)])
+  })
+
+  it('all_week ignores the day flags entirely', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { all_week: true, mon: false })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  it('a promotion with no day flag set is not offered on any day', () => {
+    // `all_week: false` plus no day flag — the admin form's "no day selected".
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [scheduledPromo(60, { mon: false })],
+      now: MONDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+
+  it('a promotion carrying no schedule fields at all stays unrestricted', () => {
+    // Partial row / older caller: no schedule info means "no restriction known",
+    // matching the stored default (all_week DEFAULT 1) — never silently drop it.
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [makePromo(60, { type: 'REWARD', itemless: true, points_required: 10, all_week: undefined })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(1)
+  })
+
+  it('the schedule gates a bogo promotion too', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      bogo_menu_items: [makeBogo(80, 60, 20)],
+      promotions: [
+        makePromo(60, {
+          type: 'PROMOTION',
+          bogo_buy: uSeq(60),
+          all_week: false,
+          mon: true,
+        }),
+      ],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+
+  it('the schedule gates an already-applied promotion off the eligible list', () => {
+    // A reward applied on Monday must not be re-offered on Wednesday.
+    const ts = run({
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      ticketPromotions: [makeTP(50, 1, 60)],
+      promotions: [scheduledPromo(60, { mon: true })],
+      now: WEDNESDAY,
+    })
+    expect(ts[0]!.eligable_promotions).toHaveLength(0)
+  })
+
+  it('a loyalty multiplier applies on a day the loyalty promo is scheduled for', () => {
+    const ts = run({
+      tickets: [makeTicket(1)],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      promotions: [
+        makePromo(60, {
+          type: 'LOYALTY',
+          points_multiplier: 3,
+          all_week: false,
+          mon: true,
+        }),
+      ],
+      now: MONDAY,
+    })
+    expect(ts[0]!.total_points).toBe(Math.floor((1000 * 3) / 100))
+  })
+
+  it('memoized: a day change re-evaluates the schedule', () => {
+    const input = {
+      tickets: [makeTicket(1, { points: 50 })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+      menu_items: [makeMenuItem(20, 10, 0)],
+      bogo_menu_items: [],
+      ticketPromotions: [],
+      promotions: [scheduledPromo(60, { mon: true })],
+      tables: [],
+      modifiers: [],
+      ticketMenuItemsModifier: [],
+      comboComboMenuItems: [],
+      tip_percentage: 0,
+      tax_percentage: 0,
+      now: MONDAY,
+    }
+    const cache = new Map()
+    const monday = calculateLocationTicketsMemoized(input, cache)
+    expect(monday[0]!.eligable_promotions).toHaveLength(1)
+
+    const wednesday = calculateLocationTicketsMemoized(
+      { ...input, now: WEDNESDAY },
+      cache,
+    )
+    expect(wednesday[0]!.eligable_promotions).toHaveLength(0)
   })
 })
 
@@ -1381,5 +2065,29 @@ describe('calculateCombos internal edges', () => {
     expect(ts[0]!.combos[0]!.combo_menu_items[0]!.menu_item_uuid).toBe(uSeq(21))
     expect(ts[0]!.combos[0]!.combo_menu_items[0]!.name).toBe('Item')
     expect(ts[0]!.menu_items).toHaveLength(0)
+  })
+})
+
+// Item 14 of omni/docs/.planz/loyalty-points-promotions-review.md.
+//
+// A guest row that is missing (or a ticket with no guest) reads as 0 points on
+// every engine. That is the truthful display value, and it must stay explicit:
+// the eligibility DECISION now reads the authoritative balance server-side, so
+// this pin guards the display half from being "fixed" into something invented.
+describe('missing guest points read as 0', () => {
+  it('a null/undefined balance coalesces to 0, never NaN or undefined', () => {
+    const ts = run({
+      tickets: [makeTicket(1, { points: undefined as unknown as number })],
+      ticket_menu_items: [makeTMI(10, 1, 20)],
+    })
+    expect(ts[0]!.guests_points).toBe(0)
+    expect(Number.isFinite(ts[0]!.guests_points)).toBe(true)
+  })
+
+  it('an explicit 0 is distinct from absent only in the DB, not here', () => {
+    const zero = run({ tickets: [makeTicket(1, { points: 0 })] })
+    const held = run({ tickets: [makeTicket(1, { points: 500 })] })
+    expect(zero[0]!.guests_points).toBe(0)
+    expect(held[0]!.guests_points).toBe(500)
   })
 })

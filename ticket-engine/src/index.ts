@@ -7,6 +7,11 @@ export type {
   CalculateLocationTicketsInput,
   LocationTicketMemo,
 } from "./calculateLocationTickets.js";
+export {
+  isPromotionScheduled,
+  type DayIndex,
+  type ScheduledPromotion,
+} from "./promotionSchedule.js";
 export { sanitizePayload } from "./sanitizePayload.js";
 export {
   SCHEMA_UUID,

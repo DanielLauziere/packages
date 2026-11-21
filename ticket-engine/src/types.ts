@@ -136,6 +136,31 @@ export type PromotionDB = {
   discount_whole: number;
   discount_hundredths: number;
   location_group_uuid: string;
+  /** Schedule. `all_week` true short-circuits the day flags. Optional so a
+   *  caller that does not carry them (or a stale local copy) does not type-error;
+   *  a missing schedule means "no day restriction known". */
+  all_week?: boolean | null;
+  mon?: boolean | null;
+  tue?: boolean | null;
+  wed?: boolean | null;
+  thu?: boolean | null;
+  fri?: boolean | null;
+  sat?: boolean | null;
+  sun?: boolean | null;
+  monday_start_time?: number | null;
+  monday_end_time?: number | null;
+  tuesday_start_time?: number | null;
+  tuesday_end_time?: number | null;
+  wednesday_start_time?: number | null;
+  wednesday_end_time?: number | null;
+  thursday_start_time?: number | null;
+  thursday_end_time?: number | null;
+  friday_start_time?: number | null;
+  friday_end_time?: number | null;
+  saturday_start_time?: number | null;
+  saturday_end_time?: number | null;
+  sunday_start_time?: number | null;
+  sunday_end_time?: number | null;
 };
 
 export type TicketPromotionDB = {
@@ -215,6 +240,28 @@ export type ReturnPromotion = {
   discount_whole: number;
   discount_hundredths: number;
   location_group_uuid: string;
+  all_week?: boolean | null;
+  mon?: boolean | null;
+  tue?: boolean | null;
+  wed?: boolean | null;
+  thu?: boolean | null;
+  fri?: boolean | null;
+  sat?: boolean | null;
+  sun?: boolean | null;
+  monday_start_time?: number | null;
+  monday_end_time?: number | null;
+  tuesday_start_time?: number | null;
+  tuesday_end_time?: number | null;
+  wednesday_start_time?: number | null;
+  wednesday_end_time?: number | null;
+  thursday_start_time?: number | null;
+  thursday_end_time?: number | null;
+  friday_start_time?: number | null;
+  friday_end_time?: number | null;
+  saturday_start_time?: number | null;
+  saturday_end_time?: number | null;
+  sunday_start_time?: number | null;
+  sunday_end_time?: number | null;
 };
 
 export type ReturnMenuItem = {

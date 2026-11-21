@@ -166,7 +166,18 @@ export interface MenuItemPriceInput {
  *  promo segment, then the sale price. Deliberately excludes modifiers and
  *  the item note — receipts render those on their own rows. */
 export function getMenuItemPrice(mi: MenuItemPriceInput): string {
-  const finalPrice = `$${mi.price_whole}.${toCents(mi.price_hundredths)}`;
+  // `price_whole`/`price_hundredths` are a whole/remainder pair, so a negative
+  // remainder is not a valid amount. Callers that build the pair themselves
+  // (rather than through calculateLocationTickets) can still hand one in.
+  const finalCents = Math.max(
+    0,
+    (mi.price_whole ?? 0) * 100 + (mi.price_hundredths ?? 0),
+  );
+  const finalPrice = `$${Math.floor(finalCents / 100)}.${toCents(finalCents % 100)}`;
+  const originalCents = Math.max(
+    0,
+    (mi.original_price_whole ?? 0) * 100 + (mi.original_price_hundredths ?? 0),
+  );
   const originalWhole = mi.original_price_whole ?? 0;
   const originalHundredths = mi.original_price_hundredths ?? 0;
   const hasOriginal = originalWhole !== 0 || originalHundredths !== 0;
@@ -179,7 +190,7 @@ export function getMenuItemPrice(mi: MenuItemPriceInput): string {
   const showOriginal = hasOriginal && (Boolean(promo) || differsFromFinal);
 
   let price = showOriginal
-    ? `$${originalWhole}.${toCents(originalHundredths)}`
+    ? `$${Math.floor(originalCents / 100)}.${toCents(originalCents % 100)}`
     : '';
   if (promo) {
     const discount = promo.promotion_is_percentage
